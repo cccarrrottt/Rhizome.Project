@@ -1,0 +1,2360 @@
+  /* Emoji come from Noto Color Emoji, everywhere.
+     Windows ships no glyphs at all for flag emoji — the regional-indicator
+     pairs fall back to two boxed letters or to nothing — and its emoji
+     coverage differs from every other platform besides. Naming the font
+     last in every stack means the text faces still win for text, and any
+     emoji in that text is drawn by Noto on every machine. */
+  :root{
+    --emoji: 'Noto Color Emoji', 'Apple Color Emoji', 'Segoe UI Emoji', sans-serif;
+  }
+
+  /* Autobot Characters — a user-supplied TTF, embedded as a data: URI so
+     the page stays fully self-contained (the artifact host blocks every
+     external font host except Google Fonts, and this face isn't on it). */
+  @font-face{
+    font-family:'Autobot Characters';
+    src:url(data:font/ttf;base64,AAEAAAANAIAAAwBQT1MvMoJkTr8AAAFYAAAATmNtYXC6BMkRAAAC/AAAAZpjdnQgbYRdHQAABQQAAAHaZnBnbafZXpMAAASYAAAAZGdseWa9YWdKAAAHkAAALlBoZWFkXWT5MwAAANwAAAA2aGhlYQi/AoUAAAEUAAAAJGhtdHgtCSXpAAABqAAAAVRsb2NhzvfC2gAABuAAAACubWF4cAErAq0AAAE4AAAAIG5hbWXioo0xAAA14AAAA8Nwb3N0CLgJCAAAOaQAAADOcHJlcPgDARIAAAT8AAAACAABAAAAAQAAv5AqSV8PPPUAAAPoAAAAADPYBR8AAAAAxN2wZf///0sFnAOEAAAAAwACAAAAAAAAAAEAAAMh/zgAAAXc///9HAWcAAEAAAAAAAAAAAAAAAAAAABUAAEAAABWAQEADgAAAAAAAgAIAEAACgAAALQBagAAAAAAAAL9AZAABQABArwCigAAAI8CvAKKAAABxQAyAQMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQWx0cwBAACAAfgMgAMgAAAMhALUAAAMgADIAAAAAAfQAAAH0AAADIADIA+gAwwPoAN0DnQAAAyAAiQPoAM8D6AAuA+gCAAPoAIQEsAD0A+gAYQPoAEAD6ADVA+gAkASwALkF3AB4A+gAkAPoANQD6ADJA50AAAPoAFID6ABIA+gA0APoAIoD6AA0A+gAmgPoALEDhABeA+gA9QUUADsD6ABEA+gAxAPoAHYD6AEqA+gBDwUUAEQD6ADgA+gAsAPoAJwD6AA2A+gATARMADwEsAAsA+gAqAPoAFwETABQA+gANgPoACkDIABCAyAAOgMgAKYDIABuAyAAKgMgAHsDIACOAtAASwMgAMQEEAAvAyAANgMgAJ0DIABeAyAA7gMgANkEEAA2AyAAswPoAOoDIAB9AyAAKwMgAD0DcAAwA8AAIwMgAIYDIABKA3AAQAONAAADlgACAuQAEwMy//8DjQAAAAAAAAAAAAAAAAADAAAAAAAAABwAAQAAAAAAlAADAAEAAAAcAAQAeAAAABYAEAADAAYAIQAqACwALgA5ADwAWwBgAHsAfv//AAAAIAAoACwALgAwADwAPgBcAGEAfP///+P/3f/c/9v/2v/Y/9cAAP/TAAAAAQAAAAAAAAAAAAAAAAAAAAgAAAAOAAAAUQAzAFMAVQBUAFAATwBSAAABBgAAAQAAAAAAAAABAwAAAAIAAAAAAAAAAAAAAAAAAAABAAADBAAAAAAAAAUGBwAIAAkACgsMDQ4PEBESEwAAFAAVFhcYGRobHB0eHyAhIiMkJSYnKCkqKywtLi8wMTJRM1NVVDQ1Njc4OTo7PD0+P0BBQkNERUZHSElKS0xNTlBPUgAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAMAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAQAUFBAMCACx2RSCwAyVFI2FoGCNoYEQtLEUgsAMlRSNhaCNoYEQtLCAguP/AOBKxQAE2OC0sICCwQDgSsAE2uP/AOC0sAbBGdiBHaBgjRmFoIFggsAMlIziwAiUSsAE2ZThZLUABAY24Af+FAAAAAACMAEQAZAB4Aoz/nAIPAYMBhgBmAJYAyADIACYDIACRAJUAlgBZAHECSf+PAHcAnwCiAJMAnQLXAIT/fACgAIQAlAIg/2wAtgJdAIoAjABAAHQAjQCmAK0B3/9cAIgAqABEAIAApAJ8/2AANgCwAgL/UgCcAHwCeP9kAJcApQBTAHoCDv9iALgCpP/AAKACJACwAGAB2P9lAFQAYgDGAtL/VwC8AogAjAC8Aiz/eAC/Av0AqAC4AGwAkALUAIkCzgCQAFcC3ACzAav/UAHKAG4ArgDBAFwAaAB4AjAAKAA4ArT/dAIAAGUCxwJHAJwAcAKU/7AAfAJQAIACo/+AAIcAfQJu/4gAtwHF/0sAtAHcAmwAUACUApAAaAJ0/5gANAClAdkAiAI9AJoCFQCaAOYA5wBOAJ8CQv95AJYCBgBwAH0AlwG9/5MAmQCFAmQAhgBWAHMCQwBtAj4AdAJKAH8ArACPAVb/cwFuAFgApwH6AFMAugHAACAALQCZAir/kACmAG8BmgBRAjkB0gBzAFoCEABjALMB2gCTAGkCGv+XAF0AbACGAGAAZAHy/6ABav9vAGYBfQBjAfAAdgCNAg3/igCjAfb/rQC7ACoBev99AG0AoQC7AAAAAAAyADIAMgAyAGIAhgCqAbgB4gI4An4CmgLaAwwDWAOiA94EHgRmBLQE4gUSBUgFygYoBkoGhAa8BwQHQAd4B6AHwggmCHwIyAkkCVQJggnYChQKZAq0CuQLFgtKC5gLxgv2DCIMTAx2DNoM/A02DWgNuA36DjAOWg58DtwPNA+ED+wQIhBSEKwQ7hE+EZIRxhH2Ei4SehKqEtwTCBN+E9gUlBVEFboXKBcoFygAAAACADIAAALuAyAAAwAHAD1AGwcEkQAGBZEBBQQCAwIHBgIBAAIBEAMAAQEARnYvNxgAPzw/PAEvPP08Lzz9PAAQ/TwQ/TwxMLIIAAUrMxEhEScRIREyArwy/agDIPzgMgK8/UQAAgDI/5wCJAKMAAMABwA5QBgFBAIFCAcEAgYFAgECAwABAAYHBgcBAEZ2LzcYAD88PzwBLzz9PC88/TwAEP0ALi4xMLIIAAUrEzMRIxMzESPIjIzQjIwCjP3sATj97AAAAQDD//8DJwIPAAYAIkAMBgUEAwIBAQAIBQQBAD88PzwAAS4uLi4uLjEwsgcFBSsBMwchESE1AYP2ewEp/ZwCD//+7+cAAAAAAQDd//8DQQIPAAYAIkAMBgUEAwIBAQAIBQQBAD88PzwAAS4uLi4uLjEwsgcDBSsBIxchESE1AoH2e/7XAmQCD//+7+cAAAAABwAAAAADhAMgAAIABQANABAAEwAWACwBakCYAwEAJQsJBSccEgMGBhQOCQEsIiECHh0dHisqAhkYGBkjJAIfICAfLBcCGhsbGhUWAicmJicQDwInKCgnEhMCDQwMDRIRAgcICAcsFwIrKiorIyQCIiEhIhobAhkYGBkfIAIeHR0eIiECHyAgHywXAhkYGBkQDS0iExEMChILBgAFERECLCUUKQ4VFAIQDikIEF0BAXgBKUZ2LzcYAHY/dj88GAEvPP08EN0Q3TEv/RDWAC88/S/9PDwQ/YcuufQ0PusLxA78uQl/wLILxIcuuQvMPusLxA78ufQ0wRULxIcuDsQO/A7Ehy4OxLnJaSFqC/wOxIcuDsQO/A7Ehy4OxA78DsSHLg7EDvwOxIcuDsQO/A7Ehy650ajT3QvEDvwOxIcuuS5Y090LxA78DsSHLg7EDvwOxIcuDsQO/A7Ehy4OxA78DsSHLg7EDvwOxAEREjkREjkQFzwALi4uLgEuLi4xMLItKQUrEwEtAQcFAycDFzcXNwMHJxcTFzcTFTcBHwInBSUHPwIHPwIDCQEDHwIeAYb+pAMeLf6nHlo8S0tLSzyZoqIhHh4epf23D6UPpQFKAUqlD6UPpQ+lSx7+XP5cHkulDAEq/tYw+vowASpmAZBkMjJk/nB4RpYBkMjI/sBQlgEOKBRQFMrKFFAUKBRQFGT+cP5wAZABkGQUUAAAAgCJAAECmwCWAAMABwAvQBQHBQUEEQICAQIDAAEAEwcGAwMCAQA/Fzw/PAEvPP08ABD9PAEuLjEwsggABSs3MxUjJTMHI4mOjgGEjkeNlpWRkQAAAgDP/48DTAJJAA0AGwBQQCQWFQIODw8OCAcCAAEBAAsUHA4CFgcCAQ8CFQgCABIWGRcBAEZ2LzcYAD8/AS/9L/0v/S/9ABD9hy4OxA78DsSHLg7EDvwOxDEwshwABSsXEzQ2MzIWFQMUBiMiJgUTNDYzMhYVAxQGIyIm1GwTDw4UbBMPEBcBVeQTDw4U5BMPEBc0ASgQFRYP/tgQFRcKAnAQFRYP/ZAQFRcAAAIALgAAA6cC1wADAA0AWEAoBQQDAgEADQQFCAcLCgkGAwUaAwALCggNDAYHBgIJCAwLHQIBAQEARnYvNxgAPzw/PAEvPP08ENY8ENY8AC88/Rc8ENY8ENY8AS4uLi4uLjEwsg4ABSs3FSE1ARUhNTMVMxEhFS4CBf53AdSKn/5g2NjYAT+dysoBXcAAAQIA/3wDFAAAAAMAHkAKAwIBAAMAAAIBHwA/PD88AAEuLi4uMTCyBAAFKyEVITUCAAEUhIQAAAACAIT/bANYAiAABgAKAExAHwoJCAcCAwUEAgYAAAYKBwgCIAsFIQsEIAABACMJCCQAPzw/PAAQ/RD9EP0Q1jyHLg7Eudh0MlUL/A7EAC4BLi4uLi4xMLILBgUrATMBIycHIwUVITUBwHABKOiwyHQBAAHUAiD+gOD8hJSUAAAAAAIA9AAEBGcCXQADAAkAM0AUBwUDAgEACAcJBAUCAQADACYGBQEAPzw/PAAQ1jwQ1jwALi4BLi4uLi4uMTCyCgUFKwEVITUBByETIwMBQQF5/nc9AtOgvXACXba2/mrDAcn++gACAGH/XAN6Ad8AAwAPAGFALgMCAQADAAEJCA0MAAcGDgsKKQUEDwwLAwQFDg0HCgkGAwUCCAcPDi4CAS8BAEZ2LzcYAD88PzwBLzz9FzwQ1jwQ1hc8AC88/TwQ1jw/PNY8ENY8AS4uLi4xMLIQAAUrNxUhNRMzNTMVIzUjFSERIWEBKUCMmpqMAbD+UAKmpgEwOdxj8AHdAAMAQP9gA0ACfAADAAcADQBYQCkNCAUEAQAJCAwHBAUKMg4GBTEDAAAMCwkHBgMDAgIKCQ0MNQIBNgEARnYvNxgAPzw/PAEvPP0XPBDWPAA/PP08EP0Q1jwQ1jwBLi4uLi4uMTCyDgAFKzcVITUBFSE1JSERMxEhQAIU/qgBWP74AWyI/gwEpKQBKICAzP5MAjgAAAACANX/UgMtAgIAAwALAENAHAUEAQAJAwABCDcMCgkHAwICCAcLBDkCAToBAEZ2LzcYAD88PzwBLzz9PBDWPAAQ/RDWPAAuAS4uLi4xMLIMAAUrNxUhNQEVIRcRMxEn1QGR/tEBV2E+nwKwsAIA00v+5gGIsAAAAAADAJD/ZAOEAngABQAJAA0AQEAcDQsJCAcGAQwLDQrhCQYIBwADAgIFBAEAPQQDPgA/PD88AS88/TwAPzzWPD881jwBLi4uLi4uLjEwsg4EBSsBMwMRIxEFFSE1AwchNwFYqMSsAQABCFhUATxcAnj+1P4YAejMfHwBjKSkAAAAAAMAuf9iBCsCDgADAAcADQBXQCkMCwMCAQACAQAEQg4IQQ4LCkAGBgUCBwQKCQINCAMAQw0MBwMGRAEARnYvNxgAPxc8PzwBLzz9PC88/TwAEP08EP0Q/RDWPAEuLi4uLi4xMLIOAAUrExUhNQEzESMlMxUhFSG5AlX9q4mJASB+AdT9rgIOv7/+bP7o8UylAAMAeP/ABZwCpAADAAcAGwA8QBkZFw8NBwYFBAMCAQAUEgYFRQMABwRGAgFHAD88PzwALzz9PAAuLgEuLi4uLi4uLi4uLi4xMLIcAAUrNxEhEQERIREBNjMyFhUWFRQGIwYjIiY1JjU0NngCCP7kBDj+iwYCJzwBNigGAic8ATbI/vgBCAHc/twBJP4kATYoBgInPAE2KAYCJzwAAAEAkAAAAyACJAAJADRAFgcGBQQDAQAIBwQDAwUCAQAJAEkGBQEAPzw/PAAQ1jwQ1hc8AS4uLi4uLi4xMLIKAAUrExUzFyMVITUjA5DAXIQB+KioAiSg1LCwAXQAAQDUAAADZAIkAAkANkAYBwYFBAMBAAgHBAMDSgUCASAACQBJBgUBAD88PzwAEP08EP0XPAEuLi4uLi4uMTCyCgYFKwEVIwczFSE1MxMDZMBchP4IqKgCJKDUsLABdAAAAgDJ/2UDKQHYAAMADAA0QBQFBAIBAAoJAwABCQgLCgwETAIBTQA/PD88AS881jwAENY8AC4uAS4uLi4uMTCyDQQFKzcVIScBFRchFxUzESfKAYmA/vZDATeGYMoCnZ0B1pA8cJoBRpAAAAAADQAAAAADhAMhAAMACQAPABUAHwAlACkALAA6AD4AQgBGAEoAACUzFyEBFxUXEScBAwcRNzUFJQMzHwEdATM1FxEnIQcRJTU/ATMDJTMRJwMXPwEPAS8BPwMfAjIWFwcVNwUnFRcFFTc1BScVFwFotDz+1P7yWjx4AyoeeDz+XP62Hngb1bSHS/7USwE70h54Hv4de3tXlpaWS+HhSzRIT1hZUk4QHg6Wlv4+lpYBLJb+PpaWZGQB9BQ8FP6sWgFe/qJaAVQUPBQ8AQR4PJb6+jL+jlpaAXI8jDx4/vw8/pYCAeAoKFB4PDx4CQcEAQEEBwWkKBQoFCgUKBQUKBQoKBQoAAABAFL/VwOKAtIAKABDQB4oIB8ZEhEFBAANUBYjMQAFIEAAKE8ACRAWUQQDAFIAPzw8PwEv1gAQ/RD9PBD9EP0BLi4uLi4uLi4uMTCyKREFKwUqASMhNTQ3NjU0JyYnDgEVIxE2NzYzMhYVFAcGBwYdAT4BMzIXHgEzA4oIU1f+Jk4mERUdBQzMCAgaJengJwVEKA4wCB4SWLQ2qaXBPB06EjVBNBKdLQF4BwgbeoZUTQpqPi1WAQIDHCcAAAEASAAAA4QCiAAFACBACwQAAgEABQBUBAMBAD88PzwAENY8AS4uMTCyBgAFKxMXMxMhAUhEyMABcP70Aoi8/jQCiAAAAQDQ/3gDXAIsAAsARkAgCwoJBgIBAAMCVgAJCDsLCqQFBFUGBAMCCAcBAFcHBlgAPzw/PAEvPP08ABD9PD88/TwQ/TwBLi4uLi4uLjEwsgwJBSsBIRUjETMXIREjNTMBvAGg9Ehg/pzc7AIsvP6UjAGknAACAIr/+wN3Av0ABQAMADlAGAoGAwIBAAoJBwYCAQQDYQhZCwUAWgwLAQA/PD88ABD9PzzWPAAuLi4uAS4uLi4uLjEwsg0ABSsTFSE1IScDMxc3MwEjigHt/t1FhfGQsbv+4K0C/dimMv6f4uL+XwAAAgA0AAADtALUAAcADwBSQCQPDAsFBAEABgUDBwABBANdAgG5AwIHBg4NCgkPCF8LCgEBCUZ2LzcYAD88PzwBLzzWPC881jwAPzz9PBDWPBDWPAEuLi4uLi4uMTCyEAkFKwEVMxUjFSERJQcRITUjETcCgHx8ATT8+HgBbMR4AoiQbJQBkEyk/dDYAVikAAAAAgCa//8DWwLOAAUADABDQBwJCAEMBgsKCAcABwYMCwMCAgUEAQBhBAMBAQRGdi83GAA/PD88AS88/TwvPNY8AD881jwALi4BLi4uMTCyDQQFKxMzBxEjESERITUnIxHbkEGQASABoZOFAs6i/dMCLf3TT0EBnQAAAgCx//4DSwLcAAUACwA6QBgJCAcGBQQDAAEACgkDAgsGYgcIB2QFBAEAPzw/PAAQ/TwvPNY8AC4uAS4uLi4uLi4uMTCyDAAFKxMzFyEVIRM1IREjA7ErSAIn/WYrAfFBSAF/m+YCTpD+XwERAAAAAAEAXv9QAycBqwAHAClADwYCBAMBBQQBAAcAZgIBZwA/PD88AS881jwAENY8AS4uMTCyCAAFKxMRIScjNSEnXgE9XUECKs8Bq/2ls9bSAAAAAQD1//8C4QHKAAUAIkAMBQQDAgEABQBoAgEBAD88PzwAAS4uLi4uLjEwsgYABSsTESE1JxH1AezbAcr+NTZ4AR0AAAADADv//gS1AngABwAYACkAREAeBwYEAQYFAWsqIxJqGwqKFgIOJwIfBwA9BAMBAQFGdi83GAA/PD88AS/9L/0APzz9PBD9AC4uAS4uLi4xMLIqAQUrEwMhFzMBIzcFNjMyHgEVFA4BIyIuATU0NiU2MzIeARUUDgEjIi4BNTQ2qm8BGK31/u63JwHBFhkXJhkVKhkXJhkVATAWGRcmGRUqGRcmGRUCeP5JwwGT5xwNFSoZFyYZFSoZFyYMDRUqGRcmGRUqGRcmAAIARAAEA4ACMAAIABQAaUAyBwYABAMBDg0BCwoAAwIABQQBABEQDhMSDAgHAgoJDw4CDQwUCQgDAG8SEQIDAQEBAEZ2LzcYAD8XPD8XPAEvPP08Lzz9PBDWPBDWPC881jwQ1jwAENY8ENY8ENY8ENY8MTCyFQAFKxMRMzUjNTczNTMVMxcRIzUjFSERJ0TIUGSkmJgwiGgBTGwCMP3UiKxsjGgw/uRk3AHEaAACAMT/dANsArQACQAPAFtAKwsGBQQDcQgHtAkAcAIBxg0MAg8OAQACAgcGAgUECQgCAwILCnIODXMBDkZ2LzcYAD88PzwBLzz9PC88/TwQ/TwvPP08AD88/Tw/PP08AC4uAS4xMLIQDgUrATUzESMRIxEzNSUzBxEjEQLArLx43P5ctLSsAhAo/uD+6AFQwKTQ/ZACcAAAAAQAdv//A14CAAAFAAkADQATAGtAMQUEAQAQDwITDg4TDQoCCwMCAgwLCwwCAQAIBwIJBhMSAhEQBQB0EhENDAkFCAEBBkZ2LzcYAD8XPD88AS88/TwvPP08ABDWPIcuDsQF/A7ELg78DsSHLgTEDvwExAEuLi4uMTCyFAYFKxMVIRczEQEzFSM3MxcjEzMXESMRiwELQjP+a35+zFRjY/l4V3gCAIqoATL+zs/PzwIBov6hAVAAAAABASr//gLsAscACQAyQBQHBgEGBQQDdQcDAgIJCAEAdggHAQA/PD88AS88/TwAEP08AC4uAS4uLjEwsgoIBSsBMwcRMxMzESERAd6Bu5CbHf4+Asf4/pQB9P2nAgMAAAACAQ8AAQNGAkcAAwAHADNAFAMCAQAHBAIGBQUGAgEAAwB3BwYBAD88PzwAENY8hy4OxA78DsQBLi4uLjEwsggHBSsBFSE1BTMDIwEkAiL+qoTkgQJHkJDJ/oMAAAQARP+wBOgClAADAAcACwAPAGVALQMDBgUCBwQEBwcEAgIBAQIKCwIJCAgJDwwODXsLCGIJDQwPDgUEAQMAegoJewA/PD8XPAEvPNY8ABD9PD881jyHLg7EDvwOxIcuDsQO/A7Ehy4OxA78DsQALgEuMTCyEAMFKwEzASMBMwEjJQcjNwUVMzUCGJz+JJQC7JD+MJQCUGx0ZAEcnAKU/WwClP1sQJCQIHBwAAABAOD/eAM0AlAACwBKQCEKCQUBAAkIVQoHBnwDAqQCAQIACAcCCwAFBH0LClgBAEZ2LzcYAD88PzwBLzz9PBD9PAA/PP08EP08AC4uAS4uLjEwsgwABSsTMxUzNzMDIREzFSHgmKxoqMj++PT+iAIgZJT+8P7EjAADALD/gAKYAqMABQARAB0AP0AcAQASRRgMRQYjGw8CFQkFBAIDAgQDfwIBgAECRnYvNxgAPzw/PAEvPP08Lzz9PAA//S/9AS4uMTCyHgIFKwUVIREzEQEyFhUUBiMiJjU0NhMyFhUUBiMiJjU0NgH4/rhwARwmNjYmJjY2JiY2NiYmNjZQMAMj/V0CIDYmJjY2JiY2/uA2JiY2NiYmNgAAAgCc/4gDuAJuAAcAEQBZQCgRAxEICAEJBgUBEA8JCgkxAgHZDwcGAQAODQwLBwQDAwCDDQyEAQtGdi83GAA/PD8XPAEvPNY8LzzWPDwAPzz9PBDWPBDWPAAREjkQPAEuLjEwshILBSsTESETIwcjNQEHIQcVMzU3ITfSAcCHi0rrAdRV/jh0dEkB1IsCbv76AQaJif7WhJSkeFD0AAAAAAIANv9LA7gBxQADAAkAK0ARCQcDAQkEBgUDAwIHAIYIB4cAPzw/ABDWFzwALi4BLi4uLjEwsgoDBSsTFwMjAQMjByET3LOzpgLplLBMAVDZAcUQ/k0Bs/5NtwJqAAAAAAIATAAAA5wB3AADAAkAM0AVCQgHBQQDAQYFBwIBAwCkCQSJCAcBAD88PzwAPzzWPBDWPAEuLi4uLi4uMTCyCgEFKxMHMzclESMHIRFsILwgATTYXAJ0AbiAgCT+2LQB3AAAAAACADwAAAQUAmwAAwAKADVAFggHBQQDAgEGBQQGCgkKBIoJCAIDAQEAPxc8PzwBLzzWABDWPAEuLi4uLi4uMTCyCwEFKxMDIREDFSEHESERyIwBpKQCGIQBRAEQ/vABEAFcfMz+3AJsAAQALP9sBGQCkAADAAcACwAPAFRAJQcFAwIBAA8LCgQCAQxKEA6LEA8MAg4NCwgCCgkDAI0GJHgBB0Z2LzcYAHY/GD88AS88/TwvPP08ABD9EP0ALi4uLi4uAS4uLi4uLjEwshAHBSsTFSE1ARcBJwEzESMlMxEjVAOQ/UyE/vyEApiAgAEQkJACkOTk/sxQ/mBEAXD+3LT/AAAAAAEAqP+YA2ACdAAIADBAEgcGBQQDAgEABAMCAQgAjwaQeAB2Pxg/PAAALi4uLgEuLi4uLi4uLjEwsgkABSsTETMRIREXESeo0AEczMwCdP2QAZT+0NACHMAAAAAAAgBc/1wDXgHZAAMACQA1QBYJCAcGBQQDAgEAAwABB5EKCQSTAgEvAD88PzwAEP0Q1jwBLi4uLi4uLi4uLjEwsgoEBSs3FSE1ARUhFTMRxAEL/o0CJ9sBpaUB2O63AaUAAgBQAAED4gI9AAMABwAwQBQHBgUEAwIBAAMAlAYFtgcElQIBAQA/PD88AD88/TwBLi4uLi4uLi4xMLIIAAUrNxUhNQEVITVQAv7+QgJS6+rqAVLKygAAAAEANv/+A8MCFQAHACxAEgcFBAEDApYABQSMBgEAlwcGAQA/PD88ABD9PBD9PAEuLi4uMTCyCAcFKwEhByEHIQchAS0ClkD+BmwBHEn+RgIVmumUAAEAKf/+A7YCFQAHACpAEAcFBAEDAgAFBAYBAJcHBgEAPzw/PAAQ1jwQ1jwBLi4uLjEwsggBBSsBIRchFyEXIQK//WpAAfps/uRJAboCFZrplAAAAAEAQv95AtUCQgAnAFNAJh0cBQQNnBYg1AAFHSEAJ5sAEAIRJwAZEhEJGQIJFp0EAwCeARFGdi83GAA/PDw/AS/9EN08EN08MRD9ABD9EP08EP0Q/QEuLi4uMTCyKBEFKwUqASMhNTQ3NjU0JyYnDgEVIxE2NzYzMhYVFAYdAT4BMzoBFxYXFjMC1QdCRv6FPx4OEhYECaMGBhUeurN5Cx0RChIJRUZNKoeEmjAXLw4rNicPlQwBLQYGFmJrWLYlRQEBAhITEQAAAQA6AAAC0AIGAAUAIEALBAACAQAFAKAEAwEAPzw/PAAQ1jwBLi4xMLIGAAUrExczEyEDOjagmgEm1gIGlv6QAgYAAAABAKb/kwKwAb0ACwBGQCALCgkGAgEAAwKjAAkIogsKtAUEoQYEAwIIBwEApAcGpQA/PD88AS88/TwAEP08Pzz9PBD9PAEuLi4uLi4uMTCyDAkFKwEhFSMRMxchESM1MwFjAU3DOU3+47C9Ab2X/t1wAVB9AAIAbv/8AsYCZAAFAAwAMEAUCgYDAgEAAgEEA5UIpgsFAKgMCwEAPzw/PAAQ/T881jwBLi4uLi4uMTCyDQAFKxMVITUjJwMzFzczAyNuAYvpN2vBc46W54oCZK2FKP7mtbX+sgACACoAAAL2AkMABwAPAGRALQwLBQQBAA4PAgkICAkNDAoGBQMHAAEEA6oCAcQDAgcGDg0KCQ8IrAsKAQEJRnYvNxgAPzw/PAEvPNY8LzzWPAA/PP08ENY8ENY8ENY8hy7EDvwExAEuLi4uLi4xMLIQCQUrARUzFSMVMxElBxEhNSMRNwIAY2P2/ZRgASOdYAIGc1Z3AUA9g/5ArQETgwAAAgB7//8CrwI+AAUADABPQCIJCAwGBQACAgEBAgsKCAcABwYMCwMCAgUEAQCuBAMBAQRGdi83GAA/PD88AS88/TwvPNY8AD881jyHLsQO/ATEAC4uAS4uMTCyDQQFKxMzBxEjETMRITUnIxGvczRz5wFNdWsCPoH+QgG+/kI/NAFLAAAAAgCO//4CogJKAAUACwA6QBkJCAcGBQQDAAoJAgMCRQQLBq8HCAewBQQBAD88PzwAEP08EP08ENY8AS4uLi4uLi4uMTCyDAAFKxMzFyEVIRM1IREjJ44iOgG4/ewiAY40OgEyfLgB2HT+stoAAQBL/3MChgFWAAcALUASBgIGBbIEAwAFBAEABwC0AgG1AD88PzwBLzzWPAA/PP08AS4uMTCyCAAFKxMRMycjNSEnS/5LNAG8pgFW/h2PrKgAAAAAAQDE//8CTgFuAAUAIkAMBQQDAgEABQC2AgEBAD88PzwAAS4uLi4uLjEwsgYABSsTESE1JzXEAYqwAW7+kStg5AAAAAADAC///gPEAfoABwAXACcAQ0AeBwYEAQYFAgETIhJVGgreFgIOJgIeBwC5BAMBAQFGdi83GAA/PD88AS/9L/0APzz9PD881jwBLi4uLjEwsigBBSsTAzMXMwMjNwU2MzIXFhUUBwYjIicmNTQlNjMyFxYVFAcGIyInJjU0iFngi8Tckh8BZxMTJhQLIRMTJhQKAQQRFCcUCiETEyYUCgH6/qCcAUO5FwshExMmFAshERQnFAshERQnFAshERQnAAACADYAAwLNAcAACAAUAG1ANQcGAAQDAQ4NARAPuwsKtgMCAAUEAQAREA4TEgwIBwIKCQ8OAg0MFAkIAwC8EhECAwEBAQBGdi83GAA/Fzw/FzwBLzz9PC88/TwQ1jwQ1jwvPNY8ENY8AD88/TwQ1jwQ1jwQ1jwxMLIVAAUrExEzNSM1NzM1MxUzFxUjNSMVIREnNqBAUIR5eiZtUwEKVwHA/kNtilZwUyfjULABalMAAAIAnf+QAr0CKgAJAA8AZUAwBgUPCgIMCwsMBAO+CAcJAL0CAYYBAAICDQwCDw4HBgIFBAkIAgMCCwrADg3BAQ5Gdi83GAA/PD88AS88/TwvPP08Lzz9PBD9PAA/PP08Lzz9PIcuxA78BMQALi4xMLIQDgUrATUzFSMVIxEzNSUzBxEjEQIzipdgsP6wkJCJAaYg5uABDZmEp/4NAfMAAAAEAF7//wKyAZoABQAJAA0AEwCHQEEFBAEAAwICDQoKDRAPAhMODhMNCgILAwICDAsLDAIBAAsKBwYEBQPCCAgHAgkGExICERAFAMQSEQ0MCQUIAQEGRnYvNxgAPxc8PzwBLzz9PC88/TwAEP0XPBDWPIcuDsQF/A7ELg78DsSHLgTEDvwExIcuDsQO/A7EAS4uLi4xMLIUBgUrExUzFzM1BTMVIzczFyMTMxcRIxFv1jUo/rxlZaRDT0/HYEZgAZpvhvX1pqamAZuC/ucBDQAAAQDu//4CVgI5AAkAPkAaBwYGBQkAAgIBAQIEA8UHAwICCQgBAMYIBwEAPzw/PAEvPP08ABD9PIcuxA78BMQALi4BLi4xMLIKCAUrATMHETMTMxEhEQF+aJZzfBf+mAI5x/7dAZD+HwGcAAAAAgDZAAECngHSAAMABwA5QBcDAgEABwQCBgUFBgUEAAIBAAMAxwcGAQA/PD88ABDWPBDWPIcuDsQO/A7EAS4uLi4xMLIIBwUrExUhNQUzAyPqAbT+72m2ZwHSc3Og/s8ABAA2/8AD7QIQAAMABwALAA8AbkAyAwACAgEBAgYFAgcEBAcHBAICAQECCgsCCQgICQ8MDg1HCwjICQ0MDw4FBAEDAMoKCUcAPzw/FzwBLzzWPAAQ/Tw/PNY8hy4OxA78DsSHLg7EDvwOxIcuDsQO/A7Ehy4OxA78DsQxMLIQAwUrATMBIwEzASMlByM3FxUzNQGtff6DdwJXc/6NdwHaVl1Q430CEP3wAhD98DNzcxlaWgAAAQCz/5MCkAHaAAsAV0AnCgkBAAMEAgYFBQYJCKEKBwbLAwLZAgECAAgHAgsABQTNCwqlAQBGdi83GAA/PD88AS88/TwQ/TwAPzz9PBD9PIcuDsQO/A7EAC4uAS4uMTCyDAAFKxMzFTM3MwcjFTMVIbN6iVSGoNPD/tMBs1B32v1wAAAAAwDq/5cCcAIaAAUAEQAdAD9AHAEAEs4YDM4GZhsPAhUJBQQCAwIEA9ACAdEBAkZ2LzcYAD88PzwBLzz9PC88/TwAP/0v/QEuLjEwsh4CBSsFFSERMxETMhYVFAYjIiY1NDYXMhYVFAYjIiY1NDYB8P76WeQeKyofHiwrHx4rKh8fKypCJwKD/eQBsysfHyoqHx8r5yseHiwrHx8qAAAAAAIAff+gAvoB8gAHABEAZkAuCQgCEBEREAUEAgIDAwIGBQEQDwkKCdQCAQ8HBgEADg0MCwcEAwMA1w0M2AELRnYvNxgAPzw/FzwBLzzWPC881jw8AC88/TwQ1jwQ1jyHLgXEDvwOxIcuBcQO/AXEMTCyEgsFKxMVITcjByM1BQchBxUzNTchN6gBZmxvO7wBdkT+lF1dOgF2cAHy0tJubu9pd4NgQMMAAAIAK/9vAvoBagADAAkAM0AVBwMBBQQCCAkJCAYFAwMCBwDZCAfaAD88PwAQ1hc8hy4FxA78DsQBLi4uMTCyCgMFKxMXAyMBAyMHIROwj4+FAlR2jT0BDa4Bagz+pAFc/qSTAe8AAAAAAgA9AAAC4wF9AAMACQAzQBUJCAcFBAMBBgUHAgEDALQJBNwIBwEAPzw/PAA/PNY8ENY8AS4uLi4uLi4xMLIKAQUrEwczPwEVIwchEVYZlhr2rUkB9gFgZmYd7ZABfQAAAgAwAAADQwHwAAMACgBAQBwFBAEDAMwGBQYKCQMCAggHCgTeCQgCAwEBAQFGdi83GAA/Fzw/PAEvPP08LzzWAC88/TwBLi4uMTCyCwEFKzcHITUDFSEHFSERoHABUIMBrWoBA9ra2gEWY6PqAfAAAAQAI/+KA4MCDQADAAcACwAPAFZAJgcFAwIBAA8NCwoCAQAM4BAOKRAPDAIODQsIAgoJAwDhBuJ4AQdGdi83GAB2Pxg/PAEvPP08Lzz9PAAQ/RD9ENY8AC4uLi4BLi4uLi4uMTCyEAcFKxMVITUFFwMnATMVIzczFSNDAtr91mrQagITZ2fac3MCDbe390D+tDYBJumQzQAAAQCG/60CswH2AAgAOUAWAgEEAwADAgEABQQHBggA5AbleAEARnYvNxgAdj8YPzwBLzzWPC881jwAENY8AC4uMTCyCQAFKxMRMxEzFRcRJ4an46OjAfb+DQFD86YBsJkAAgBK/30CsgF6AAMACQA6QBkFBAMCAQAH5woGBeYDAAAHBgkICQToAgHpAD88PzwBLzzWPAA/PP08EP0BLi4uLi4uMTCyCgQFKzcVMzUBFSEVMxGd1f7YAbiwAYSEAXm+kgFQAAIAQAABAxsBygADAAcAL0ATBwYFBAMCAQADAOoGBQcEaAIBAQA/PD88AC88/TwBLi4uLi4uLi4xMLIIAAUrNxUhNQEVITVAAmX+mwHbvLu7AQ6hoQAAAAAMAAAAAAM5AtAABgAKAA8AEwAXABsAJQArADIANwBBAEcAAAEHFTY3NjcDMxcjNxU3NSMHMzcjNzMXIzczFyM3FwczNyM3JicmFzczAyM3ARcVJicmLwEVJzUzEwcXIyczJzY3NgcnIxMzJwJdtS8nPiHMFx1R/WRG/hdMrw2UEbUmaROPnB9bwkxFFxgxFmofel9CSP36t1kLNxwTZEWfH1zDTUUVFzATZh95X0FJAR5H1wcICjABCV0yl0yzBW9xXcNNL7KHsEQdEQhkZf7+nf7fR9cPAhEn3pdMswEjsoewRB4QB2Nl/v6dAAkAAgAAAxMCtwAJAA8AEwAZABwAIAAqAC4AMQAAATcHFzcTByMXMwcjJwcjFzcHPwEPAScHJxM3FwcTByc3BycXBycDFzMHIwcXLwEXBxcCGLqCF3g0WecTTCosUVEtfujZdKRzgDQ0gLS5G78pPj8/jbuCFng1WecSTUHZc6VuGr8CDwP5eFQBwlQuFpiYzzc/sgPhboWFbv768ZF2Agh2dmNcA/l4VAHCVC6uP7ID9pF2AA4AEwAPAt4DBQAbACMALAAxADUAOQBHAEwAVQBdAGMAaQBvAHUAAAEUDwMGIyIvAyY1NDcXPwE2MzIfAjcWJTUnIwcVFzMFNS8BBgcVFzcvAQYHHwEnBxcDJwcXBScHJwcXNSc3FzcXBxUHJwcXNic1JicPARUfAQUnIwcVFzM3AwcjJzczAQcnNTcXBQcnNTcXAQcjJzczAt4NX6oBIC4uIQGqXg4LWrEBIS4uIAGyWgr+1yMyJCcrATIDTw0bIFVfnAQjoCMjoCdoJ5wjAXJ4OTl5mEEoNDEoQDugI5wFig0bTwQFVQEqJysnJDIjGBMhFBElASAiHR8g/dseISAfARcSJREUIQGMMCEBu2MNDWO7ASEwKCkBuGIPD2K4ASnUVwcHVyL0MiMCCxssKgGBqAQcrmQmsCABvCCoJh6KQUGKqGJNKDg4KE1iKLAmqgTYLA4YAiMyJAHCIyNXBwcCeB4eIv6rExUkEBAkFRMmEBD+ySQkHgAI//8AAAKsAtYAAwASAB4ATgBbAF8AawB3AAATFzMvASY1NDc2NzY3BgcGFRQXNyY1NDc2NwYVFBcGEyInJjUjBzQnJicmIyYnNjc2MzQ3NjMyFzYzMhcWFTIXFhcGBwYHBgcGFScjFAcGBzI1JicXITcUFRQXFjcPATM3JzY1NCcmJx4BFRQnJic2NTQnFhcWFRR7SGMy8wInIjI9PS4oEAUwARgbMSQLJW4YFhsxSRMQDC4BJQ8/RigVVyETBQMCBhgkTiRqKgsRMRMTCA8TSTEcFhdjAQFK/qtIKBr7ejBhw5IFHiMmXZjEIicKIj8ZCwEvPSkoCgxCVEc8ShoVt0suGQwoBww5MjoRLUIZBBP+zwkMFLYUS0ARRTIIFREKLiMNAQERJSggDQMJRhwbDjpLFrYUDAkUIwIEoqIEAhMKBrYUKVEpDBk/cYQRJvJlDEcpFAQZQS4XWygcCwAADAAAAAADOQLQAAYACgAPABMAFwAbACUAKwAxADYAQABGAAABJzUWFxYXAzM3Ixc1FxUjJzMXIxczNyMXMzcjFzcnMxcjFwYHBjcXMwMjFwE3NQ4BDwE1BxUzEyc3IwczBxYXFicHIxMzBwJdtS8nPiHMFx1R/WRG/hdMrw2UEbUmaROPnB9bwkxFFxgxFmofel9CSP36txh8IxNkRZ8fXMNNRRUXMBNmH3lfQUkBsUjXBwgKMP73XTKWS7MFcHBdw0wusoewRRwRCGRlAQKdASBI1wQVMN6WS7P+3bKHsEUdEAdjZQECnQAAAAAOAAAAAALkA4QAFgAyADwARABPAGkAfACMAJkAugDBAMwA2wEAAAABFzcVNxc3Fhc3FzczFB8BBg8BIy8BNgcWFxYzNzMXNxU3MzY3FhUjFwYPASYvATU3JzYHMxcjFwYjJic2JRYXBiMiJzcFIxUXNyMnByMnIwUWFxUUHwE3Mxc2NzMUDwEjJi8BNyY1Myc2IRcVBiMHIy8BNxYzNjUyNzUnNQUWFRQXMjcWFQYjJjUzJzUlFxUUIyYnNxY7ATI1BxcWFxUGByc3NSczJwYjBycHIycHIyInBxUHJj0BNjc2FwYVNxc1JgUzFxUUFyc1Nyc3JRcVBxcHFRQHIzY1JzI3BxcGBwYHNQcjIjUmPQEzFjM1NjsBFzczFzcXMzcVNxczMhczNgFADBQMFAxLGQQIBAQoFHsRDGREVCVBZCgMHAQEFBQEQBuBJAQkQMAkvT8kJAQLKwgIBAQYGCMFFwJxQQcbDRIWBP7ABCgoBAwEBAQE/pA3BUgQBAwEPUMMeBAEUz0UBAwEDAQC1AwOIngIeBAETUNUBwkE/cAsJCwUNEgoXAQEAjgEZCtBKCMRDDjwTD8dCzEIBAQEBBoaDAQUBBgEBCkfBAg8KEQtDyQkKBz+5ARQIGQEBAQCCAQUBARYBCAECDBYBAo6FDgEBGw4BDgQCQsIBAQEEAwEBAwEFBwNBwQIA4QEBAQEBAQJDwQIBAYOFHk7DGxcIDBVSywEBAQEBFF3FzGoMSsEJScYBKgEPDgIBKARC0lDYTMUpAQYBEBEBAQEmBUPGFkbBAQEBjI0VBRBH0AEBBQ0KAwcnFRsLAQ4FCg4GAQECA8lFAQUBg4wD1UEDAgEEGgILBAUPEBgKCwUGykQBAQMHCgEBAQEBCwUJAg6FgwuMkc7LRMUFAgyQkAUOW9sBAQEKFwEBEgEFDAHVWc5GCx8BD1zDAQEBCxjKQRABDAEBAQEBAQEBAQwAQAAAAAAABUBAgAAAAAAAAAAAUwBVwAAAAAAAAABAB4AFgAAAAAAAAACAAwAAAAAAAAAAAADACgADAAAAAAAAAAEAB4AFgAAAAAAAAAFADgANAAAAAAAAAAGAB4CowABAAAAAAAAAKYAbAABAAAAAAABAA8BHQABAAAAAAACAAYBEgABAAAAAAADABQBGAABAAAAAAAEAA8BHQABAAAAAAAFABwBLAABAAAAAAAGAA8BSAADAAEECQAAAUwBVwADAAEECQABAB4AFgADAAEECQACAAwAAAADAAEECQADACgADAADAAEECQAEAB4AFgADAAEECQAFADgANAADAAEECQAGAB4CowBOAG8AcgBtAGEAbABBAGwAdABzADoAQQBuAGMAaQBlAG4AdAAgAEEAdQB0AG8AYgBvAHQAMQAuADAAIABUAGgAdQAgAEoAdQBsACAAMgA0ACAAMgAxADoANAA1ADoAMAAzACAAMQA5ADkAN0NyZWF0ZWQgYnkgSmltIFNvcmVuc29uLiAgVG8gYmUgZGlzdHJpYnV0ZWQgZnJlZWx5LiAgQmFzZWQgb24gdGhlIG1vbm9saXRoIGRpc2NvdmVyZWQgYnkgdGhlIERlY2VwdGljb25zIGluIHRoZSBlcGlzb2RlIENvc21pYyBSdXN0LiAgVmVyc2lvbiAxLjAgZmluaXNoZWQgb24gNy8yNC85Ny5Ob3JtYWxBbHRzOkFuY2llbnQgQXV0b2JvdDEuMCBUaHUgSnVsIDI0IDIxOjQ1OjAzIDE5OTdBbmNpZW50LUF1dG9ib3QAQwByAGUAYQB0AGUAZAAgAGIAeQAgAEoAaQBtACAAUwBvAHIAZQBuAHMAbwBuAC4AIAAgAFQAbwAgAGIAZQAgAGQAaQBzAHQAcgBpAGIAdQB0AGUAZAAgAGYAcgBlAGUAbAB5AC4AIAAgAEIAYQBzAGUAZAAgAG8AbgAgAHQAaABlACAAbQBvAG4AbwBsAGkAdABoACAAZABpAHMAYwBvAHYAZQByAGUAZAAgAGIAeQAgAHQAaABlACAARABlAGMAZQBwAHQAaQBjAG8AbgBzACAAaQBuACAAdABoAGUAIABlAHAAaQBzAG8AZABlACAAQwBvAHMAbQBpAGMAIABSAHUAcwB0AC4AIAAgAFYAZQByAHMAaQBvAG4AIAAxAC4AMAAgAGYAaQBuAGkAcwBoAGUAZAAgAG8AbgAgADcALwAyADQALwA5ADcALgBBAG4AYwBpAGUAbgB0AC0AQQB1AHQAbwBiAG8AdAAAAgAAAAAAAP97ABQAAAAAAAAAAAAAAAAAAAAAAAAAAABWAAAAAQACAAMABAALAAwADQAPABEAEwAUABUAFgAXABgAGQAaABsAHAAfACEAIgAjACQAJQAmACcAKAApACoAKwAsAC0ALgAvADAAMQAyADMANAA1ADYANwA4ADkAOgA7ADwAPQA+AEAARABFAEYARwBIAEkASgBLAEwATQBOAE8AUABRAFIAUwBUAFUAVgBXAFgAWQBaAFsAXABdAF4AYABfAD8AYQBBAEMAQgAA) format('truetype');
+    font-weight:normal;font-style:normal;font-display:swap;
+  }
+  /* Forced-white palette for now — dark mode is parked, not deleted.
+     Both the media-query and [data-theme="dark"] blocks below simply
+     mirror the light tokens, so the canvas stays white regardless of
+     the viewer's OS theme. Restore the old dark values here to bring
+     dark mode back later. */
+  :root{
+    --paper:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#eef1f5;
+    --ink:#141c2b;
+    --ink-dim:#4c586e;
+    --ink-faint:#8291a8;
+    --line:#c7cfdb;
+    --accent:#c23b22;
+    --accent-ink:#ffffff;
+    --grid:#d7dde6;
+    --shadow: 0 8px 24px rgba(20,28,43,0.12);
+    --canvas-tint: rgba(20,28,43,0.035);
+  }
+  @media (prefers-color-scheme: dark){
+    :root:not([data-theme="light"]){
+      --paper:#ffffff;
+      --panel:#ffffff;
+      --panel-2:#eef1f5;
+      --ink:#141c2b;
+      --ink-dim:#4c586e;
+      --ink-faint:#8291a8;
+      --line:#c7cfdb;
+      --accent:#c23b22;
+      --accent-ink:#ffffff;
+      --grid:#d7dde6;
+      --shadow: 0 8px 24px rgba(20,28,43,0.12);
+      --canvas-tint: rgba(20,28,43,0.035);
+    }
+  }
+  :root[data-theme="dark"]{
+    --paper:#ffffff;
+    --panel:#ffffff;
+    --panel-2:#eef1f5;
+    --ink:#141c2b;
+    --ink-dim:#4c586e;
+    --ink-faint:#8291a8;
+    --line:#c7cfdb;
+    --accent:#c23b22;
+    --accent-ink:#ffffff;
+    --grid:#d7dde6;
+    --shadow: 0 8px 24px rgba(20,28,43,0.12);
+    --canvas-tint: rgba(20,28,43,0.035);
+  }
+
+  *{box-sizing:border-box;}
+  html,body{margin:0;padding:0;height:100%;}
+  body{
+    background:var(--paper);
+    color:var(--ink);
+    font-family:'IBM Plex Sans',system-ui,sans-serif;
+    overflow:hidden;
+    height:100vh;
+    width:100vw;
+  }
+  .app{position:relative;height:100vh;width:100vw;display:flex;flex-direction:column;}
+
+  /* ---------- Top bar ---------- */
+  .topbar{
+    display:flex;align-items:center;gap:18px;
+    padding:10px 18px;
+    background:var(--panel);
+    border-bottom:1px solid var(--line);
+    z-index:40;
+    flex:0 0 auto;
+  }
+  /* The top bar has grown a couple of buttons; the wordmark holds its own
+     line rather than wrapping the strapline under itself. */
+  .brand{display:flex;flex-direction:column;line-height:1;margin-right:4px;flex:0 0 auto;white-space:nowrap;}
+  @media (max-width: 1180px){ .brand .sub{display:none;} }
+  .brand .mark{
+    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';
+    font-weight:800;
+    font-size:26px;
+    letter-spacing:0.5px;
+    text-transform:uppercase;
+  }
+  .brand .mark span{color:var(--accent);}
+  .brand .sub{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:10px;
+    letter-spacing:1.2px;
+    text-transform:uppercase;
+    color:var(--ink-faint);
+    margin-top:2px;
+  }
+  .search-wrap{
+    position:relative;flex:0 1 340px;
+  }
+  .search-wrap input{
+    width:100%;
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--ink);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:12.5px;
+    padding:8px 10px 8px 30px;
+    border-radius:3px;
+    outline:none;
+  }
+  .search-wrap input:focus{border-color:var(--accent);}
+  .search-wrap svg{position:absolute;left:9px;top:9px;width:14px;height:14px;color:var(--ink-faint);pointer-events:none;}
+  .search-results{
+    position:absolute;top:calc(100% + 4px);left:0;right:0;
+    background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    max-height:320px;overflow-y:auto;box-shadow:var(--shadow);
+    display:none;z-index:60;
+  }
+  .search-results.show{display:block;}
+  .search-results .row{
+    padding:7px 10px;font-size:12.5px;cursor:pointer;
+    display:flex;align-items:center;gap:8px;
+    border-bottom:1px solid var(--grid);
+  }
+  .search-results .row:last-child{border-bottom:none;}
+  .search-results .row:hover{background:var(--panel-2);}
+  .search-results .dot{width:8px;height:8px;border-radius:2px;flex:0 0 auto;}
+  .search-results .cl{color:var(--ink-faint);font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;margin-left:auto;white-space:nowrap;}
+
+  .topbar-stats{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:10.5px;
+    color:var(--ink-faint);
+    letter-spacing:0.4px;
+    white-space:nowrap;
+    text-align:right;
+  }
+
+  /* Every edit on this page saves by publishing a new version and then
+     reloading, which without a signal just looks like the page blinking.
+     This pill is the one place that always says which of the two is
+     happening. It holds no space when idle so the bar is unchanged at
+     rest. */
+  .save-state{
+    margin-left:auto;
+    display:none;align-items:center;gap:7px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;letter-spacing:0.4px;
+    white-space:nowrap;padding:5px 11px;border-radius:20px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink-dim);
+  }
+  .save-state.show{display:flex;}
+  .save-dot{width:7px;height:7px;border-radius:50%;background:var(--ink-faint);flex:0 0 auto;}
+  .save-state.busy .save-dot{background:var(--accent);animation:savePulse 900ms ease-in-out infinite;}
+  .save-state.ok .save-dot{background:#2c7a41;}
+  .save-state.dirty .save-dot{background:var(--accent);}
+  .save-state.err{border-color:rgba(194,59,34,0.45);color:#a6321c;}
+  .save-state.err .save-dot{background:var(--accent);}
+  @keyframes savePulse{0%,100%{opacity:1;}50%{opacity:0.25;}}
+  @media (prefers-reduced-motion: reduce){
+    .save-state.busy .save-dot{animation:none;}
+  }
+  /* The stats block used to be the element pushed to the right; the pill
+     takes that job now, so the two sit together at the end of the bar. */
+  .save-state + .topbar-stats{margin-left:14px;}
+  .save-btn{
+    margin-left:10px;flex:0 0 auto;
+    background:var(--accent);border:1px solid var(--accent);color:var(--accent-ink);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;letter-spacing:0.5px;
+    text-transform:uppercase;padding:7px 16px;border-radius:5px;cursor:pointer;
+  }
+  .save-btn:hover:not(:disabled){filter:brightness(1.08);}
+  .save-btn:disabled{
+    background:var(--panel-2);border-color:var(--line);color:var(--ink-faint);
+    cursor:default;
+  }
+  .save-btn + .topbar-stats{margin-left:14px;}
+  /* Shown instead of the Save button once the platform has told us this
+     viewer cannot write. */
+  .view-badge{
+    display:none;margin-left:10px;flex:0 0 auto;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;letter-spacing:0.4px;
+    text-transform:uppercase;white-space:nowrap;
+    padding:6px 12px;border-radius:20px;
+    border:1px solid var(--line);background:var(--panel-2);color:var(--ink-faint);
+  }
+  body.read-only .view-badge{display:block;margin-left:auto;}
+  /* Everything that writes to the chart is hidden outright in a read-only
+     view rather than left visible and failing on click. Reading, search,
+     tag filters, language tabs and the bio cards all stay. */
+  body.read-only #saveBtn,
+  body.read-only #stickersToggle,
+  body.read-only #addNodeToggle,
+  body.read-only #detailEditToggle,
+  body.read-only .detail-note-btn,
+  body.read-only .node-handles,
+  body.read-only #saveState{display:none !important;}
+  body.read-only .node{cursor:pointer;}
+  /* ---------- Character-bio circle + its card ---------- */
+  /* Direct children only: a bio group also contains the side handles and
+     language chips, which have fills of their own. */
+  /* The portrait's own rings, by name. "The first circle is filled, the
+     rest are not" was true only while the border was the first circle in
+     the group — the pad that catches the pointer is a circle too, and it
+     is added first, so it took the fill and the border was left hollow.
+     A hollow border is nothing to click on: an empty portrait could not be
+     picked up except by its rim. */
+  .node-bio > circle.bio-ring{stroke-width:2;fill:var(--panel);}
+  .node-bio > circle.bio-ring ~ circle.bio-ring{fill:none;}
+  /* The same specificity trap the hover pad fell into: `.node > path` and
+     `.node-bio > circle` both set a panel fill and both beat a bare class,
+     so the placeholder figure — which is meant to be a hairline drawing of
+     a head and shoulders — was being filled solid. Named at matching
+     specificity, it is an outline again. */
+  .node > path.bio-placeholder,
+  .node > circle.bio-placeholder,
+  .node-bio > circle.bio-placeholder,
+  .bio-placeholder{fill:none;stroke:var(--line);stroke-width:1.6;}
+
+  /* The text card that opens beside a bio circle is drawn in SVG by
+     renderNodeText, exactly as a default box is — same width, same border,
+     same wrapping and font — so it IS a node visually, not an imitation of
+     one. Only the editor that opens on top of it is HTML. */
+  /* An underline runs THROUGH the descenders.
+   *
+   * Left to itself the browser breaks it around every y, у, р, ф and g —
+   * "skip ink", which is right for a paragraph of prose and wrong here:
+   * at this size the pieces left between two descenders are a few pixels
+   * long and read as full stops after each letter. */
+  .node text, .rich-surface, .note-overlay-body, .edge-note,
+  .bio-card-g text, .tag-shape, .detail-note{
+    -webkit-text-decoration-skip-ink:none;
+    text-decoration-skip-ink:none;
+  }
+  /* A field the archetype has no use for: still there, so the form does
+     not change shape as you switch between entries, but plainly shut. */
+  .editor-field.field-off{opacity:0.45;}
+  .editor-field.field-off .rich-surface{background:var(--panel-2);cursor:default;}
+  .bio-card-g{
+    opacity:0;
+    transform:translateX(-6px);
+    transition:opacity 140ms ease, transform 160ms cubic-bezier(0.2,0.9,0.3,1.25);
+    transform-box:fill-box;transform-origin:left center;
+  }
+  .bio-card-g.shown{opacity:1;transform:translateX(0);}
+  /* A card steps back with the portrait it belongs to — see
+     paintBioCardDim. Written with both classes so it beats `.shown`, which
+     is what puts the card at full strength in the first place. */
+  .bio-card-g.dim, .bio-card-g.shown.dim{opacity:0.14;}
+  .bio-card-g.flip{transform:translateX(6px);transform-origin:right center;}
+  .bio-card-g.flip.shown{transform:translateX(0);}
+  @media (prefers-reduced-motion: reduce){
+    .bio-card-g{transition:none;}
+  }
+
+  .comments-note{
+    font-size:12px;line-height:1.6;padding:9px 12px;border-radius:6px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+  }
+  body.read-only #commentOwnerNote{display:none;}
+  body:not(.read-only) #commentViewerNote{display:none;}
+  body.read-only #commentSubmit{display:none;}
+  body:not(.read-only) #commentCopy{display:none;}
+  /* With no unsaved work the pill is idle, so the button is what gets
+     pushed to the right instead. */
+  .save-state:not(.show) + .save-btn{margin-left:auto;}
+  .topbar-stats b{color:var(--ink-dim);font-weight:600;}
+
+  .icon-btn{
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    color:var(--ink-dim);
+    width:32px;height:32px;
+    border-radius:3px;
+    display:flex;align-items:center;justify-content:center;
+    cursor:pointer;flex:0 0 auto;
+  }
+  .icon-btn:hover{color:var(--ink);border-color:var(--accent);}
+  .icon-btn.active{color:var(--accent-ink);background:var(--accent);border-color:var(--accent);}
+  .icon-btn svg{width:16px;height:16px;}
+
+  /* ---------- Main area ---------- */
+  /* The drawing is a drawing, not a page of prose.
+   *
+     Dragging across it, double-clicking an entry, or simply panning was
+     starting the browser's own text selection: entry labels lit up in
+     selection blue, and a double-click on empty ground selected whatever
+     word happened to be nearest. None of it does anything — there is no
+     copyable text on the canvas, the chart's own copy works on the
+     SELECTED ENTRY — so the browser's selection is pure noise here. Turned
+     off for the canvas alone; every panel, form and text field on the page
+     keeps it, and the fields inside the canvas ask for it back below. */
+  /* `clip`, not `hidden`.
+   *
+   * `hidden` still makes a scroll container: nothing can be scrolled by
+   * hand, but the browser may scroll it itself — and it does, whenever
+   * focus moves to something it thinks is out of view. The settings drawer
+   * slides in from off-screen right, so focusing a field in it the instant
+   * it opens had the browser scroll the whole canvas 326 pixels sideways
+   * to "reveal" a panel that was on its way in anyway, and slide it back
+   * as the panel arrived. From the outside: the drawing lurching whenever
+   * a portrait's card opened its settings. `clip` clips without ever
+   * becoming scrollable. */
+  .main{position:relative;flex:1 1 auto;overflow:clip;}
+  /* The DRAWING is a drawing, not a page of prose: a double-click on an
+     entry or on empty ground should not select anything, because there is
+     nothing on the canvas to copy — the chart's own copy works on the
+     selected entry. Scoped to the canvas itself rather than to `.main`,
+     which also holds every panel and overlay on the page; those are prose
+     and stay selectable. */
+  svg#canvas{user-select:none;-webkit-user-select:none;}
+  /* Plain paper. There used to be a faint ruling painted here as
+     decoration, but it was fixed to the SCREEN rather than to the chart, so
+     it slid under the drawing as you panned and lined nothing up with
+     anything. The grid button draws a real one, in the chart's own
+     coordinates; with it off the page is simply blank. */
+  svg#canvas{
+    display:block;width:100%;height:100%;
+    background:var(--paper);
+    cursor:grab;
+    touch-action:none;
+  }
+  svg#canvas.grabbing{cursor:grabbing;}
+
+  /* A rule under an entry's words is not part of the entry's OUTLINE.
+     It is a line and a path inside the same group, so without naming it
+     here it took the border's weight, the panel fill and — on a selected
+     entry — the selection's glow, and a wavy underline came out as a
+     thick filled blob. */
+  .node > line.text-underline,
+  .node > path.text-underline,
+  .node.selected > line.text-underline,
+  .node.selected > path.text-underline,
+  .text-underline{fill:none;filter:none;pointer-events:none;}
+  .node > rect, .node > polygon, .node > ellipse, .node > path{
+    stroke-width:1.6;
+    fill:var(--panel);
+    transition:opacity 120ms ease;
+  }
+  .node text{
+    font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';
+    font-weight:500;
+    pointer-events:none;
+  }
+  /* A reading is text, not a footnote: it is written in the same ink as
+     the word it stands over, and takes that word's colour when the word
+     has one. It used to be set in the faint grey the counts and captions
+     use, which made a reading on a plain label look switched off. */
+  /* A reading is set in the SAME face as the word it stands over. It used
+     to be switched to the mono face, which made it read as a machine
+     annotation stuck onto the text rather than as part of it — and meant
+     a label set in one face silently carried two. */
+  .node text .ruby-anno, .node text tspan.ruby-anno{
+    font-family:inherit;
+  }
+  .node{cursor:pointer;}
+  .node.dim{opacity:0.14;}
+  /* No transition on the scenery's opacity.
+   *
+   * The decorations are torn down and rebuilt on every redraw — and typing
+   * in any entry's settings redraws the chart on every keystroke. The
+   * rebuilt element is given its .dim class in the same turn it is
+   * created, but the renderer measures text while it works, and a
+   * measurement flushes style: the browser resolves the new element at
+   * full strength first and then sees .dim arrive, which is a real change
+   * and starts a real 120ms fade. From the outside, every decoration on
+   * the chart flashing to full brightness and sinking back on every
+   * keystroke somewhere else. An entry's own box has never faded either —
+   * .dim sets the group's opacity, which nothing transitions — so the
+   * scenery now behaves exactly as the thing it is scenery for. */
+  .node-aura.dim{opacity:0.14;}
+  /* The glow traces the BORDER, whatever shape the border is.
+   *
+     One six-pixel shadow is wider than a pocket reality's ripple is deep,
+     so the wave was smoothed away and what showed around a rippled entry
+     was a soft rounded rectangle — the halo of a shape the entry is not.
+     A tight shadow follows the outline exactly; the wide one behind it
+     gives the selection its presence without deciding the shape. */
+  .node.selected > rect, .node.selected > polygon, .node.selected > ellipse, .node-bio.selected > circle, .node.selected > path{
+    stroke-width:3;
+    filter:drop-shadow(0 0 1.6px rgba(194,59,34,0.85))
+           drop-shadow(0 0 5px rgba(194,59,34,0.4));
+  }
+  /* A portrait's border keeps its weight.
+   *
+     Every other entry can be given a heavier outline without anything else
+     moving — the border is drawn on empty paper. A portrait's is drawn on
+     the PICTURE: the image is clipped to just inside the rim, so a border
+     that grows from two pixels to three eats into the photograph and the
+     circle's outer edge steps outward by half a pixel at the same time.
+     Selecting one made the picture visibly shift, which is not what
+     selecting something should do. The glow says it instead, a little
+     stronger to make up for the weight it is not allowed to add. */
+  .node-bio.selected > circle.bio-ring{
+    stroke-width:2;
+    filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
+           drop-shadow(0 0 7px rgba(194,59,34,0.5));
+  }
+  /* A hub's echo rings and a local multiverse's back sheets are scenery
+     around the entry, not the entry itself: selecting one thickens the box
+     it actually is, and leaves the scenery alone. */
+  .node.selected > rect.local-sheet, .node.selected > path.local-sheet{filter:none;}
+  .node.selected > rect.hub-echo{filter:none;}
+  .node > circle.hub-core{stroke:none;}
+
+  /* Card layout. The rules dividing the three bands are drawn in the
+     entry's own colour but lighter than its border, so they read as
+     divisions inside one shape rather than as three stacked boxes. */
+  .node > line.card-rule{stroke-width:1;opacity:0.45;}
+  .node.selected > line.card-rule{stroke-width:1;filter:none;}
+  .node > rect.card-slot{fill:var(--panel-2);}
+  .node > .card-slot-mark{fill:var(--ink-faint);stroke:none;opacity:0.5;}
+  .node text.card-body{fill:var(--ink-dim);}
+
+  /* The fan-fiction weave. Faint enough to sit under an entry without
+     competing with it, and drawn in the ink colour so it reads on either
+     theme's ground. */
+  /* A warm cast, so the ground under a fan-fiction entry reads as its own
+     kind of paper rather than as a smudge of the ink everything else is
+     drawn in. */
+  /* A gold that reads as gold. At #b8912a against paper the weave was a
+     faint warm grey — visible only if you already knew it was there, which
+     is no use for a mark whose whole job is to say "this entry is not
+     canon" across a crowded chart. */
+  .fanfic-line{stroke:#e8b21f;stroke-width:4;fill:none;}
+  /* Visible enough, at rest, to be read as gold from across the chart.
+     At 0.12 the lattice was a suggestion that only became a colour when
+     the light crossed it — and the light only crosses it under the
+     pointer, so at every other moment the mark did not say what it was.
+     At 0.26 it said it only to a reader already looking for it. Short of
+     opaque, deliberately: it is the ground the entry stands on, and an
+     entry has to stay the thing you read first. */
+  .fanfic-weave{opacity:0.7;}
+  /* The same lattice as it looks where the light falls on it. */
+  .fanfic-line-lit{stroke:#ffcf3d;stroke-width:4.6;}
+
+  /* ---- what a special tag does, performed ---------------------------
+     Still at rest, and moving only while the entry is under the pointer
+     or open in the panel — see syncTagLiveliness. Each animation is the
+     thing the tag MEANS rather than an effect chosen to be noticed: an
+     echo goes out, a light crosses the weave, a stack of worlds streams
+     away and dissolves. */
+
+  /* A hub's echo, going out. Each ring is drawn at its own distance and
+     then carried outward from there, so what leaves the entry is a
+     procession rather than one ring pulsing; the stagger comes from the
+     rings' own order in the group. */
+  /* Out to the ring's OWN place, and no further.
+   *
+     Carried past it, the echo grew the entry: rings swept out beyond the
+     outermost one, so an entry that was a fixed size at rest reached
+     halfway across its neighbours the moment the pointer touched it, and
+     the chart moved under the reader's hand. Each ring now starts folded
+     back near the box and opens to exactly where it is drawn, so the whole
+     performance happens inside the space the decoration already occupies. */
+  @keyframes hub-echo-out{
+    0%   { transform:scale(0.55); opacity:0; }
+    22%  { opacity:0.55; }
+    72%  { opacity:0.2; }
+    100% { transform:scale(1); opacity:0; }
+  }
+  .node-aura.tag-lively .hub-echo{
+    transform-box:fill-box;transform-origin:center;
+    animation:hub-echo-out 2.7s cubic-bezier(0.25,0.6,0.35,1) infinite;
+  }
+  /* Drawn outermost first, so the delays run inward-out and the ring
+     nearest the box is always the youngest one. */
+  .node-aura.tag-lively .hub-echo:nth-of-type(1){animation-delay:0s;}
+  .node-aura.tag-lively .hub-echo:nth-of-type(2){animation-delay:-0.9s;}
+  .node-aura.tag-lively .hub-echo:nth-of-type(3){animation-delay:-1.8s;}
+
+  /* A local multiverse's stack, streaming away. Each sheet comes out from
+     behind the entry, travels up and to the right — the direction the
+     stack is already leaning — and dissolves a little way off, so the
+     supply looks endless without any of them ever reaching the edge of
+     the chart. */
+  /* Out from behind the entry to the sheet's own place, and no further —
+     the same bound as the echo, for the same reason. */
+  /* Out from BEHIND the entry, and no sooner.
+   *
+     Each sheet is drawn up and to the right of the box, so the offset that
+     puts one exactly behind it is the negative of its own — and the sheets
+     stand at different distances, so one number could not do for both: at
+     minus eleven the near sheet started behind the entry and the far one
+     started eleven pixels DOWN AND LEFT of it, out in the open on the
+     wrong side, which is what read as a sheet appearing in front. Each
+     sheet is now given its own start, in the units its own offset is
+     measured in, so both leave from under the box whatever the step is. */
+  /* Every sheet covers the same ground in the same time, so they arrive
+     evenly. Each starts behind the entry — its own distance back — and
+     travels out to where the OUTERMOST one stands, which is the limit the
+     decoration already occupies. Travelling only to its own place gave the
+     far sheet twice the speed of the near one, and the procession came out
+     as two sheets and then a wait. */
+  @keyframes local-sheet-away{
+    0%   { transform:translate(calc(var(--sheet-off, 11px) * -1), var(--sheet-off, 11px)); opacity:0; }
+    22%  { opacity:0.6; }
+    70%  { opacity:0.26; }
+    100% { transform:translate(calc(var(--sheet-far, 11px) - var(--sheet-off, 11px)),
+                               calc(var(--sheet-off, 11px) - var(--sheet-far, 11px))); opacity:0; }
+  }
+  .node-aura.tag-lively .local-sheet{
+    transform-box:fill-box;
+    animation:local-sheet-away 1.7s linear infinite;
+  }
+  .node-aura.tag-lively .local-sheet:nth-of-type(1){animation-delay:0s;}
+  .node-aura.tag-lively .local-sheet:nth-of-type(2){animation-delay:-0.85s;}
+
+  /* The light crossing a fan-fiction entry's weave. The band is a mask,
+     not a wash of colour: what brightens is the lattice itself, and only
+     where the light is. Two mask layers intersected — the same round fade
+     the weave already wears, and the moving band — so the glint cannot
+     show past the edge of the patch. */
+  .fanfic-glint{
+    opacity:0;
+    -webkit-mask-image:radial-gradient(closest-side, #000 62%, transparent 100%),
+                       linear-gradient(105deg, transparent 38%, #000 50%, transparent 62%);
+    mask-image:radial-gradient(closest-side, #000 62%, transparent 100%),
+               linear-gradient(105deg, transparent 38%, #000 50%, transparent 62%);
+    /* The band's width and its travel are the same number. At 260% the
+       band was two thirds of the patch wide and had to be flung far off
+       either side to get out of the way, so most of the cycle showed
+       nothing at all; at 180% the band is a third of the patch and its
+       whole travel fits between the two edges. */
+    -webkit-mask-size:100% 100%, 180% 180%;
+    mask-size:100% 100%, 180% 180%;
+    -webkit-mask-repeat:no-repeat;mask-repeat:no-repeat;
+    -webkit-mask-composite:source-in;
+    mask-composite:intersect;
+  }
+  /* Left to right — which, for a mask LARGER than the box it is laid on,
+     means counting DOWN. A percentage position aligns the same fraction of
+     the image with the same fraction of the box, so with the image two and
+     a half times the width, raising the percentage slides the image left
+     and the bright band with it. The band travelled right to left, and the
+     numbers said the opposite. */
+  /* Left to right — which, for a mask LARGER than the box it is laid on,
+     means counting DOWN. A percentage position aligns the same fraction of
+     the image with the same fraction of the box, so with the image wider
+     than the box, 100% puts the band off to the LEFT and 0% off to the
+     right. Written the obvious way round it swept right to left. */
+  /* One cycle has to END where the next one BEGINS, or the loop is a jump.
+     Sweeping from one visible edge to the other, the band was on the patch
+     at both ends of the cycle and vanished from the right to reappear at
+     the left every 2.9 seconds. So the travel now starts and finishes with
+     the band clear of the patch altogether, and the glint is faded out at
+     both ends besides: whatever the exact geometry, the frame the loop
+     restarts on is a frame with nothing drawn on it. */
+  @keyframes fanfic-sweep{
+    0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
+    14%  { opacity:0.85; }
+    86%  { opacity:0.85; }
+    100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
+  }
+  .fanfic-glint.tag-lively{
+    opacity:0.85;
+    animation:fanfic-sweep 3.4s linear infinite;
+  }
+
+  /* Anybody who has asked for less movement gets the pictures, still. */
+  @media (prefers-reduced-motion: reduce){
+    .node-aura.tag-lively .hub-echo,
+    .node-aura.tag-lively .local-sheet,
+    .fanfic-glint.tag-lively{animation:none;}
+    .fanfic-glint.tag-lively{opacity:0;}
+  }
+
+  /* The alignment grid. Fine lines faint, every fifth one stronger, both
+     re-weighted per zoom in syncAlignGrid so they stay hairlines. */
+  /* ---- bending a connector by hand ---------------------------------
+     A filled mark on each bend the connector has, a hollow one in the
+     middle of every straight run waiting to become one. Both are only
+     drawn while that connector's panel is open, so a chart at rest is
+     unchanged. */
+  .bend-hit{fill:transparent;stroke:none;cursor:grab;}
+  body.bending .bend-hit{cursor:grabbing;}
+  .bend-mark{fill:var(--accent);stroke:var(--paper);stroke-width:1.2;pointer-events:none;}
+  .bend-mark-new{fill:var(--paper);stroke:var(--accent);stroke-width:1.4;opacity:0.55;}
+  .bend-ghost:hover .bend-mark-new{opacity:1;}
+  .bend-handle:hover .bend-mark{stroke:var(--accent);stroke-width:2;}
+  body.read-only #bendLayer{display:none;}
+  /* A line of prose inside a popover row, for a control whose whole
+     explanation is "it is on the drawing, not in here". */
+  .style-row-note{
+    margin:1px 0 6px;
+    font-size:10px;line-height:1.5;color:var(--ink-faint);
+  }
+  .style-row-note b{color:var(--ink-dim);font-weight:600;}
+
+  .align-line{stroke:var(--grid);fill:none;opacity:0.75;}
+  .align-line-major{stroke:var(--ink-faint);opacity:0.45;}
+  .node.hover > rect, .node.hover > polygon, .node.hover > ellipse, .node-bio.hover > circle, .node.hover > path{
+    filter:brightness(1.06);
+  }
+  .node{cursor:grab;}
+  .node.dragging{cursor:grabbing;}
+  .node.dragging > rect, .node.dragging > polygon, .node.dragging > ellipse, .node-bio.dragging > circle, .node.dragging > path{
+    filter:drop-shadow(0 3px 7px rgba(20,28,43,0.28));
+  }
+  /* Side handles. Invisible until you hover the node, so the chart at rest
+     is unchanged; during a connector drag `.connector-dragging` on the SVG
+     reveals every node's handles at once, so you can see and aim for the
+     exact side you want to land on. */
+  /* Side bands. The group is always live for the pointer so a band can
+     light up on hover; only the bands themselves fade in. */
+  /* Painted, so it is hit-tested; transparent, so it is not seen. */
+  /* A frame, not a pad: only the ground the borders occupy answers the
+     pointer, so the middle stays the fill's and a neighbour a few pixels
+     away is left alone. The width is set per entry, since it depends on
+     how many borders that entry has. */
+  /* The pad is a FRAME, and it must not be filled.
+   *
+     `.node > rect` a few rules up sets fill:var(--panel) on every direct
+     child rect of an entry, and it is the more specific selector — a class
+     AND an element beats a class alone — so this pad, which is a direct
+     child rect, was quietly being painted as a solid white rectangle over
+     everything under it. It reaches past the entry's own border (by a
+     ring's depth, and by a whole ripple on a pocket reality), so what it
+     covered was the last few pixels of every connector arriving there:
+     lines that stopped short of the border, with white between. Named at
+     the same specificity, it is a frame again. */
+  .node > rect.node-hover-pad,
+  .node > circle.node-hover-pad,
+  .node-bio > circle.node-hover-pad,
+  .node-hover-pad{fill:none;stroke:transparent;pointer-events:stroke;}
+  /* And it is never lit. It is a catcher, not a border: given the
+     selection's glow it drew a rounded rectangle — or, on a portrait, a
+     ring — of light around a shape that is neither. */
+  .node.selected > .node-hover-pad,
+  .node.hover > .node-hover-pad,
+  .node.dragging > .node-hover-pad,
+  .node.multi > .node-hover-pad,
+  .node.connect-target > .node-hover-pad{filter:none;stroke:transparent;}
+  .node-handles{pointer-events:none;}
+  .node:hover .node-handles,
+  svg.connector-dragging .node-handles{pointer-events:auto;}
+  .node-handle{cursor:crosshair;}
+  .node-handle-hit{fill:transparent;stroke:none;}
+  /* Corner grip, shown with the side bands on hover. */
+  .node-resize{opacity:0;transition:opacity 110ms ease;cursor:nwse-resize;pointer-events:none;}
+  /* The two corners on the other diagonal take the other arrow. */
+  .node-resize-ne, .node-resize-sw{cursor:nesw-resize;}
+  .node:hover .node-resize{opacity:1;pointer-events:auto;}
+  body.read-only .node-resize{display:none;}
+  .node-resize-hit{fill:transparent;stroke:none;}
+  .node-resize-mark{stroke:var(--ink-faint);stroke-width:1.4;fill:none;stroke-linecap:round;}
+  .node-resize:hover .node-resize-mark{stroke:var(--accent);}
+  /* The round arrow that turns a caption. Same family as the corner grips
+     — invisible until the element is hovered, live only then — because it
+     is the same kind of thing: a handle on the drawing for a property of
+     the drawing. */
+  /* Live even while it cannot be seen — unlike the corner grips, which sit
+     INSIDE the box and are therefore already under a pointer that is on
+     the entry. This one stands off the corner, on open paper, so a rule
+     that only woke it on `.node:hover` could never be satisfied: reaching
+     for the handle meant leaving the entry, which put the handle away
+     again. Being live, the pointer arriving on it hovers the entry it
+     belongs to, and it appears under the hand. */
+  .node-rotate{opacity:0;transition:opacity 110ms ease;cursor:grab;pointer-events:auto;}
+  .node:hover .node-rotate{opacity:1;}
+  body.read-only .node-rotate{display:none;}
+  body.rotating .node-rotate{cursor:grabbing;}
+  .node > .node-rotate .node-rotate-hit,
+  .node-rotate-hit{fill:transparent;stroke:none;}
+  .node > .node-rotate .node-rotate-mark,
+  .node-rotate-mark{fill:none;stroke:var(--ink-faint);stroke-width:1.4;stroke-linecap:round;}
+  .node > .node-rotate .node-rotate-head,
+  .node-rotate-head{fill:var(--ink-faint);stroke:none;}
+  .node-rotate:hover .node-rotate-mark{stroke:var(--accent);}
+  .node-rotate:hover .node-rotate-head{fill:var(--accent);}
+  .node-handle-band.wave{fill:none;stroke-linecap:round;}
+  .node-handle-band{
+    stroke:none;opacity:0;
+    transition:opacity 110ms ease;
+    pointer-events:none;
+  }
+  /* A hint, not an announcement. Hovering an entry breathes the faintest
+     wash onto its four edges — enough to say they can be grabbed — and the
+     one actually under the pointer firms up without ever becoming a solid
+     bar laid over the border. A drop target during a drag is the one case
+     that earns full strength, because there you are aiming at it. */
+  .node:hover .node-handle-band,
+  svg.connector-dragging .node-handle-band{opacity:0.16;}
+  .node-handle:hover .node-handle-band{opacity:0.6;}
+  svg.connector-dragging .node-handle.drop-target .node-handle-band{opacity:0.9;}
+  .marquee{
+    fill:rgba(194,59,34,0.08);
+    stroke:var(--accent);
+    stroke-dasharray:4 3;
+    pointer-events:none;
+  }
+  /* Every node in a multi-selection beyond the primary one. */
+  .node.multi > rect, .node.multi > polygon, .node.multi > ellipse,
+  .node.multi > path, .node-bio.multi > circle{
+    stroke:var(--accent);stroke-width:2.4;
+  }
+  .connector-rubber{
+    fill:none;stroke:var(--accent);stroke-width:1.8;stroke-dasharray:5 4;
+    pointer-events:none;
+  }
+  /* An entry being aimed at during a connector drag says so by the EDGE
+     the connector would arrive at — the band under the pointer firms up,
+     which is the thing being chosen. Repainting the whole border in the
+     application's red said something else entirely: that the entry itself
+     was about to change, and in a colour it does not own. */
+  .node.connect-target > rect, .node.connect-target > polygon,
+  .node.connect-target > ellipse, .node-bio.connect-target > circle,
+  .node.connect-target > path{
+    stroke-width:2.2;
+  }
+  .node-link{cursor:pointer;}
+  .node-link circle{fill:var(--panel);stroke:var(--accent);stroke-width:1.2;}
+  .node-link path{stroke:var(--accent);stroke-width:1.3;stroke-linecap:round;stroke-linejoin:round;}
+  .node-link:hover circle{fill:var(--accent);}
+  .node-link:hover path{stroke:var(--accent-ink);}
+  .lang-chip{cursor:pointer;}
+  .lang-chip-bg{fill:var(--panel);stroke:var(--line);stroke-width:0.75;}
+  .lang-chip-label.emoji{font-family:var(--emoji);}
+  .lang-chip-label{fill:var(--ink-dim,var(--ink));font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:600;pointer-events:none;user-select:none;}
+  .lang-chip:hover .lang-chip-bg{stroke:var(--accent);}
+  .lang-chip.active .lang-chip-bg{fill:var(--accent);stroke:var(--accent);}
+  .lang-chip.active .lang-chip-label{fill:var(--accent-ink,#fff);}
+
+  .edge{fill:none;pointer-events:none;transition:opacity 120ms ease;}
+  /* See silenceEdgeFade: a line that has only just been drawn does not
+     fade into the state it was already in. */
+  .no-fade .edge, .no-fade .edge-arrow, .no-fade .edge-note,
+  .no-fade .amalgam-bead{transition:none;}
+  /* One colour, one rendered colour.
+   *
+     This used to be 0.85 while an amalgam's bar, its merged arrow and —
+     crucially — EVERY arrowhead on the chart were 1. So a connector was
+     drawn in two shades of its own colour: the line a little washed out,
+     the head on the end of it full strength, and a merged construction
+     beside it darker than the ordinary connector next to it. Nothing said
+     what the difference meant, because it did not mean anything. Full
+     strength everywhere; the fade is what DIM is for. */
+  .edge.struct{stroke-width:1.6;opacity:1;}
+  .edge.dim{opacity:0.05;}
+  .edge.lit{opacity:1;stroke-width:2.4;}
+  .edge-hit{fill:none;stroke:transparent;stroke-width:14px;cursor:pointer;pointer-events:stroke;}
+  /* The "double" line style: a wide rail in the connector's paint with a
+     narrower paper-coloured stroke down its middle, which reads as two
+     thin parallel lines. Both halves grow together when the connector is
+     lit, so the gutter stays the same fraction of the line at either
+     weight; the inner one is opaque so the rail underneath it cannot show
+     through the gutter as a wash of colour. */
+  .edge.struct.dbl-outer{stroke-width:3.8;}
+  .edge.struct.dbl-inner{stroke-width:1.3;stroke:var(--paper);opacity:1;}
+  .edge.struct.dbl-outer.lit{stroke-width:5;}
+  .edge.struct.dbl-inner.lit{stroke-width:1.8;stroke:var(--paper);}
+  .edge.struct.dbl-inner.dim{opacity:0.05;}
+  /* The merged bar reads as one solid line, so its segments are drawn a
+     little heavier than a lone connector and butt together squarely. */
+  /* A lineage feeding an amalgam draws its own stretch of the shared bar as
+     the tail of its own line, so the bar is these tails laid end to end.
+     Butt caps keep two neighbouring colours meeting exactly on their seam
+     instead of each rounding a little way over the other. */
+  .edge.amalgam-member{stroke-linecap:butt;opacity:1;}
+  /* A control row that has nothing to decide here. */
+  /* A control that cannot be used should not behave as though it can.
+     "not-allowed" and a hover highlight both invite the click they are
+     about to refuse; a plain cursor and no reaction say the row is simply
+     inert, which is what an amalgam's shared arrowhead makes it. */
+  .style-choice.disabled{opacity:0.4;}
+  .style-choice.disabled button{cursor:default;}
+  /* One disabled button inside a live row reads the same as a whole
+     disabled row: the amalgam's gradient button and the merged lineage's
+     arrow toggles are refused for the same kind of reason, so they should
+     look refused in the same way. */
+  .style-choice button:disabled{opacity:0.4;cursor:default;}
+  .style-choice button:disabled:hover{color:var(--ink-dim);border-color:var(--line);}
+  .edge.amalgam-out{stroke-width:2.2;opacity:1;}
+  /* …except when something else on the chart is being looked at. The two
+     rules above pin the bar and the merged arrow to full strength so they
+     read as one solid line; that must not also make them the only thing
+     on the chart that refuses to step back. */
+  .edge.amalgam-member.dim, .edge.amalgam-out.dim{opacity:0.05;}
+  /* A note riding on a connector: small type on a plate the colour of the
+     canvas, so it stays readable where it crosses the grid or another line. */
+  .edge-note-plate{fill:var(--paper);stroke:var(--ink);stroke-width:0.8;}
+  .edge-note-text{
+    font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:500;font-size:8.5px;
+    fill:var(--ink);text-anchor:middle;dominant-baseline:middle;
+    pointer-events:none;
+  }
+  .edge-note.dim{opacity:0.08;}
+  /* The arrowheads and an amalgam's beads are their own shapes in their
+     own layer, so they need the same treatment the lines get — otherwise
+     selecting an entry fades the chart and leaves the heads floating over
+     it at full strength. */
+  .edge-arrow.dim, .amalgam-bead.dim{opacity:0.05;}
+  .edge-arrow.lit, .amalgam-bead.lit{opacity:1;}
+
+
+  /* ---------- Legend drawer ---------- */
+  .legend{
+    position:absolute;top:14px;left:14px;bottom:14px;
+    width:252px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    box-shadow:var(--shadow);
+    z-index:30;
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    transform:translateX(-280px);
+    transition:transform 180ms ease;
+  }
+  .legend.open{transform:translateX(0);}
+  .legend-head{
+    padding:12px 14px 10px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;justify-content:space-between;
+  }
+  .legend-head h2{
+    margin:0;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';font-size:15px;
+    text-transform:uppercase;letter-spacing:0.6px;font-weight:700;
+  }
+  .legend-actions button{
+    flex:1;background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;padding:5px 0;border-radius:3px;cursor:pointer;
+    text-transform:uppercase;letter-spacing:0.5px;
+  }
+  .legend-actions button:hover{color:var(--ink);border-color:var(--accent);}
+  .legend-list{overflow-y:auto;flex:1;padding:6px 8px;}
+  /* The left padding matches a category heading's, so every eye on the
+     panel — the section's, each category's and each tag's — stands in one
+     column instead of the rows stepping in by two pixels. */
+  .legend-item{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 6px;border-radius:4px;font-size:12px;
+  }
+  .legend-item:hover{background:var(--panel-2);}
+  .legend-item .swatch{width:11px;height:11px;border-radius:2.5px;flex:0 0 auto;box-shadow:0 0 0 1px rgba(0,0,0,0.15) inset;}
+  .legend-item .name{flex:1;color:var(--ink-dim);}
+  /* The row's name is a tag, so it is drawn as one. Its own left margin
+     replaces the swatch's gap, so the labels still line up in a column. */
+  .legend-item .name .tag-shape{font-size:11px;}
+  .legend-item.off .name{opacity:0.35;}
+  .legend-item.off .name .tag-shape{text-decoration:line-through;}
+  /* Untagged is a bucket, not a label: plain text, no shape around it —
+     and set in italic, which is how the panel already writes the things
+     that are not tags anybody typed. */
+  .tag-bucket{color:var(--ink-faint);font-style:italic;}
+  /* A tag that does something to the entries carrying it, not merely name
+     them. See SPECIAL_TAGS. */
+  .tag-special{
+    color:#2f6fb5;font-weight:700;margin-left:3px;cursor:help;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .legend-item .count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--ink-faint);}
+
+  /* Categories. The heading carries the group's own show/hide dot; the
+     per-tag controls only exist while Organize is on, so the panel stays a
+     filter first and an editor second. */
+  .legend-group{margin-bottom:7px;}
+  .legend-group-head.foldable{cursor:pointer;user-select:none;}
+  /* At the right of the heading, where the thing it folds away is. */
+  .legend-group-fold{
+    flex:0 0 auto;width:11px;text-align:center;color:var(--ink-faint);
+    font-size:11px;line-height:1;margin-left:2px;
+  }
+  .legend-group-head.foldable:hover .legend-group-fold{color:var(--ink);}
+  .legend-group.collapsed{margin-bottom:3px;}
+  .legend-group.collapsed .legend-group-head{border-bottom-style:dotted;}
+  /* Finding a tag by name, rather than by scrolling for it. */
+  .legend-filter{padding:2px 6px 7px;}
+  .legend-filter input{
+    width:100%;box-sizing:border-box;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:5px;padding:5px 7px;
+  }
+  .legend-filter input:focus{outline:none;border-color:var(--accent);}
+  .legend-empty{font-size:11px;color:var(--ink-faint);padding:4px 8px 8px;}
+  .legend-group-head{
+    display:flex;align-items:center;gap:6px;padding:4px 6px 3px;
+    border-bottom:1px solid var(--line);margin-bottom:2px;
+  }
+  .legend-group-name{
+    flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';text-transform:uppercase;
+    letter-spacing:0.6px;font-size:12px;color:var(--ink);
+  }
+  /* Being typed over, in place. The name stops eliding while it is being
+     edited — a name you cannot see the end of is not one you can correct —
+     and takes a field's ground so it reads as something to type in. */
+  .legend-group-name.renaming{
+    overflow:visible;text-overflow:clip;white-space:pre;
+    background:var(--panel-2);border:1px solid var(--accent);border-radius:3px;
+    outline:none;padding:0 3px;margin:-1px 0;cursor:text;
+  }
+  .legend-group-count{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;color:var(--ink-faint);}
+  /* ---- where a tag lives before it is filed ------------------------
+     No heading: it is not a category, it is the space under the search
+     box. A rule under it sets it off from the first real category. */
+  .legend-loose{
+    padding:2px 0 6px;margin-bottom:2px;
+    border-bottom:1px dashed var(--grid);
+  }
+  .legend-loose-hint{
+    padding:3px 8px 1px;font-size:9.5px;line-height:1.5;
+    color:var(--ink-faint);font-style:italic;
+  }
+  /* A tag being written. The shape is already there — an empty luggage
+     label with the caret in it — so what you are naming looks like what it
+     will be, which a dialog box could never show. */
+  .legend-item-new .tag-shape{border-color:var(--accent);}
+  .tag-naming-text{
+    display:inline-block;min-width:52px;
+    outline:none;cursor:text;white-space:pre;
+  }
+  /* The row-scale eye. Same button as the panel's, shrunk to sit in a
+     line of text — the state styling below (.shut) is shared, so all three
+     scales read alike. */
+  .eye-mini{width:19px;height:17px;flex:0 0 auto;}
+  .eye-mini svg{width:11px;height:11px;}
+  /* The section headings carry their own controls now, so they sit at the
+     scale of a row rather than of the panel's top bar. */
+  .plus-mini{width:19px;height:17px;flex:0 0 auto;margin-left:4px;}
+  .plus-mini svg{width:11px;height:11px;}
+  /* An eye with nothing to hide is a control that cannot act, and reads
+     as one — the same wash every other disabled control on the page has. */
+  .eye-mini:disabled{opacity:0.4;cursor:default;}
+  .eye-mini:disabled:hover{color:inherit;}
+  .legend-group-tools{display:flex;gap:3px;}
+  .legend-group-tools button{
+    background:none;border:none;padding:0 2px;cursor:pointer;
+    font-size:10px;color:var(--ink-faint);line-height:1;
+  }
+  .legend-group-tools button:hover{color:var(--accent);}
+  /* Filing a tag into a category shares a slot with the entry count: the
+     count is what you read, the chooser is what you reach for, and on a
+     252px panel there is room for one of them at a time. */
+  .legend-cat-pick{
+    display:none;max-width:92px;background:var(--panel-2);border:1px solid var(--line);
+    color:var(--ink-dim);border-radius:3px;font-size:9px;padding:1px 2px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .legend-item:hover .legend-cat-pick, .legend-cat-pick:focus{display:block;}
+  .legend-item:hover .count{display:none;}
+  .legend-tag-del{
+    background:none;border:none;padding:0 1px;cursor:pointer;
+    font-size:10px;color:var(--ink-faint);line-height:1;
+  }
+  .legend-tag-del:hover{color:var(--danger,#c23b22);}
+  /* The panel used to keep a line of running commentary at the top —
+     "Added [3].", "Deleted “canon”." — narrating edits whose result is
+     already the list right underneath. The elements are gone; the setters
+     that wrote to them find nothing and do nothing. */
+  .icon-action{
+    display:inline-flex;align-items:center;justify-content:center;
+    width:24px;height:22px;padding:0;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:4px;
+    color:var(--ink-dim);cursor:pointer;
+  }
+  .icon-action:hover{color:var(--ink);border-color:var(--accent);}
+  .icon-action svg{width:14px;height:14px;}
+  /* The eye shows which state the chart is IN: open means tags are
+     showing, crossed-out means everything is hidden — and the button
+     recedes in that state so it reads as "switched off" at a glance. */
+  .icon-action .eye-shut{display:none;}
+  .icon-action.shut .eye-open{display:none;}
+  .icon-action.shut .eye-shut{display:block;}
+  .icon-action.shut{opacity:0.45;}
+  .legend-add-menu{
+    display:flex;flex-direction:column;
+    margin:0 12px 6px;padding:4px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+  }
+  .legend-add-menu button{
+    background:none;border:none;text-align:left;cursor:pointer;
+    padding:4px 6px;border-radius:3px;font-size:10px;color:var(--ink-dim);
+  }
+  .legend-add-menu button:hover{background:var(--panel);color:var(--ink);}
+
+  /* A tag field keeps its text box — the whole list stays visible and
+     editable in one place — and gains a picker beside it so an existing
+     tag can be chosen rather than retyped (and misspelled into a second,
+     nearly identical tag, which is how tag lists rot). */
+  /* Tags are picked from what exists, never typed. Free text is how a tag
+     list rots: one misspelling becomes a second, nearly identical tag that
+     filters separately and looks the same. */
+  .tag-field-row{display:flex;gap:5px;align-items:flex-start;flex-wrap:wrap;position:relative;}
+  .tag-chips{display:flex;gap:4px;flex-wrap:wrap;flex:1;min-width:0;}
+  /* ---- the shape of a tag ------------------------------------------
+     A tag is not the same kind of thing as a category, a reference or an
+     entry, and on the panels it used to look exactly like all of them: a
+     word in a row, or a word in a small rounded box. So every tag on the
+     page is now drawn as a TAG — a luggage label with a pointed end and
+     an eyelet — and nothing else on the page wears that shape. It is one
+     class, used by the chips in the entry's settings, by the rows in the
+     Management panel and by the line in the drawer, so the three can
+     never drift apart.
+
+     Built from a real border plus a rotated square rather than a
+     clip-path, because a clip-path cuts the border off with the corner
+     and leaves the point drawn in fill alone. The square carries only its
+     two OUTER edges, so what shows is a continuous outline all the way
+     round the label. */
+  .tag-shape{
+    position:relative;
+    display:inline-flex;align-items:center;gap:4px;
+    margin-left:9px;
+    padding:1px 5px 1px 11px;
+    background:var(--panel-2);
+    border:1px solid var(--line);border-left:none;
+    border-radius:0 3px 3px 0;
+    font-size:10px;color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    white-space:nowrap;
+  }
+  /* The point is exactly as tall as the label it belongs to.
+   *
+     Drawn at a fixed eleven pixels it was a hair taller than the shape at
+     one size and a hair shorter at another, so its top and bottom corners
+     missed the label's own corners and the outline showed a step where the
+     two met. A square whose diagonal IS the label's outer height lands its
+     corners on them at every font size: side = height / sqrt(2), the
+     border counted in (box-sizing) and the height taken from the padding
+     box plus the two border pixels. Centred on the label's left edge by
+     its own width, since that width is not a number this stylesheet
+     knows. */
+  .tag-shape::before{
+    content:'';position:absolute;left:0;top:50%;
+    box-sizing:border-box;
+    height:calc((100% + 2px) * 0.70711);
+    aspect-ratio:1;width:auto;
+    transform:translate(-50%, -50%) rotate(45deg);
+    background:var(--panel-2);
+    border:1px solid var(--line);
+    border-right:none;border-top:none;
+    border-radius:0 0 0 2px;
+  }
+  /* The eyelet. Small, and in the faint ink, so it reads as part of the
+     label rather than as a bullet in front of the word. */
+  .tag-shape > .tag-eye{
+    position:absolute;left:2px;top:50%;
+    width:2.6px;height:2.6px;margin-top:-1.3px;
+    border-radius:50%;background:var(--ink-faint);
+    pointer-events:none;
+  }
+  .tag-chip{
+    display:inline-flex;align-items:center;gap:4px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:3px;
+    padding:1px 4px;font-size:10px;color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .tag-chip button{
+    background:none;border:none;padding:0;cursor:pointer;line-height:1;
+    color:var(--ink-faint);font-size:11px;
+  }
+  /* A chip IS a tag shape; the plain-box rules above are what it falls back
+     to where the shape cannot be drawn. */
+  .tag-chip.tag-shape{border-radius:0 3px 3px 0;padding:1px 5px 1px 11px;}
+  .tag-chip button:hover{color:var(--danger,#c23b22);}
+  .tag-chips:empty::before{
+    content:'No tags';font-size:10px;color:var(--ink-faint);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .tag-add-btn{
+    flex:0 0 auto;width:20px;height:20px;line-height:1;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:4px;cursor:pointer;font-size:12px;
+  }
+  .tag-add-btn:hover{color:var(--ink);border-color:var(--accent);}
+  .tag-menu{
+    position:absolute;top:100%;right:0;z-index:20;margin-top:3px;
+    min-width:130px;max-height:180px;overflow-y:auto;
+    display:flex;flex-direction:column;padding:4px;
+    background:var(--panel);border:1px solid var(--line);border-radius:5px;
+    box-shadow:0 8px 22px rgba(0,0,0,0.22);
+  }
+  .tag-menu button{
+    background:none;border:none;text-align:left;cursor:pointer;
+    padding:4px 6px;border-radius:3px;font-size:10px;color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .tag-menu button:hover{background:var(--panel-2);color:var(--ink);}
+  .tag-menu-head{
+    font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';text-transform:uppercase;
+    letter-spacing:0.5px;font-size:9.5px;color:var(--ink-faint);
+    padding:4px 6px 2px;
+  }
+  .tag-menu .tag-menu-empty{color:var(--ink-faint);cursor:default;}
+  .tag-menu .tag-menu-empty:hover{background:none;color:var(--ink-faint);}
+
+  /* ---------- Detail drawer ---------- */
+  .detail{
+    position:absolute;top:14px;right:14px;bottom:14px;
+    width:320px;
+    background:var(--panel);
+    border:1px solid var(--line);
+    border-radius:6px;
+    box-shadow:var(--shadow);
+    z-index:30;
+    display:flex;flex-direction:column;
+    overflow:hidden;
+    transform:translateX(340px);
+    transition:transform 180ms ease;
+  }
+  .detail.open{transform:translateX(0);}
+  .detail-head{
+    padding:14px 16px 10px;border-bottom:1px solid var(--line);
+    display:flex;align-items:flex-start;gap:10px;
+  }
+  .detail-head .swatch{width:12px;height:12px;border-radius:3px;margin-top:5px;flex:0 0 auto;}
+  /* The title shares the row with two buttons, so it has to be able to
+     give ground: min-width:0 lets a flex item shrink below its content,
+     and the break rules stop one long unbroken label from pushing the
+     pencil off the end of the panel. */
+  /* One line, cut with an ellipsis. Wrapping kept the whole title readable
+     but let a long one push the panel's head down the page, and the head is
+     a label for the panel rather than the text itself — the full label is
+     right below it in the editor. The title still shares its row with two
+     buttons, so min-width:0 is what lets it give ground at all. */
+  .detail-head h2{
+    margin:0;font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-size:16px;font-weight:700;
+    line-height:1.25;flex:1 1 auto;min-width:0;
+    white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+  }
+  /* …and its inline formatting must not reintroduce a line break. */
+  .detail-head h2 br{display:none;}
+  .detail-head h2 ruby{ruby-position:over;}
+  .detail-head .detail-edit-btn, .detail-head .detail-close{flex:0 0 auto;}
+  .detail-close{background:none;border:none;color:var(--ink-faint);cursor:pointer;font-size:16px;line-height:1;padding:2px;}
+  .detail-close:hover{color:var(--ink);}
+  .detail-tags{
+    padding:8px 16px;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    color:var(--ink-faint);text-transform:uppercase;letter-spacing:0.6px;
+    border-bottom:1px solid var(--line);
+  }
+  /* The drawer lists them as labels too, wrapping onto a second row rather
+     than running off the edge. */
+  .detail-tags{display:flex;flex-wrap:wrap;gap:5px 4px;align-items:center;}
+  .detail-tags .tag-shape{text-transform:none;letter-spacing:0;}
+  .detail-tags .detail-tags-none{color:var(--ink-faint);}
+  .detail-body{overflow-y:auto;flex:1;padding:12px 16px 20px;}
+  /* The note now lives in the drawer as an editor that is locked until you
+     ask to change it — read like text, edit in place, Apply to commit. The
+     locked state is deliberately flat and borderless so the drawer still
+     reads as a description rather than a form until you engage with it. */
+  .detail-note-block{
+    padding-bottom:10px;margin-bottom:10px;border-bottom:1px dashed var(--line);
+  }
+  .detail-note-head{
+    display:flex;align-items:center;gap:6px;margin-bottom:5px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.7px;color:var(--ink-faint);
+  }
+  .detail-note-btn{
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;
+    font-size:12px;line-height:1;padding:2px;margin-left:auto;
+  }
+  .detail-note-btn:hover{color:var(--accent);}
+  .detail-note-btn.active{color:var(--accent);}
+  .detail-note-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:7px;}
+
+  /* One row per language tab: tag, text, remove. */
+  .lang-tab-list{display:flex;flex-direction:column;gap:6px;}
+  .lang-tab-row{display:flex;gap:6px;align-items:stretch;}
+  .lang-tab-row .lang-tab-tag{
+    flex:0 0 58px;width:58px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;text-align:center;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:6px 4px;
+  }
+  .lang-tab-row .lang-tab-tag:focus{outline:none;border-color:var(--accent);}
+  .lang-tab-row .lang-tab-text{flex:1 1 auto;min-width:0;min-height:32px;max-height:120px;}
+  .lang-tab-del{
+    flex:0 0 26px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-faint);
+    border-radius:5px;cursor:pointer;font-size:15px;line-height:1;padding:0;
+  }
+  .lang-tab-del:hover{color:var(--accent);border-color:var(--accent);}
+  .lang-tab-add{
+    margin-top:7px;
+    background:var(--panel-2);border:1px dashed var(--line);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;letter-spacing:0.4px;
+    padding:6px 12px;border-radius:5px;cursor:pointer;
+  }
+  .lang-tab-add:hover{color:var(--accent);border-color:var(--accent);}
+  /* Locked is a state of the FIELD, not of the words in it.
+   *
+     This used to set the text in a dimmed italic of its own, so an entry's
+     note was the one piece of formatted text on the page that did not look
+     like what it was: everything the reader had written in it — the face,
+     the weight, the colour — arrived under an italic slant and a grey they
+     had not asked for, and pressing the pencil changed the way their own
+     words looked. Only the form's chrome is dropped now; the text is drawn
+     exactly as it is drawn everywhere else. */
+  .rich-surface.locked{
+    background:transparent;border-color:transparent;padding:0;
+    min-height:0;cursor:default;
+    /* A locked field is being READ, not filled in, so it is as long as
+       what is in it — up to a point. Left with no ceiling at all, a
+       comment with three figures in it grew past the height of the drawer
+       and pushed everything below it — the lineage, the connections —
+       clean off the bottom, so the panel had a beginning and no end. Past
+       half the window it gets a scrollbar of its own and the sections
+       under it stay where they are. */
+    max-height:56vh;overflow-y:auto;
+  }
+  .rich-surface.locked:empty:before,
+  .rich-surface.locked > div:only-child:empty:before{color:var(--ink-faint);}
+  .detail-section h3{
+    margin:14px 0 6px;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.8px;color:var(--ink-faint);
+  }
+  .detail-section h3:first-child{margin-top:0;}
+  .conn-row{
+    display:flex;align-items:flex-start;gap:7px;padding:6px 0;
+    border-bottom:1px solid var(--grid);cursor:pointer;
+  }
+  .conn-row:hover .conn-label{color:var(--accent);}
+  .conn-row:last-child{border-bottom:none;}
+  .conn-arrow{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';color:var(--ink-faint);font-size:11px;flex:0 0 auto;margin-top:1px;}
+  .conn-text{flex:1;min-width:0;}
+  .conn-label{font-size:12.5px;color:var(--ink);display:block;}
+  .conn-note{font-size:11px;color:var(--ink-faint);font-style:italic;margin-top:2px;line-height:1.4;}
+  .conn-empty{font-size:12px;color:var(--ink-faint);font-style:italic;}
+
+  .detail-edit-btn{
+    background:none;border:none;color:var(--ink-faint);cursor:pointer;
+    font-size:14px;line-height:1;padding:2px;margin-top:3px;flex:0 0 auto;
+  }
+  .detail-edit-btn:hover{color:var(--accent);}
+  .detail-edit-btn.active{color:var(--accent);}
+  .detail-edit-form{margin-top:2px;padding-bottom:14px;margin-bottom:14px;border-bottom:1px dashed var(--line);}
+  .detail-edit-form .editor-field{margin-bottom:10px;}
+  .detail-edit-form textarea{
+    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11.5px;line-height:1.5;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:7px 9px;resize:vertical;min-height:44px;
+  }
+  .detail-edit-form textarea:focus{outline:none;border-color:var(--accent);}
+  /* Any plain text input inside a field row — used by the quick-edit form,
+     Add Node, and the tags/link/colors fields — gets the same themed look
+     as the textareas/selects around it, instead of falling back to the
+     browser default. */
+  .editor-field input[type="text"]{
+    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:12px;line-height:1.5;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:7px 9px;
+  }
+  .editor-field input[type="text"]:focus{outline:none;border-color:var(--accent);}
+  /* The editable stand-in for a formatting-capable textarea. Deliberately
+     wears the exact chrome of the .editor-field textarea it replaces, so
+     swapping one for the other doesn't change how the form looks — only
+     that the formatting is now visible instead of written as markup. */
+  .rich-surface{
+    width:100%;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:12px;line-height:1.5;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:7px 9px;
+    overflow-y:auto;max-height:220px;
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .rich-surface:focus{outline:none;border-color:var(--accent);}
+  /* The words a hex value is being typed FOR.
+     A document has one selection and the hex box takes it, so the chosen
+     run is painted by a custom highlight instead — the same wash the real
+     selection wears, so nothing about the trip to the colour field looks
+     like the choice was thrown away. */
+  ::highlight(held-selection){background:rgba(194,59,34,0.26);}
+  .rich-surface:empty:before,
+  .rich-surface > div:only-child:empty:before{
+    content:attr(data-placeholder);color:var(--ink-faint);pointer-events:none;
+  }
+  .rich-surface b, .rich-surface strong{font-weight:700;}
+  .rich-surface i, .rich-surface em{font-style:italic;}
+  /* A reading's own styling lives further down, beside the rest of the
+     rich surface's typography. What stood here set it at a fixed 8px in
+     the ACCENT colour — so every annotation in every field was drawn in
+     the application's red whatever the text around it was, and the field
+     showed something the chart would never draw. */
+  .detail-edit-form .rich-surface{font-size:11.5px;}
+
+  .mini-toolbar{display:flex;gap:4px;margin-bottom:5px;align-items:center;flex-wrap:wrap;}
+  .mini-toolbar button{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;padding:3px 9px;border-radius:3px;cursor:pointer;
+  }
+  .mini-toolbar button:hover:not(:disabled){color:var(--ink);border-color:var(--accent);}
+  /* A rule under the words, and one through them. Pressed reads as
+     pressed, the same way every other on/off control on the page does. */
+  .mini-toolbar button.tb-line-btn.on{
+    background:var(--accent);color:#fff;border-color:var(--accent);
+  }
+  .mini-toolbar button.tb-line-btn.on:hover{color:#fff;}
+  .tb-line-group{display:flex;align-items:center;gap:4px;flex:0 0 auto;}
+  .tb-line-style{min-width:0;}
+  /* Font family + size live in the toolbar rather than as their own labelled
+     fields further down — the same place every drawing tool (Visio,
+     Paint.NET, a word processor) puts them, right next to bold/italic. They
+     are still the plain <select>/<input> the form logic already reads; only
+     their size and chrome change to sit in a button row. */
+  .mini-toolbar .tb-sep{
+    width:1px;align-self:stretch;background:var(--line);margin:0 3px;flex:0 0 auto;
+  }
+  /* These two carry an extra .editor-field so they outrank the generic
+     .editor-field select / input[type=number] rules further down, which
+     are written for full-width labelled fields and would otherwise stretch
+     a toolbar control across the whole row. */
+  .editor-field .mini-toolbar select,
+  .editor-field .mini-toolbar input[type="number"]{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;line-height:1.4;
+    padding:3px 4px;border-radius:3px;cursor:pointer;
+  }
+  .editor-field .mini-toolbar select:hover,
+  .editor-field .mini-toolbar input[type="number"]:hover{color:var(--ink);border-color:var(--accent);}
+  .editor-field .mini-toolbar select:focus,
+  .editor-field .mini-toolbar input[type="number"]:focus{outline:none;border-color:var(--accent);color:var(--ink);}
+  .editor-field .mini-toolbar select{
+    width:auto;max-width:128px;flex:0 1 auto;
+    appearance:none;-webkit-appearance:none;-moz-appearance:none;
+    padding-right:20px;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.4L5 5.4L9 1.4' fill='none' stroke='%238291a8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 6px center;
+  }
+  .editor-field .mini-toolbar input[type="number"]{width:54px;text-align:center;flex:0 0 auto;}
+  /* Text colour: an A button that paints the selection, and the hex box it
+     takes its colour from, showing that colour as a swatch on its left. */
+  .mini-toolbar .tb-color-btn{font-weight:700;}
+  /* Written as `input.tb-hex` on purpose: `.editor-field input[type="text"]`
+     above is more specific than a two-class selector would be, and it was
+     quietly winning — which is what removed the colour swatch from these
+     boxes and reset their padding. */
+  /* The swatch is the button.
+     A separate "A" beside it was a second control for one idea, and the
+     coloured square already looked like the thing you press. Pressing the
+     square applies; the rest of the box still types a value. */
+  .mini-toolbar input.tb-hex, .legend-setting input.tb-hex{
+    cursor:pointer;
+    flex:0 0 74px;width:74px;height:22px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:3px;padding:0 5px 0 20px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;
+    background-image:linear-gradient(var(--swatch,transparent), var(--swatch,transparent));
+    background-repeat:no-repeat;
+    background-position:4px center;
+    background-size:11px 11px;
+  }
+  .mini-toolbar input.tb-hex:focus, .legend-setting input.tb-hex:focus{outline:none;border-color:var(--accent);}
+  .mini-toolbar input.tb-hex.bad, .legend-setting input.tb-hex.bad{border-color:var(--accent);}
+  /* What the picker says when the text is set in more than one way. */
+  option.tb-custom{font-style:italic;}
+  /* …and on the closed picker, which draws the label in its own type. */
+  select.tb-font.is-custom{font-style:italic;}
+  .tb-font{
+    max-width:92px;height:22px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:3px;font-size:9px;padding:0 2px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+  }
+  .tb-font:hover{color:var(--ink);border-color:var(--accent);}
+  .mini-toolbar .hex-reset{
+    background:none;border:none;padding:0 1px;cursor:pointer;line-height:1;
+    font-size:11px;color:var(--ink-faint);
+  }
+  .mini-toolbar .hex-reset:hover{color:var(--accent);}
+
+  /* ---- picking an archetype by its picture -------------------------
+     Five buttons, each drawing the archetype it stands for. A row that
+     wraps rather than a grid: the set is small and may grow, and a wrap is
+     the layout that does not have to be re-tuned when it does. */
+  .node-style-choice{display:flex;flex-wrap:wrap;gap:6px;}
+  .node-style-btn{
+    display:flex;flex-direction:column;align-items:center;gap:3px;
+    width:62px;padding:5px 2px 4px;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    color:var(--ink-dim);cursor:pointer;
+  }
+  .node-style-btn:hover{border-color:var(--accent);color:var(--ink);}
+  .node-style-btn.on{border-color:var(--accent);background:var(--panel);color:var(--ink);}
+  .node-style-btn.on .nsi-box{stroke:var(--accent);}
+  .node-style-icon{width:40px;height:30px;display:block;}
+  .nsi-box{fill:var(--panel);stroke:var(--ink-dim);stroke-width:1.6;}
+  .nsi-line{fill:none;stroke:var(--ink-dim);stroke-width:1.4;}
+  .nsi-mark{fill:none;stroke:var(--ink-faint);stroke-width:1.4;}
+  .nsi-fill{fill:var(--ink-dim);stroke:none;}
+  .nsi-fill-soft{fill:var(--ink-faint);stroke:none;}
+  .node-style-cap{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:8.5px;letter-spacing:0.2px;line-height:1.1;text-align:center;
+  }
+
+  /* The second line of a double border. Named so the entry's own border
+     rules — 1.6px, the panel fill, the selection's glow — do not claim it:
+     it is one half of a border, not a border of its own. */
+  .node > rect.border-inner, .node > path.border-inner, .node > circle.border-inner,
+  .node.selected > rect.border-inner, .node.selected > path.border-inner,
+  .node.selected > circle.border-inner,
+  .border-inner{stroke-width:0.9;fill:none;filter:none;}
+
+  /* Swatches beside the border-colors field, one per colour listed. */
+  .swatch-strip{display:flex;gap:4px;margin-top:6px;align-items:center;min-height:16px;}
+  .swatch-chip{
+    width:16px;height:16px;border-radius:4px;border:1px solid var(--line);flex:0 0 auto;
+  }
+
+  /* ---------- Zoom controls ---------- */
+  .zoomctl{
+    position:absolute;bottom:16px;right:16px;z-index:25;
+    display:flex;flex-direction:column;gap:6px;
+  }
+  .zoomctl.shifted{right:352px;}
+  .zoomctl button{
+    width:32px;height:32px;background:var(--panel);border:1px solid var(--line);
+    color:var(--ink-dim);border-radius:4px;cursor:pointer;font-size:16px;
+    box-shadow:var(--shadow);
+  }
+  .zoomctl button:hover{color:var(--accent);border-color:var(--accent);}
+
+  .coord{
+    position:absolute;bottom:16px;left:16px;z-index:25;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;color:var(--ink-faint);
+    background:var(--panel);border:1px solid var(--line);border-radius:4px;
+    padding:5px 9px;box-shadow:var(--shadow);
+    transition:left 180ms ease;
+  }
+  .coord.shifted{left:280px;}
+
+  .about-overlay{
+    position:absolute;inset:0;z-index:80;
+    background:rgba(10,14,20,0.45);
+    display:none;align-items:center;justify-content:center;
+  }
+  .about-overlay.open{display:flex;}
+  /* Tall enough to read in, never taller than the window — the panel has
+     grown a long way past the few paragraphs it started as, and a card
+     that runs off the bottom of the screen has no bottom. The heading
+     stays put and the prose scrolls under it. */
+  .about-card{
+    width:min(480px, 88vw);
+    max-height:min(86vh, 900px);
+    display:flex;flex-direction:column;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);overflow:hidden;
+  }
+  .about-card > .detail-head{flex:0 0 auto;}
+  .about-body{
+    padding:14px 18px 20px;
+    overflow-y:auto;
+    overscroll-behavior:contain;
+    /* A hairline of shadow at the top edge says there is more above. */
+    scrollbar-width:thin;
+  }
+  .about-body p{
+    font-size:13px;line-height:1.65;color:var(--ink-dim);margin:0 0 12px;
+  }
+  .about-body p:last-child{margin-bottom:0;}
+  /* A comment read at full size. The card's own type, so the note looks
+     like a page rather than like a widened form field, and the figures get
+     the whole column. */
+  .note-overlay-body{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:12.5px;line-height:1.6;color:var(--ink);
+    white-space:pre-wrap;word-break:break-word;
+  }
+  .note-overlay-body .rich-figure{margin:12px 0;}
+  .note-overlay-body .rich-figure img,
+  .note-overlay-body .rich-figure video{max-height:min(62vh,560px);}
+  .note-overlay-body .fig-grip{display:none;}
+  .note-overlay-empty{color:var(--ink-faint);}
+
+  /* ---------- Editor + preview overlays ---------- */
+  .editor-overlay, .preview-overlay{
+    position:absolute;inset:0;z-index:90;
+    background:rgba(10,14,20,0.45);
+    display:none;align-items:center;justify-content:center;
+  }
+  .editor-overlay.open, .preview-overlay.open{display:flex;}
+  .editor-card{
+    width:min(1040px, 94vw);height:min(760px, 90vh);
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);overflow:hidden;
+    display:flex;flex-direction:column;
+  }
+  .editor-toolbar{
+    padding:10px 16px;border-bottom:1px solid var(--line);
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+  }
+  .editor-toolbar .spacer{flex:1;}
+  .editor-btn{
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;padding:7px 12px;border-radius:4px;
+    cursor:pointer;text-transform:uppercase;letter-spacing:0.5px;
+  }
+  .editor-btn:hover{color:var(--ink);border-color:var(--accent);}
+  .editor-btn.primary{background:var(--accent);border-color:var(--accent);color:var(--accent-ink);}
+  .editor-btn.primary:hover{filter:brightness(1.08);}
+  .editor-btn:disabled{opacity:0.4;cursor:default;}
+  .editor-btn:disabled:hover{color:var(--ink-dim);border-color:var(--line);}
+  .editor-body{flex:1;overflow-y:auto;padding:14px 16px;display:flex;flex-direction:column;gap:14px;}
+  .editor-field label{
+    display:block;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.7px;color:var(--ink-faint);margin-bottom:5px;
+  }
+  .editor-field textarea{
+    width:100%;min-height:180px;resize:vertical;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:12px;line-height:1.5;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:10px 12px;tab-size:2;
+  }
+  .editor-field textarea:focus{outline:none;border-color:var(--accent);}
+  /* Small forms (Add Node) share the .editor-field textarea rule above but
+     need a much shorter box than the old raw-data editor did. */
+  #addNodeLabel{min-height:46px;}
+  .editor-help{font-size:11.5px;color:var(--ink-faint);line-height:1.6;}
+  /* A second, quieter label inside a field that carries more than one
+     control — the field's own label names the thing, this names the
+     choice being made about it. */
+  .editor-sublabel{
+    display:block;margin:8px 0 4px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';
+    font-size:9.5px;letter-spacing:0.6px;text-transform:uppercase;
+    color:var(--ink-faint);
+  }
+  .editor-help code{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';background:var(--panel-2);padding:1px 4px;border-radius:3px;}
+  .editor-status{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11.5px;padding:8px 12px;border-radius:5px;
+    display:none;white-space:pre-wrap;
+  }
+  .editor-status.show{display:block;}
+  .editor-status.err{background:rgba(194,59,34,0.1);color:#a6321c;border:1px solid rgba(194,59,34,0.3);}
+  .editor-status.ok{background:rgba(64,140,80,0.1);color:#2c7a41;border:1px solid rgba(64,140,80,0.3);}
+  .editor-status.info{background:var(--panel-2);color:var(--ink-dim);border:1px solid var(--line);}
+
+  /* Selects get the browser's native dropdown chrome unless it's turned
+     off — next to the flat themed text inputs around them that read as a
+     foreign control, and the missing line-height left them a couple of
+     pixels shorter than the inputs too. appearance:none plus a drawn
+     chevron and the inputs' own line-height makes the whole form one set.
+     The chevron is a literal hex rather than var(--ink-faint) because a
+     CSS variable can't be interpolated into a background-image URL; the
+     palette is single-theme here (see the token block up top), so the one
+     value is correct in every state the page has. */
+  .editor-field select{
+    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:12px;line-height:1.5;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:7px 26px 7px 9px;
+    appearance:none;-webkit-appearance:none;-moz-appearance:none;cursor:pointer;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='7' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.4L5 5.4L9 1.4' fill='none' stroke='%238291a8' stroke-width='1.6' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;
+    background-position:right 9px center;
+  }
+  .editor-field select:hover{border-color:var(--accent);}
+  .editor-field select:focus{outline:none;border-color:var(--accent);}
+
+  .editor-field input[type="color"]{
+    width:38px;height:30px;padding:2px;border:1px solid var(--line);border-radius:5px;
+    background:var(--panel-2);cursor:pointer;flex:0 0 auto;
+  }
+  .editor-field input[type="number"]{
+    width:100%;font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:12px;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:7px 9px;
+  }
+  .editor-field input[type="number"]:focus{outline:none;border-color:var(--accent);}
+  .color-field-row{display:flex;gap:8px;align-items:center;}
+  .color-field-row .editor-btn{flex:0 0 auto;}
+  .checkbox-field-row{display:flex !important;flex-direction:row !important;align-items:center;gap:9px;cursor:pointer;}
+  /* This row is itself a <label> inside .editor-field, so it already picks
+     up the shared label treatment (10px uppercase mono, ink-faint). Its
+     text span must not override that with a size and color of its own, or
+     this one caption sits noticeably bigger and darker than every other
+     field label in the form. */
+  .checkbox-field-row .toggle-caption{font-size:inherit;color:inherit;letter-spacing:inherit;}
+  /* A themed toggle switch standing in for the bare browser checkbox — the
+     rest of the editor UI (inputs, selects, buttons) is all flat panels
+     with a var(--line) border and a var(--accent) active state, and a
+     default OS checkbox looked like a foreign control dropped on top of
+     it. Same on/off semantics, just drawn to match. */
+  .toggle-switch{position:relative;display:inline-block;flex:0 0 auto;width:32px;height:18px;}
+  .toggle-switch input{position:absolute;inset:0;margin:0;opacity:0;cursor:pointer;}
+  .toggle-switch .toggle-track{
+    position:absolute;inset:0;border-radius:10px;
+    background:var(--panel-2);border:1px solid var(--line);
+    transition:background 120ms ease, border-color 120ms ease;
+  }
+  .toggle-switch .toggle-thumb{
+    position:absolute;top:2px;left:2px;width:12px;height:12px;border-radius:50%;
+    background:var(--ink-faint);transition:transform 120ms ease, background 120ms ease;
+  }
+  .toggle-switch input:checked ~ .toggle-track{background:var(--accent);border-color:var(--accent);}
+  .toggle-switch input:checked ~ .toggle-thumb{transform:translateX(14px);background:var(--accent-ink);}
+  .toggle-switch input:focus-visible ~ .toggle-track{outline:2px solid var(--accent);outline-offset:2px;}
+
+  /* ---------- Edge style popover ---------- */
+  /* Not a modal: a small floating card positioned near the clicked arrow,
+     no backdrop — dismissed by clicking its ✕ or anywhere outside it. */
+  .edge-popover{
+    position:absolute;top:0;left:0;z-index:95;
+    width:210px;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:9px 10px 10px;
+    display:none;
+    flex-direction:column;gap:7px;
+  }
+  .edge-popover.open{display:flex;}
+
+  /* ---- the in-node editor ------------------------------------------
+     Not a panel: a field standing ON the entry, with its toolbar floating
+     above it. So there is no card around the whole thing — a card would
+     be a second box drawn over the box the reader is editing — only the
+     toolbar has a ground of its own, and the field itself is transparent
+     enough that the entry's border still reads through it. */
+  .node-editor{
+    position:absolute;top:0;left:0;z-index:96;
+    width:max-content;
+    display:flex;flex-direction:column;align-items:flex-start;gap:0;
+  }
+  .node-editor[hidden]{display:none !important;}
+  .node-editor .mini-toolbar{
+    align-self:flex-start;width:max-content;max-width:340px;
+    background:var(--panel);border:1px solid var(--line);border-radius:7px;
+    box-shadow:var(--shadow);
+    padding:4px 5px;margin:0 0 4px;
+  }
+  /* The field wears the entry's own face, size and centring — set on the
+     element by syncNodeEditorLook, since they are the entry's and not the
+     stylesheet's to know. What is fixed here is that it looks like a field
+     you can type in and not like a second entry. */
+  .node-editor .rich-surface{
+    background:var(--panel);
+    border:1.6px solid var(--accent);
+    border-radius:5px;
+    box-shadow:0 2px 10px rgba(20,28,43,0.16);
+    padding:3px 6px;
+    max-height:none;
+    text-align:center;
+  }
+  .node-editor .rich-surface:focus{outline:none;}
+  .node-editor textarea{display:none;}
+  /* A callout's panel is the same card opened on a smaller thing: a
+     toolbar, the words, and the one decision beyond them. */
+  .callout-popover{width:200px;}
+  .callout-popover .edge-popover-head{justify-content:flex-end;min-height:14px;}
+  .edge-popover-head{
+    display:flex;align-items:center;gap:8px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.6px;color:var(--ink-faint);
+  }
+  .edge-popover-head span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .edge-popover .editor-status{margin:0;}
+  /* The note is a rich field now, so the visible box is the .rich-surface
+     that makeRichField() puts in front of the textarea — both are styled
+     the same way so converting it changed nothing about how it looks. */
+  .edge-popover .style-note-input,
+  .edge-popover .rich-surface{
+    width:100%;min-height:24px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:4px;padding:4px 7px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;line-height:1.45;
+  }
+  .edge-popover .style-note-input:focus,
+  .edge-popover .rich-surface:focus{outline:none;border-color:var(--accent);}
+  .edge-popover .mini-toolbar{margin:0 0 5px;}
+
+  /* The new-entry form is a popover too, anchored under the + button in the
+     top bar rather than a modal over the whole chart: the map behind it stays
+     visible, pannable and zoomable while you fill the form in, so you can see
+     where the entry is about to land. */
+  .add-popover{
+    position:absolute;top:12px;left:12px;z-index:96;
+    width:246px;max-height:calc(100% - 24px);overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:9px 11px 11px;
+    display:none;
+    flex-direction:column;gap:8px;
+  }
+  .add-popover.open{display:flex;}
+
+  /* The file popover — export, import, and forgetting local work. */
+  .file-popover{
+    position:absolute;top:12px;left:12px;z-index:96;
+    width:266px;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:9px 11px 11px;
+    display:none;flex-direction:column;gap:8px;
+  }
+  .file-popover.open{display:flex;}
+  .file-popover .editor-status{margin:0;}
+  .file-actions{display:flex;flex-direction:column;gap:6px;}
+  .file-actions .editor-btn{width:100%;}
+  .file-note{font-size:11px;color:var(--ink-faint);line-height:1.55;margin:0;}
+  body.read-only #fileForget{display:none;}
+
+  /* The click menu for a free-standing picture or text block. Same floating
+     card as the connector menu, positioned next to whatever you clicked. */
+  .free-menu{
+    position:absolute;top:0;left:0;z-index:96;
+    width:232px;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);
+    padding:9px 10px 10px;
+    display:none;flex-direction:column;gap:8px;
+  }
+  .free-menu.open{display:flex;}
+
+  /* Suggestions ------------------------------------------------------- */
+  .comments-card{width:min(620px, 94vw);}
+  .comment-compose{
+    border:1px solid var(--line);border-radius:8px;background:var(--panel-2);
+    padding:11px 12px 12px;display:flex;flex-direction:column;gap:8px;margin-bottom:14px;
+  }
+  .comment-compose-row{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
+  .comment-compose-row input[type=text]{flex:1;min-width:130px;}
+  .comment-compose-row .editor-btn{white-space:nowrap;}
+  .comment-compose textarea{
+    width:100%;font-family:'IBM Plex Sans',system-ui,sans-serif;font-size:12.5px;line-height:1.55;
+    background:var(--panel);color:var(--ink);border:1px solid var(--line);border-radius:5px;
+    padding:9px 10px;resize:vertical;
+  }
+  .comment-compose textarea:focus{outline:none;border-color:var(--accent);}
+  .comment-note{font-size:11.5px;color:var(--ink-faint);line-height:1.6;margin:2px 0 0;}
+
+  .comment-filter{display:flex;gap:6px;margin-bottom:10px;}
+  .comment-filter .editor-btn{padding:4px 10px;font-size:10px;}
+  .comment-filter .editor-btn.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+
+  .comment-list{display:flex;flex-direction:column;gap:9px;}
+  .comment-item{
+    border:1px solid var(--line);border-left-width:3px;border-radius:7px;
+    background:var(--panel);padding:9px 11px 10px;
+  }
+  .comment-item.k-correction{border-left-color:#c23b22;}
+  .comment-item.k-addition{border-left-color:#3fae4a;}
+  .comment-item.k-deletion{border-left-color:#8a8f98;}
+  .comment-item.done{opacity:0.55;}
+  .comment-head{
+    display:flex;align-items:center;gap:8px;flex-wrap:wrap;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-faint);margin-bottom:5px;
+  }
+  .comment-who{color:var(--ink);font-weight:600;}
+  .comment-kind{
+    padding:1px 6px;border-radius:99px;border:1px solid currentColor;font-size:9px;
+  }
+  .comment-item.k-correction .comment-kind{color:#c23b22;}
+  .comment-item.k-addition .comment-kind{color:#3fae4a;}
+  .comment-item.k-deletion .comment-kind{color:#8a8f98;}
+  .comment-body{font-size:12.5px;line-height:1.6;white-space:pre-wrap;}
+  .comment-actions{display:flex;gap:6px;margin-top:8px;flex-wrap:wrap;}
+  .comment-actions .editor-btn{padding:3px 8px;font-size:9.5px;}
+  .comment-actions select{font-size:10px;padding:2px 4px;}
+  body.read-only .comment-actions{display:none;}
+  .comment-empty{font-size:12px;color:var(--ink-faint);padding:12px 0;}
+
+  /* Stickers ---------------------------------------------------------- */
+  .sticker-card{width:min(560px, 92vw);}
+  .sticker-add{display:flex;align-items:center;gap:10px;flex-wrap:wrap;margin:12px 0 6px;}
+  .sticker-hint{font-size:11px;color:var(--ink-faint);line-height:1.5;flex:1;min-width:180px;}
+  .sticker-status{margin-bottom:8px;}
+  .sticker-grid{
+    display:grid;grid-template-columns:repeat(auto-fill, minmax(92px, 1fr));
+    gap:10px;margin-top:10px;
+  }
+  .sticker-cell{
+    position:relative;
+    border:1px solid var(--line);border-radius:7px;background:var(--panel-2);
+    padding:8px 6px 6px;display:flex;flex-direction:column;align-items:center;gap:6px;
+  }
+  .sticker-cell img{width:52px;height:52px;object-fit:contain;}
+  .sticker-cell-actions{display:flex;gap:5px;width:100%;}
+  .sticker-cell-actions .editor-btn{flex:1;padding:3px 2px;font-size:9.5px;}
+  /* Removing a sticker is a corner cross on the tile, not a word inside it:
+     the tile is 52px of picture and no button spelling "Delete" fits across
+     it without spilling over the frame. */
+  .sticker-del{
+    position:absolute;top:-6px;right:-6px;width:16px;height:16px;padding:0;
+    display:flex;align-items:center;justify-content:center;
+    border:1px solid var(--line);border-radius:50%;background:var(--panel);
+    color:var(--ink-dim);font-size:9px;line-height:1;cursor:pointer;
+  }
+  .sticker-del:hover{border-color:var(--accent);color:var(--accent);}
+  .sticker-empty{font-size:12px;color:var(--ink-faint);padding:14px 0;}
+  body.read-only .sticker-add, body.read-only .sticker-cell-actions,
+  body.read-only .sticker-del,
+  body.read-only .sticker-picker-manage{display:none;}
+
+  .sticker-picker{
+    position:fixed;z-index:140;display:none;
+    width:216px;max-height:238px;overflow-y:auto;
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:var(--shadow);padding:8px;
+  }
+  .sticker-picker.open{display:block;}
+  .sticker-picker-grid{display:grid;grid-template-columns:repeat(5, 1fr);gap:5px;}
+  .sticker-picker-grid button{
+    width:100%;aspect-ratio:1;padding:2px;cursor:pointer;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+  }
+  .sticker-picker-grid button:hover{border-color:var(--accent);}
+  .sticker-picker-grid img{width:100%;height:100%;object-fit:contain;display:block;}
+  .sticker-picker-empty{font-size:11px;color:var(--ink-faint);padding:6px 2px 8px;line-height:1.5;}
+  .sticker-picker-manage{
+    display:block;width:100%;margin-top:8px;padding:5px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;text-transform:uppercase;letter-spacing:0.5px;
+    background:var(--panel-2);color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;
+  }
+  .sticker-picker-manage:hover{color:var(--ink);border-color:var(--accent);}
+
+  /* The figure picker. Wider than the sticker one, because what it shows
+     are frames and clips rather than glyphs, and three across is as small
+     as a still can go and still be recognisable. */
+  .media-picker{width:268px;max-height:330px;}
+  .media-picker-grid{display:grid;grid-template-columns:repeat(3, 1fr);gap:6px;}
+  .media-picker-grid .media-pick{
+    position:relative;width:100%;aspect-ratio:4/3;padding:2px;cursor:pointer;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+  }
+  .media-picker-grid .media-pick:hover{border-color:var(--accent);}
+  .media-picker-grid img, .media-picker-grid video{
+    width:100%;height:100%;object-fit:contain;display:block;
+  }
+  .media-pick-kind{
+    position:absolute;left:3px;bottom:3px;font-size:9px;line-height:1;
+    color:var(--paper);background:rgba(0,0,0,0.55);border-radius:3px;padding:2px 3px;
+  }
+  .media-pick-del{
+    position:absolute;top:-6px;right:-6px;width:16px;height:16px;line-height:14px;
+    text-align:center;font-size:12px;border-radius:50%;
+    background:var(--panel);color:var(--ink-faint);border:1px solid var(--line);
+  }
+  .media-pick-del:hover{color:var(--accent);border-color:var(--accent);}
+  body.read-only .media-pick-del, body.read-only .media-picker-link{display:none;}
+  .media-picker-link{display:flex;gap:5px;margin-top:8px;}
+  .media-picker-link input{
+    flex:1;min-width:0;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;
+    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);
+    border-radius:5px;padding:5px 6px;
+  }
+  .media-picker-link input:focus{outline:none;border-color:var(--accent);}
+  .media-picker-link button{
+    flex:0 0 auto;cursor:pointer;padding:5px 8px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.5px;
+    background:var(--panel-2);color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;
+  }
+  .media-picker-link button:hover{color:var(--ink);border-color:var(--accent);}
+  .media-picker-status{font-size:10.5px;line-height:1.45;margin-top:6px;color:var(--ink-faint);}
+  .media-picker-status.err{color:var(--accent);}
+
+  /* Room for a figure while the comment is being written. */
+  .detail-note-block .rich-surface{max-height:460px;}
+
+  /* A figure standing in the flow of a comment, the way one stands in a
+     document: on its own line, the width of the column, with the caption
+     it was given underneath. It is contenteditable="false", so the caret
+     steps over the whole thing rather than into it. */
+  .rich-figure{
+    position:relative;
+    display:block;margin:7px 0;max-width:100%;
+    border:1px solid var(--line);border-radius:6px;overflow:hidden;
+    background:var(--panel-2);line-height:0;
+  }
+  .rich-figure img, .rich-figure video{
+    display:block;width:100%;height:auto;max-height:320px;object-fit:contain;
+  }
+  /* A figure is placed and sized by hand, like everything else on this
+     chart. Carried by its own body — the whole picture is the handle — and
+     resized by the corner, which is where every other resize on this page
+     is done. Both only while the comment is open for writing: a locked
+     comment is being read, and a picture that moves under the pointer
+     while you are reading is a picture in the way. */
+  .rich-surface:not(.locked) .rich-figure{cursor:grab;}
+  .rich-surface:not(.locked) .rich-figure.dragging{cursor:grabbing;opacity:0.5;}
+  .rich-figure > .fig-grip{
+    display:none;
+    position:absolute;right:0;bottom:0;width:15px;height:15px;
+    cursor:nwse-resize;background:var(--panel);
+    border-top:1px solid var(--line);border-left:1px solid var(--line);
+    border-radius:5px 0 5px 0;
+  }
+  .rich-figure > .fig-grip::after{
+    content:'';position:absolute;right:3px;bottom:3px;width:7px;height:7px;
+    border-right:1.4px solid var(--ink-faint);border-bottom:1.4px solid var(--ink-faint);
+  }
+  .rich-surface:not(.locked) .rich-figure:hover > .fig-grip,
+  .rich-surface:not(.locked) .rich-figure.sizing > .fig-grip{display:block;}
+  /* Where a dropped figure would land. A caret is invisible on a line of
+     its own, so the place is shown as a rule across the column. */
+  .rich-drop-mark{
+    display:block;height:0;border-top:2px solid var(--accent);
+    margin:2px 0;pointer-events:none;
+  }
+  body.figure-dragging{user-select:none;-webkit-user-select:none;}
+  .media-missing{
+    display:inline-block;font-family:'IBM Plex Mono',monospace;font-size:10.5px;
+    color:var(--ink-faint);border:1px dashed var(--line);border-radius:4px;
+    padding:1px 5px;
+  }
+  .tb-media-btn{font-size:12px;line-height:1;}
+
+  /* A sticker sitting inside a sentence, in the editors and the detail
+     panel — sized off the surrounding text so it reads as a glyph. */
+  .sticker-inline{
+    height:1.5em;width:auto;vertical-align:-0.32em;margin:0 1px;
+    object-fit:contain;
+  }
+  .sticker-missing-inline{color:var(--ink-faint);opacity:0.6;}
+  .sticker-missing{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:2 2;}
+  .sticker-glyph{pointer-events:none;}
+  .free-menu .editor-field{gap:5px;}
+  .free-menu-row{display:flex;gap:6px;margin-top:5px;}
+  .free-menu-row .editor-btn{flex:1;padding:5px 4px;font-size:10px;}
+  .free-menu-row .editor-btn.on{background:var(--accent);color:#fff;border-color:var(--accent);}
+  .free-menu-row input[type="range"]{flex:1;min-width:0;accent-color:var(--accent);}
+  .free-menu input.free-rot-num{
+    flex:0 0 48px;width:48px;height:22px;text-align:center;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:3px;padding:0 3px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+  }
+  .free-menu input.free-rot-num:focus{outline:none;border-color:var(--accent);}
+  .free-menu-row #freeMenuRotReset{flex:0 0 auto;}
+  body.read-only .free-menu{display:none !important;}
+
+  /* Free-standing elements carry no chart furniture: a picture is just the
+     picture, and a text block is just the words. Both show a faint outline
+     on hover so they can still be found and grabbed. */
+  .node-free > .textbox-frame{fill:transparent;stroke:transparent;stroke-width:1;stroke-dasharray:3 3;}
+  .node-free:hover > .textbox-frame{stroke:var(--ink-faint);}
+  .node-free.selected > .textbox-frame{stroke:var(--accent);stroke-dasharray:none;}
+  .node-free > .image-empty{fill:var(--panel-2);stroke:var(--ink-faint);stroke-width:1;stroke-dasharray:4 3;}
+  .node-free > .image-empty-mark{fill:var(--ink-faint);stroke:none;opacity:0.55;}
+  .node-image > image{cursor:pointer;}
+  .add-popover .editor-status{margin:0;}
+  .add-popover .editor-field{gap:5px;}
+  .add-popover .editor-help{font-size:10.5px;}
+
+  /* One labelled row per setting, each a strip of small symbol buttons —
+     compact enough that the whole popover reads at a glance instead of
+     being five dropdowns tall. */
+  .style-row{display:flex;align-items:center;gap:8px;}
+  .style-row-label{
+    flex:0 0 34px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;
+    text-transform:uppercase;letter-spacing:0.5px;color:var(--ink-faint);
+  }
+  .style-choice{display:flex;gap:3px;flex:1;}
+  .style-select{
+    flex:1;min-width:0;height:24px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:4px;padding:0 20px 0 6px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    appearance:none;-webkit-appearance:none;-moz-appearance:none;
+    background-image:url("data:image/svg+xml;charset=utf-8,%3Csvg xmlns='http://www.w3.org/2000/svg' width='9' height='6' viewBox='0 0 10 7'%3E%3Cpath d='M1 1.4L5 5.4L9 1.4' fill='none' stroke='%238291a8' stroke-width='1.8' stroke-linecap='round' stroke-linejoin='round'/%3E%3C/svg%3E");
+    background-repeat:no-repeat;background-position:right 6px center;
+  }
+  .style-select:hover{color:var(--ink);border-color:var(--accent);}
+  .style-select:focus{outline:none;border-color:var(--accent);}
+  .style-choice button{
+    flex:1;min-width:0;height:24px;padding:0;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-dim);
+    border-radius:4px;cursor:pointer;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;line-height:1;
+  }
+  .style-choice:not(.disabled) button:hover{color:var(--ink);border-color:var(--accent);}
+  .style-choice button.on{
+    background:var(--accent);border-color:var(--accent);color:var(--accent-ink);
+  }
+  .style-colors{gap:5px;}
+  .hex-input{
+    flex:1;min-width:0;height:24px;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:4px;padding:0 6px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;
+  }
+  .hex-input:focus{outline:none;border-color:var(--accent);}
+  .hex-input.bad{border-color:var(--accent);background:rgba(194,59,34,0.08);}
+  .hex-preview{
+    flex:0 0 24px;height:24px;border-radius:4px;border:1px solid var(--line);
+    background:var(--panel-2);
+  }
+  .edge-popover-actions{display:flex;gap:6px;margin-top:1px;}
+  .edge-popover-actions .editor-btn{flex:1;padding:6px 4px;font-size:10px;}
+
+  /* ---- the crop chooser -------------------------------------------
+     A square selection over a scaled preview. The frame's position is
+     kept in the image's own pixels, not the preview's, so resizing the
+     window (or a different-sized preview) cannot drift the selection. */
+  .crop-overlay{
+    /* Above everything, because it is opened FROM the other overlays: the
+       sticker manager sits at 90 and its picker at 140, and at 60 the
+       cropper appeared underneath the very panel that launched it — the
+       dialog was visible but every click went to the panel behind it. */
+    position:fixed;inset:0;z-index:200;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(12,14,18,0.55);backdrop-filter:blur(2px);
+  }
+  .crop-overlay.open{display:flex;}
+  .crop-box{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.3);
+    width:min(560px,92vw);max-height:92vh;display:flex;flex-direction:column;
+    padding:14px 16px 12px;
+  }
+  .crop-head{display:flex;align-items:center;gap:10px;margin-bottom:10px;}
+  .crop-head h2{
+    flex:1;margin:0;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';
+    text-transform:uppercase;letter-spacing:0.5px;font-size:16px;color:var(--ink);
+  }
+  .crop-stage{
+    position:relative;flex:1;min-height:0;display:flex;
+    align-items:center;justify-content:center;
+    background:var(--panel-2);border:1px solid var(--line);border-radius:5px;
+    overflow:hidden;user-select:none;touch-action:none;
+    /* Room for the grips. They straddle the selection's corners by 6px, so
+       a selection flush against the edge of the picture — which is where it
+       starts, and where it often belongs — would have its grips clipped
+       away by the overflow and become impossible to grab. */
+    box-sizing:border-box;padding:14px;
+  }
+  .crop-stage img{
+    display:block;max-width:100%;max-height:56vh;
+    -webkit-user-drag:none;user-select:none;pointer-events:none;
+  }
+  /* The dimming is four box-shadows' worth of "everything but here", done
+     with one huge spread so no extra elements are needed to mask around
+     the selection. */
+  .crop-frame{
+    position:absolute;box-sizing:border-box;
+    border:1px solid #fff;cursor:move;
+    box-shadow:0 0 0 9999px rgba(12,14,18,0.55), 0 0 0 1px rgba(0,0,0,0.55) inset;
+  }
+  .crop-grip{
+    position:absolute;width:12px;height:12px;background:#fff;
+    border:1px solid rgba(0,0,0,0.45);border-radius:2px;
+  }
+  /* A round selection is the same square with a round hole: the huge
+     spread shadow follows the border-radius, so one property does both the
+     frame and the dimming. The grips stay on the square's corners — they
+     are the handles of the bounding box, and putting them on the circle
+     itself would make them overlap the picture they are meant to frame. */
+  .crop-frame.circle{border-radius:50%;}
+  .crop-grip[data-grip="nw"]{left:-6px;top:-6px;cursor:nwse-resize;}
+  .crop-grip[data-grip="ne"]{right:-6px;top:-6px;cursor:nesw-resize;}
+  .crop-grip[data-grip="sw"]{left:-6px;bottom:-6px;cursor:nesw-resize;}
+  .crop-grip[data-grip="se"]{right:-6px;bottom:-6px;cursor:nwse-resize;}
+  .crop-hint{margin:8px 0 0;font-size:10px;color:var(--ink-faint);}
+  .crop-actions{display:flex;gap:8px;align-items:center;margin-top:10px;}
+  .crop-spacer{flex:1;}
+
+  .amalgam-bead{pointer-events:none;}
+
+  /* ---- callouts ------------------------------------------------------
+     The card itself is an entry and is drawn as one; only the line joining
+     it to the place on the connector it is talking about lives here. Its
+     stroke comes from the connector's own paint, set per element, so only
+     the geometry is written down. */
+  .leader-line{stroke-width:1;fill:none;}
+  .callout-leader{pointer-events:none;}
+  /* …except the dot, which is where the callout attaches and is therefore
+     something to take hold of. The visible dot is a couple of pixels
+     across; what catches the pointer is a circle big enough to hit. */
+  .leader-dot-hit{fill:transparent;stroke:none;pointer-events:all;cursor:ew-resize;}
+  .callout-leader:hover .leader-dot{r:4;}
+  /* Under the pointer, and while it is being carried. The handle that
+     catches the pointer is four times the dot across, so the dot has to
+     say when it is the thing about to move. */
+  .leader-dot.lifted, body.leader-reaiming .leader-dot{
+    r:5.5;
+    transition:r 90ms ease-out;
+  }
+  /* A leader fades and lights with the card it belongs to — see
+     paintSelectionHighlight. */
+  .callout-leader.dim{opacity:0.14;}
+  .callout-leader.lit{opacity:1;}
+  /* A comment card is a lighter thing than a reality — it is a remark
+     about the chart rather than a part of what the chart describes — so
+     its border is thinner and its text a shade quieter. Everything else
+     about it is an ordinary entry, ports and connectors included. */
+  .node-callout > rect{stroke-width:1.1;}
+  /* Full strength, like every other entry's text. At 86% the same hex came
+     out a lighter grey than the border above it and than the words in the
+     box beside it — two blacks on one chart, for no reason a reader could
+     name. */
+  /* While a point is being chosen the connectors are what the pointer is
+     for, so the chart's own cursor gets out of the way. */
+  body.leader-picking #canvas{cursor:crosshair;}
+  .leader-ghost{fill:none;stroke:var(--accent);stroke-width:1.6;}
+  /* The leader being aimed: a live line out of the anchor with a bead on
+     its end, which is where the card's centre will be. */
+  .leader-aim{stroke:var(--accent);stroke-width:1.4;stroke-dasharray:5 3;
+    vector-effect:non-scaling-stroke;pointer-events:none;}
+  .leader-aim-tip{fill:var(--accent);stroke:none;}
+  .leader-snap{fill:var(--accent);opacity:0.55;}
+  .style-callout-add{
+    flex:1;cursor:pointer;padding:5px 8px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    text-transform:uppercase;letter-spacing:0.5px;
+    background:var(--panel-2);color:var(--ink-faint);border:1px solid var(--line);border-radius:5px;
+  }
+  .style-callout-add:hover{color:var(--ink);border-color:var(--accent);}
+  body.read-only .style-callout-add{display:none;}
+
+  /* ---- references --------------------------------------------------
+     The mark is the only clickable thing inside a text. Everything else
+     on the chart's text layer is inert so that a label can be dragged, so
+     pointer-events are turned back on for just this one tspan. */
+  .ref-mark{
+    fill:var(--accent);opacity:0.55;
+    pointer-events:auto;cursor:pointer;
+  }
+  .ref-mark:hover{opacity:1;}
+  .ref-missing{fill:var(--danger,#c23b22);opacity:0.75;}
+
+  /* The two lists share one panel, so each gets a heading that reads as a
+     section rather than as one more category. */
+  .legend-section-head{
+    margin-top:10px;border-bottom-width:2px;
+  }
+  .legend-section-head:first-child{margin-top:0;}
+  /* Two lists, not one list with a subtitle in the middle. */
+  .legend-section-split{
+    margin-top:22px;padding-top:12px;
+    border-top:1px solid var(--line);
+  }
+  .legend-section-head .legend-group-name{font-size:13px;color:var(--ink);}
+  .ref-item{
+    padding:7px 8px;border-bottom:1px solid var(--line);position:relative;
+  }
+  .ref-item.flash{background:var(--panel-2);}
+  .ref-head{display:flex;align-items:baseline;gap:6px;}
+  .ref-num{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9.5px;color:var(--accent);
+    flex:0 0 auto;
+  }
+  .ref-uses{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;color:var(--ink-faint);}
+  /* The reference's text now sits on the head line, beside its number —
+     there is no heading above it any more, because the number is the name. */
+  .ref-detail{
+    flex:1;min-width:0;font-size:10.5px;color:var(--ink-dim);line-height:1.45;
+  }
+  .ref-detail em{color:var(--ink-faint);}
+  .ref-link{
+    display:block;margin-top:3px;font-size:9.5px;color:var(--accent);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .ref-tools{display:flex;gap:3px;margin-top:5px;}
+  .ref-tools button{
+    background:none;border:none;padding:0 3px;cursor:pointer;
+    font-size:10px;color:var(--ink-faint);line-height:1;
+  }
+  .ref-tools button:hover{color:var(--accent);}
+
+  /* The chip inside an editing surface: what a citation looks like while
+     the text is being written. */
+  .ref-chip{
+    display:inline-block;vertical-align:baseline;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:0.82em;
+    color:var(--accent);background:var(--panel-2);
+    border:1px solid var(--line);border-radius:3px;
+    padding:0 2px;margin:0 1px;cursor:default;user-select:all;
+  }
+  .tb-ref-btn{
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:9px;
+  }
+  .ref-picker{width:232px;padding:5px;}
+  .ref-picker-grid{display:flex;flex-direction:column;gap:2px;}
+  .ref-pick{
+    display:flex;gap:6px;align-items:baseline;text-align:left;
+    background:none;border:none;border-radius:4px;padding:4px 6px;cursor:pointer;
+    color:var(--ink-dim);font-size:10px;width:100%;
+  }
+  .ref-pick:hover{background:var(--panel-2);color:var(--ink);}
+  .ref-pick span:last-child{overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+
+  /* ---- in-page ask dialog ------------------------------------------ */
+  .ask-overlay{
+    position:fixed;inset:0;z-index:210;display:none;
+    align-items:center;justify-content:center;
+    background:rgba(12,14,18,0.5);
+  }
+  .ask-overlay.open{display:flex;}
+  .ask-box{
+    background:var(--panel);border:1px solid var(--line);border-radius:8px;
+    box-shadow:0 18px 50px rgba(0,0,0,0.3);
+    width:min(420px,92vw);padding:16px 18px 14px;
+  }
+  .ask-box h2{
+    margin:0 0 8px;font-family:'Big Shoulders Display',sans-serif,'Noto Color Emoji';
+    text-transform:uppercase;letter-spacing:0.5px;font-size:16px;color:var(--ink);
+  }
+  .ask-message{margin:0 0 10px;font-size:11px;color:var(--ink-dim);line-height:1.5;}
+  .ask-message:empty{display:none;}
+  .ask-fields{display:flex;flex-direction:column;gap:8px;}
+  .ask-field label{
+    display:block;margin-bottom:3px;font-size:9.5px;color:var(--ink-faint);
+    text-transform:uppercase;letter-spacing:0.5px;
+  }
+  .ask-field input, .ask-field textarea{
+    width:100%;box-sizing:border-box;
+    background:var(--panel-2);border:1px solid var(--line);color:var(--ink);
+    border-radius:4px;padding:5px 7px;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;line-height:1.5;
+  }
+  .ask-field input:focus, .ask-field textarea:focus{outline:none;border-color:var(--accent);}
+  .ask-field textarea{resize:vertical;min-height:56px;}
+  .ask-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:12px;}
+
+  /* The `hidden` attribute must actually hide.
+     The UA stylesheet gives [hidden] display:none, but that is the weakest
+     rule there is: any author rule setting a display — .style-row{flex},
+     .legend-add-menu{flex} — beats it, and the element stays on screen
+     while element.hidden reports true. That gap is invisible to a test
+     that checks the property rather than the computed style, which is
+     exactly how a permanently-visible row got past one here. */
+  [hidden]{display:none !important;}
+
+  /* An unset border colour: an empty square in the swatch row. */
+  .swatch-blank{background:transparent !important;border-style:dashed;}
+
+  /* Item: formatting must not reach an atomic token.
+     The serializer already keeps wrappers from enclosing one, but while
+     the text is being edited execCommand can still put a chip inside a
+     <b> or a coloured <span>. These make that visually inert, so the chip
+     never flickers into someone else's styling and back. */
+  .ref-chip{
+    font-weight:400 !important;font-style:normal !important;
+    text-decoration:none !important;
+    /* An atomic inline box: a rule drawn under or through the words does
+       not propagate into one, which is what keeps a citation from looking
+       struck out when the sentence around it is. */
+    display:inline-block;
+  }
+  .rich-surface .sticker-inline{
+    filter:none !important;opacity:1 !important;
+  }
+
+  /* A chart-wide setting sitting in the Management panel. */
+  .legend-setting{
+    display:flex;align-items:center;gap:8px;
+    padding:6px 8px;border-bottom:1px solid var(--line);
+  }
+  .legend-setting label{flex:1;min-width:0;font-size:10px;color:var(--ink-dim);}
+  /* Inside the list it has the list's own padding around it already, and
+     the hex field has to give way rather than run off the panel's edge. */
+  .legend-list > .legend-setting{border-bottom:none;padding:8px 0 2px;}
+  .hex-field{display:flex;align-items:center;gap:3px;}
+  /* A field and the control that puts it back to its default, on one row. */
+  .field-with-reset{display:flex;align-items:center;gap:5px;}
+  .field-with-reset input{flex:1;min-width:0;}
+  .hex-reset{
+    background:none;border:none;padding:0 2px;cursor:pointer;line-height:1;
+    font-size:11px;color:var(--ink-faint);
+  }
+  .hex-reset:hover{color:var(--accent);}
+
+  /* ---- carrying a row from one place in a list to another ------------
+     See beginListDrag. A row that can be picked up says so by its cursor;
+     the place it would land says so by a line or a wash, never by moving
+     the rows around underneath the pointer — a list that rearranges itself
+     while you are still deciding is a list you cannot aim at. */
+  .draggable-row{cursor:grab;}
+  body.list-dragging .draggable-row{cursor:grabbing;}
+  body.list-dragging{user-select:none;}
+  .list-drag-ghost{
+    position:fixed;z-index:9999;pointer-events:none;
+    padding:3px 7px;border-radius:4px;
+    background:var(--accent);color:#fff;
+    font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';
+    font-size:10px;font-weight:600;
+    box-shadow:0 3px 10px rgba(0,0,0,0.22);
+    max-width:180px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;
+  }
+  .legend-group.drop-into{
+    background:var(--panel-2);
+    box-shadow:inset 0 0 0 1.5px var(--accent);
+    border-radius:4px;
+  }
+  .ref-item.drop-before{box-shadow:inset 0 2px 0 0 var(--accent);}
+  .ref-item.drop-after{box-shadow:inset 0 -2px 0 0 var(--accent);}
+  .legend-tag-unfile{
+    background:none;border:none;padding:0 3px;cursor:pointer;
+    font-size:11px;color:var(--ink-faint);line-height:1;
+  }
+  .legend-tag-unfile:hover{color:var(--accent);}
+
+  /* ---- a control that cannot act ------------------------------------
+     Anything disabled keeps its shape and loses its answer: no hover
+     colour, no hover border, no pointer. Written once, here, so a new
+     button never has to remember to opt in. */
+  button:disabled{opacity:0.4;cursor:default;}
+  button:disabled:hover{
+    color:inherit !important;
+    border-color:var(--line) !important;
+    background:inherit !important;
+  }
+  .icon-action:disabled:hover, .eye-mini:disabled:hover,
+  .legend-group-tools button:disabled:hover, .ref-tools button:disabled:hover{
+    color:var(--ink-faint) !important;
+  }
+
+  /* ---- a reading, while it is being written -------------------------
+     A contenteditable draws <ruby>/<rt> in the browser's own defaults —
+     a serif face at half size, sitting on the text's own colour — which
+     matched nothing else in this editor and looked like foreign markup
+     pasted in. It is set here in the same face and weight the chart draws
+     it in, so what is being typed looks like what will be drawn. */
+  .rich-surface ruby{ruby-position:over;}
+  /* The face and the scale are the chart's; everything else the annotation
+     carries is its own. Pinning the weight here flattened a bold reading
+     back to regular in the field while the chart drew it bold — the field
+     showing something other than what it was writing. */
+  .rich-surface ruby rt{
+    font-family:inherit;
+    font-size:0.62em;line-height:1;
+    text-align:center;
+  }
+
+  /* ---- smart guides -------------------------------------------------
+     A hairline through everything the entry in your hand has lined up
+     with. It is drawn over the chart rather than under it — the point is
+     to see the alignment, not to hunt for it behind a box — and it is
+     never thicker than a line, because it is an answer, not an object. */
+  .align-guide{
+    stroke:var(--accent);
+    stroke-width:1;
+    stroke-dasharray:4 3;
+    vector-effect:non-scaling-stroke;
+    pointer-events:none;
+    opacity:0.85;
+  }
+
+  /* The version line and the history at the foot of the About panel. */
+  .about-version{font-family:'IBM Plex Mono',monospace;font-size:11.5px;
+    letter-spacing:0.04em;color:var(--ink-faint);text-transform:uppercase;
+    margin:0 0 14px;}
+  .version-log{margin-top:22px;border-top:1px solid var(--line);padding-top:14px;}
+  .version-log h3{font-family:'Big Shoulders Display',sans-serif;
+    text-transform:uppercase;letter-spacing:0.5px;font-size:15px;margin:0 0 10px;}
+  .version-entry{margin-bottom:14px;}
+  .version-head{display:flex;align-items:baseline;gap:8px;font-size:13px;}
+  .version-date{margin-left:auto;font-family:'IBM Plex Mono',monospace;
+    font-size:11px;color:var(--ink-faint);}
+  .version-log ul{margin:6px 0 0;padding-left:18px;}
+  .version-log li{margin:2px 0;font-size:12.5px;line-height:1.5;}
+  .version-foot{font-size:11.5px;color:var(--ink-faint);margin:10px 0 0;}

@@ -1,0 +1,725 @@
+<!doctype html>
+<html lang="en">
+<head>
+<!-- @@HEAD:BEGIN@@ -->
+<meta charset="utf-8">
+<title>Rhizome Project</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Big+Shoulders+Display:wght@600;700;800&family=IBM+Plex+Sans:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;500;600&family=Merriweather:ital,wght@0,400;0,700;1,400&family=Space+Grotesk:wght@400;500;600;700&family=Orbitron:wght@500;700;800&family=Caveat:wght@500;600;700&family=Noto+Color+Emoji&display=swap" rel="stylesheet">
+<!-- @@HEAD:END@@ -->
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<!-- @@BODY:BEGIN@@ -->
+
+<div class="app">
+  <div class="topbar">
+    <div class="brand">
+      <div class="mark">Rhizome<span>·</span>Project</div>
+      <div class="sub">A cartography of crossed realities</div>
+    </div>
+    <button class="icon-btn" id="legendToggle" title="Management — tags and references">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><line x1="4" y1="6" x2="20" y2="6"/><line x1="4" y1="12" x2="20" y2="12"/><line x1="4" y1="18" x2="14" y2="18"/></svg>
+    </button>
+    <button class="icon-btn" id="refsToggle" title="References" hidden>
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M5 4h9l5 5v11a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1z"/><path d="M14 4v5h5"/><line x1="8" y1="13" x2="15" y2="13"/><line x1="8" y1="17" x2="13" y2="17"/></svg>
+    </button>
+    <button class="icon-btn" id="addNodeToggle" title="Add a node">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="8" x2="12" y2="16"/><line x1="8" y1="12" x2="16" y2="12"/></svg>
+    </button>
+    <button class="icon-btn" id="gridToggle" title="Alignment grid — ruled in the same steps entries snap to">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.7"><rect x="3.5" y="3.5" width="17" height="17" rx="1.5"/><line x1="9.2" y1="3.5" x2="9.2" y2="20.5"/><line x1="14.8" y1="3.5" x2="14.8" y2="20.5"/><line x1="3.5" y1="9.2" x2="20.5" y2="9.2"/><line x1="3.5" y1="14.8" x2="20.5" y2="14.8"/></svg>
+    </button>
+    <button class="icon-btn" id="fileToggle" title="Export or import this chart as a file">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8"><path d="M14 3.5H7a1.5 1.5 0 0 0-1.5 1.5v14A1.5 1.5 0 0 0 7 20.5h10a1.5 1.5 0 0 0 1.5-1.5V8z"/><path d="M14 3.5V8h4.5"/><path d="M12 11.5v5.5M9.5 14.5 12 17l2.5-2.5"/></svg>
+    </button>
+    <button class="icon-btn" id="stickersToggle" title="Stickers">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M20.5 12.5A8.5 8.5 0 1 1 12 3.5a8.5 8.5 0 0 1 8.5 9z"/><path d="M20.4 12.4c-4.3 0-7.9 3.5-7.9 7.9"/><circle cx="9" cy="10" r="1" fill="currentColor" stroke="none"/><circle cx="15" cy="9.4" r="1" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <button class="icon-btn" id="commentsToggle" title="Suggestions" style="display:none;">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 11.5a8.4 8.4 0 0 1-9 8.4 8.9 8.9 0 0 1-3.8-.9L3 20.5l1.6-4.7A8.4 8.4 0 0 1 3.6 11.5a8.4 8.4 0 0 1 8.9-8.4 8.4 8.4 0 0 1 8.5 8.4z"/></svg>
+    </button>
+    <button class="icon-btn" id="aboutToggle" title="About this chart">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="9"/><line x1="12" y1="11" x2="12" y2="16.5"/><circle cx="12" cy="7.7" r="0.9" fill="currentColor" stroke="none"/></svg>
+    </button>
+    <div class="search-wrap">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="7"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      <input id="searchInput" type="text" placeholder="Search realities, titles, characters…" autocomplete="off">
+      <div class="search-results" id="searchResults"></div>
+    </div>
+    <div class="save-state" id="saveState" aria-live="polite">
+      <span class="save-dot"></span><span class="save-text" id="saveStateText"></span>
+    </div>
+    <button class="save-btn" id="saveBtn" disabled title="Publish your changes to this page (Ctrl+S)">Save</button>
+    <div class="view-badge" id="viewBadge" title="You are viewing this chart; only its owner can change it">View only</div>
+    <div class="topbar-stats"><b id="statNodes">0</b> entries &nbsp;·&nbsp; <b id="statEdges">0</b> links &nbsp;·&nbsp; <b id="statClusters">0</b> tags</div>
+  </div>
+
+  <div class="main">
+    <svg id="canvas" xmlns="http://www.w3.org/2000/svg">
+      <defs id="svgDefs"></defs>
+      <g id="viewport"></g>
+    </svg>
+
+
+    <!-- Management: the tags the chart filters by and the references it
+         cites. One panel, because both are lists of things the chart
+         points at and a reader looking for either should look in the same
+         place. -->
+    <div class="legend" id="legend">
+      <div class="legend-head">
+        <h2>Management</h2>
+        <button class="detail-close" id="legendClose">✕</button>
+      </div>
+      <!-- Each section carries its own controls, built into its heading;
+           this menu is moved under whichever + asked for it. -->
+      <div class="legend-add-menu" id="legendAddMenu" hidden>
+        <button type="button" data-add="tag">New tag</button>
+        <button type="button" data-add="cat">New category</button>
+      </div>
+      <!-- Belongs to the references, and is moved in under them on every
+           rebuild; it lives here only so its wiring has something to bind. -->
+      <div class="legend-setting" id="refColorRow" hidden>
+        <div class="hex-field">
+          <input type="text" id="refColorInput" class="tb-hex" maxlength="9" spellcheck="false"
+                 title="The colour every [n] mark is drawn in">
+          <button type="button" class="hex-reset" id="refColorReset" title="Back to the default">⟲</button>
+        </div>
+      </div>
+      <div class="legend-list" id="legendList"></div>
+    </div>
+
+    <div class="detail" id="detail">
+      <div class="detail-head">
+        <div class="swatch" id="detailSwatch"></div>
+        <h2 id="detailTitle">—</h2>
+        <button class="detail-edit-btn" id="detailEditToggle" title="Edit this entry">✎</button>
+        <button class="detail-close" id="detailClose">✕</button>
+      </div>
+      <div class="detail-tags" id="detailTags">—</div>
+      <div class="detail-body">
+        <div class="detail-edit-form" id="detailEditForm" style="display:none;">
+          <div class="editor-field">
+            <label for="editLabelInput">Label</label>
+            <div class="mini-toolbar">
+              <button type="button" data-wrap-target="editLabelInput" data-wrap="bold">B</button>
+              <button type="button" data-wrap-target="editLabelInput" data-wrap="italic">I</button>
+              <button type="button" data-wrap-target="editLabelInput" data-wrap="ruby">Ruby</button>
+              <input type="text" class="tb-hex" data-hex-for="editLabelInput" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="editLabelInput" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+              <span class="tb-sep"></span>
+              <select hidden id="editFontInput" title="Font for this entry's text"></select>
+              <input hidden id="editFontSizeInput" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px — blank uses the default (11.5)">
+            </div>
+            <textarea id="editLabelInput" rows="2" spellcheck="false"></textarea>
+          </div>
+          <div class="editor-field">
+            <label for="editLinkInput">Link URL</label>
+            <input id="editLinkInput" type="text" placeholder="https://…">
+          </div>
+          <div class="editor-field" id="editBioCardField" style="display:none;">
+            <label class="checkbox-field-row" for="editBioCardCheck">
+              <span class="toggle-switch">
+                <input type="checkbox" id="editBioCardCheck">
+                <span class="toggle-track"></span>
+                <span class="toggle-thumb"></span>
+              </span>
+              <span class="toggle-caption">Keep this portrait's card open</span>
+            </label>
+            <p class="editor-help">Off, the card opens while the pointer is on the portrait, and stays while this panel is open on it.</p>
+            <label class="editor-sublabel" for="editBioSide">Which side it stands on</label>
+            <div class="style-choice" id="editBioSide">
+              <button type="button" data-value="auto" title="Whichever side is clear — right unless something is there">Auto</button>
+              <button type="button" data-value="left" title="Always to the left of the portrait">◀</button>
+              <button type="button" data-value="right" title="Always to the right of the portrait">▶</button>
+            </div>
+          </div>
+          <div class="editor-field" id="editImageField" style="display:none;">
+            <label for="editImageInput">Portrait — image URL, or pick a file</label>
+            <input id="editImageInput" type="text" placeholder="https://… or leave blank">
+            <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+              <button type="button" class="editor-btn" id="editImagePick">Choose file…</button>
+              <button type="button" class="editor-btn" id="editImageClear">Clear</button>
+            </div>
+            <p class="editor-help">A chosen file is embedded in the chart itself, so it keeps working for everyone; it is scaled down first to keep the page small.</p>
+          </div>
+          <div class="editor-field" id="editColorsField">
+            <label for="editColorsInput">Border colors</label>
+            <div class="field-with-reset">
+              <input id="editColorsInput" type="text" placeholder="#20242b, #3fae4a">
+              <button type="button" class="hex-reset" id="editColorsReset" title="Back to the default border colour">⟲</button>
+            </div>
+            <div class="swatch-strip" id="editColorsSwatches"></div>
+          </div>
+          <div class="editor-field">
+            <label for="editTagsInput">Tags</label>
+            <!-- The tags an entry carries are chosen, never typed. The
+                 input is still the value every other part of the app reads,
+                 so it stays — hidden. -->
+            <div class="tag-field-row">
+              <div class="tag-chips" id="editTagsChips"></div>
+              <button type="button" class="tag-add-btn" id="editTagsAdd" title="Add a tag">+</button>
+              <input id="editTagsInput" type="text" hidden>
+              <div class="tag-menu" id="editTagsMenu" hidden></div>
+            </div>
+          </div>
+          <div class="editor-field" id="editBgField">
+            <label for="editBgInput">Background</label>
+            <div class="field-with-reset">
+              <input id="editBgInput" type="text" placeholder="white — or #f4e9c9, #d8e6f5">
+              <button type="button" class="hex-reset" id="editBgReset" title="Back to the paper">⟲</button>
+            </div>
+            <div class="swatch-strip" id="editBgSwatches"></div>
+            <p class="editor-help">One colour fills the box; two or more make a gradient across it.</p>
+          </div>
+          <div class="editor-field" id="editBorderField">
+            <label>Border style</label>
+            <div class="style-choice" id="editBorderStyle">
+              <button type="button" data-value="solid" title="Solid">──</button>
+              <button type="button" data-value="dashed" title="Dashed">╌╌</button>
+              <button type="button" data-value="dotted" title="Dotted">┈┈</button>
+              <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
+              <button type="button" data-value="double" title="Double">═</button>
+              <button type="button" data-value="wavy" title="Wavy — the old pocket-reality edge">∿</button>
+            </div>
+          </div>
+          <div class="editor-field">
+            <label for="editShapeInput">Node style</label>
+            <select id="editShapeInput">
+              <option value="rect">Default (rectangle)</option>
+              <option value="ellipse">Character bio (portrait circle)</option>
+              <option value="amalgam">Amalgam reality (gradient border &amp; text)</option>
+                  <optgroup label="Free-standing elements — no connections">
+                <option value="image">Image</option>
+                <option value="textbox">Text field</option>
+              </optgroup>
+            </select>
+          </div>
+          <div class="editor-field" id="editCardField">
+            <label class="checkbox-field-row" for="editCardCheck">
+              <span class="toggle-switch">
+                <input type="checkbox" id="editCardCheck">
+                <span class="toggle-track"></span>
+                <span class="toggle-thumb"></span>
+              </span>
+              <span class="toggle-caption">Card layout — picture, heading, text</span>
+            </label>
+          </div>
+          <div class="editor-field">
+            <label class="checkbox-field-row" for="editMultiLangCheck">
+              <span class="toggle-switch">
+                <input type="checkbox" id="editMultiLangCheck">
+                <span class="toggle-track"></span>
+                <span class="toggle-thumb"></span>
+              </span>
+              <span class="toggle-caption">Enable multi-language text</span>
+            </label>
+          </div>
+          <div class="editor-field" id="editLangTabsField" style="display:none;">
+            <label>Language tabs</label>
+            <div class="mini-toolbar">
+              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="bold">B</button>
+              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="italic">I</button>
+              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="ruby">Ruby</button>
+              <input type="text" class="tb-hex" data-hex-for="__editLangTabs__" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="__editLangTabs__" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+              <span class="tb-sep"></span>
+              <select hidden id="editFontMirror" title="Font for this entry's text — the same setting as the one above the Label"></select>
+              <input hidden id="editFontSizeMirror" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px — the same setting as the one above the Label">
+            </div>
+            <div class="lang-tab-list" id="editLangTabList"></div>
+            <button type="button" class="lang-tab-add" id="editLangTabAdd">+ Add tab</button>
+          </div>
+          <div class="editor-status" id="detailEditStatus"></div>
+        </div>
+        <div class="detail-note-block" id="detailNoteBlock">
+          <div class="detail-note-head">
+            <span>Note</span>
+            <button class="detail-note-btn" id="detailNoteExpand" title="Read this note full size">⤢</button>
+            <button class="detail-note-btn" id="detailNoteEdit" title="Edit this note">✎</button>
+          </div>
+          <div class="mini-toolbar" id="detailNoteToolbar" style="display:none;">
+            <button type="button" data-wrap-target="detailNoteInput" data-wrap="bold">B</button>
+            <button type="button" data-wrap-target="detailNoteInput" data-wrap="italic">I</button>
+            <button type="button" data-wrap-target="detailNoteInput" data-wrap="ruby">Ruby</button>
+            <input type="text" class="tb-hex" data-hex-for="detailNoteInput" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="detailNoteInput" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+          </div>
+          <textarea id="detailNoteInput" rows="3" spellcheck="false" placeholder="No note yet."></textarea>
+          <div class="detail-note-actions" id="detailNoteActions" style="display:none;">
+            <button class="editor-btn" id="detailNoteCancel">Cancel</button>
+            <button class="editor-btn primary" id="detailNoteApply">Apply</button>
+          </div>
+        </div>
+        <div class="detail-section" id="detailParents"><h3>Derives from</h3></div>
+        <div class="detail-section" id="detailChildren"><h3>Leads to</h3></div>
+      </div>
+    </div>
+
+    <input type="file" id="bioImageFile" accept="image/*" style="display:none;">
+
+    <div class="coord" id="coord">x0000 · y0000 · z1.00</div>
+    <div class="zoomctl" id="zoomctl">
+      <button id="zoomIn">+</button>
+      <button id="zoomReset" style="font-size:11px;">⤢</button>
+      <button id="zoomOut">−</button>
+    </div>
+
+    <!-- A comment, read at full size. The drawer is a column three hundred
+         pixels wide, which is right for a caption and wrong for a page of
+         prose with figures in it; this is the same card About uses, opened
+         on one entry's note. -->
+    <div class="about-overlay" id="noteOverlay">
+      <div class="about-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 style="font-family:'Big Shoulders Display',sans-serif;text-transform:uppercase;letter-spacing:0.5px;" id="noteOverlayTitle">Note</h2>
+          <button class="detail-close" id="noteOverlayClose">✕</button>
+        </div>
+        <div class="about-body note-overlay-body" id="noteOverlayBody"></div>
+      </div>
+    </div>
+
+    <div class="about-overlay" id="aboutOverlay">
+      <div class="about-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 style="font-family:'Big Shoulders Display',sans-serif;text-transform:uppercase;letter-spacing:0.5px;">About this chart</h2>
+          <button class="detail-close" id="aboutClose">✕</button>
+        </div>
+        <div class="about-body">
+          <p class="about-version" id="aboutVersion"></p>
+          <p>The Rhizome Project is a hand-drawn continuity map — originally sketched by hand — redrawn here as an explorable chart of the Transformers <em>OG&nbsp;World</em>: the main G1 line, from Beast Wars through the cartoon, comics, and toy-era spin-offs.</p>
+          <p>Arrows trace direct lineage — an adaptation, a sequel, a continuation. Hover an entry and its edges light up: drag from one to any edge of another to connect them. An entry with two border colors offers each border separately, so a black border can carry a black arrow and a grey one a grey arrow. Click any arrow to restyle it or give it a note, which rides above or below the line at its midpoint and takes the same bold, italic, ruby, colour and stickers as any other text on the chart. While that panel is open, pale marks appear along the line itself — one in the middle of every straight run — and dragging one puts a <b>corner</b> there. Drag a corner again to move it, double-click it to take it out, or press <b>Straighten</b> to lose them all. The route stays a set of right angles either way; what a corner decides is which way round it goes, which is the one thing the router cannot know for you. Hold <b>Shift</b> while dragging a corner and it lines itself up with the OTHER connectors — the corridor another route already occupies, or the height a neighbouring corner sits at — and with nothing else, since a bend has no edge of its own to match against a box's.</p>
+          <p>An <b>amalgam reality</b> is one made of others, and its arrows say so: where several lineages arrive at the same edge of one, they line up into a single bar divided into a stretch of each parent's colour, and one arrow carrying all of those colours runs from the middle of that bar into the entry.</p>
+          <p>Positions start out computed, not hand-traced — the chart lays itself out top-to-bottom in the order it unfolds, with unconnected clusters kept apart automatically. Drag any entry to overrule that and pin it where you want, and everything you haven't touched keeps flowing on its own. Hold <b>Ctrl</b> while dragging to come off the grid entirely — which is how you line up two connected entries of different heights, whose ports sit at an offset no grid step can match. An ordinary drag then moves in grid steps while <em>keeping</em> that fine offset, so an alignment you have made survives every later move; hold <b>Shift</b> when you want to give it up and put the entry back on the grid proper. A <b>character bio</b> is a portrait with a card of words beside it: hover the circle and the card opens, and it stays open while you read it. The circle is resized by any of its four corners and stays a circle, and the card keeps up with it through the whole drag; connectors into a portrait finish on the CIRCLE, so three lines arriving at one portrait all meet its rim rather than the square it is drawn inside. The card is no wider and no taller than its words, is up for as long as the panel is, and can be asked to stay open for good — double-click it to edit what it says. Which side it hangs on is yours to set in the entry's settings: left, right, or left to the chart, which puts it on whichever side has room. It steps back with its portrait when something else is selected, and it stays out of the way while it is: a card does not appear over a chart you have already picked something out of. A portrait takes no scenery tags — an echo or a stack of worlds says something about a reality, not about a person. Shift is also how you ask for <b>smart guides</b>: hold it while dragging and an entry carried near another's edge or centre line settles onto it, with a dashed line showing what it lined up with. Two <em>middles</em> are offered before two edges: on entries of different heights the edges are near each other in several places at once, so an edge-to-edge match a pixel closer used to win every time and the alignment that makes the connector between them run dead straight was unreachable. The connectors are offered too — the far end of one leaving the entry, which is the offset that makes that connector straight, and any other connector's run of the same orientation, so two lines that nearly agree can be made to read as one. An amalgam is also offered the middle of its own bar, which is where the merged arrow leaves from. Let go of Shift and the entry goes exactly where your hand puts it. Every box also carries a <b>resize grip at each of its four corners</b> — drag one and the opposite corner stays put; a corner already occupied by the link badge or the language chips simply has no grip, so the badge stays clickable.</p>
+          <p>Tags can be gathered into <b>categories</b>. Open the <b>Management</b> panel, press <b>Organize</b>, and you can drop tags into a category from the menu on each tag's row, and rename or remove it later — removing a category leaves its tags alone, it only undoes the grouping. A category's dot hides or shows everything under it at once. A category is renamed where it stands: double-click its name, type over it, Enter to keep it. A tag is MADE the same way: press <b>+</b>, and an empty tag shape appears in the bin under the search box with the caret in it — type the name, press Enter, and carry it onto whichever category it belongs to. Nothing typed, <b>Escape</b>, or a click anywhere else, and no tag was made at all. That bin holds every tag no category claims, and dropping a tag into it is how one comes back OUT of a category. Making a tag before anything wears it is how you set up a vocabulary first and apply it afterwards; and in an entry's own Tags field the menu beside the box offers whatever already exists, so a tag gets picked rather than retyped into a second, nearly identical one.</p>
+          <p>Any text on the chart can carry a <b>reference</b>. The <b>[n]</b> button on a text's toolbar cites one, and it appears as a small raised number — click that number, and only that number, to open the Management panel at the reference it points to, with its details and its link. A bracketed number you simply type is ordinary text and is never a citation. The numbers are positions in the list, not stored values, so reordering the list renumbers every mark in the chart at once, and deleting a reference takes its marks with it rather than leaving them pointing at nothing.</p>
+          <p>Beside the three note placements a connector has a <b>Callout</b> button, and a callout is a thing of its own rather than a fourth placement: it is an <em>entry</em>, a small comment card with a line drawn to the place on the connector it is talking about. Press the button and the placing happens in two moves. First click the connector where the callout should attach — hold <b>Shift</b> and only the two ends, the quarters and the middle are offered. Then move away from that point and click again: that is where the card stands. <b>Shift</b> snaps the angle to eighths of a turn, <b>Ctrl</b> takes the length off the grid. The card appears there, empty with the cursor already in it.</p>
+          <p>Because a callout is an entry, everything an entry can do it can do. A connector can carry as many of them as you like and none of them touches the note the connector wears; they are copied, undone and saved like any other entry, and <b>connectors attach to them exactly as they attach to a reality</b> — drag from a callout's edge to draw one. All but one edge, that is: the side its own leader arrives at is already spoken for and offers no port.</p>
+          <p>A callout is drawn in its connector's colour, border and words alike — a remark about a line belongs to the line, so there is no colour control on it, nor on the plate a connector wears, and both follow the connector's colour the moment it changes. The ⟲ on those two toolbars still clears a face, a size, a bold or a rule; the inherited ink is the one thing there it leaves alone. One click picks it up, like anything else on the chart, so <b>Delete</b> still deletes it; a double click opens a card of its own rather than the entry panel — the words and a Delete, which is the whole of what a callout has. Carrying the card swings it about the place it points at: <b>Shift</b> holds the angle to eighths of a turn and draws the eight rays it is snapping to, <b>Ctrl</b> comes off the grid. And the dot on the connector is a handle too: drag it and the attachment slides along the line, carrying the card with it — plain steps by the grid, <b>Shift</b> offers a place every twentieth of the line, <b>Ctrl</b> is free. The handle is drawn above every connector, so nothing a connector lays down to be clickable by can cover it, and the dot grows under the pointer to say so. Where a callout attaches is a PLACE on the drawing, not a proportion of a route: move one of the entries and the anchor stays where it was, on the nearest part of the connector’s new shape. A callout is set at the same size as the plate it is the other form of, connectors do not bend to avoid one, and moving either entry carries the card along with its connector so the leader keeps the length and angle it was aimed at.</p>
+          <p>When you give an entry a portrait or add a sticker, you choose <b>which part of the picture to use</b>: the shape you drag over the image is what gets kept — a circle for a character bio, since that is how a portrait is drawn, and a square everywhere else. Leave it alone and you get the whole picture centred, exactly as before. Animated GIFs skip this — they are stored whole so they keep moving.</p>
+          <p>Tag entries to organize and filter them; colour and node style are yours to set by hand. Typeface and text colour are set on a <em>selection</em> from any text's own toolbar, so one entry can mix faces — and the words stay visibly chosen while you type a hex value for them — and the ⟲ beside the colour hands a run back to whatever the entry itself paints its text with. Double-click any entry and its words open <em>on the entry</em>: a field at the entry’s own width, in its face and size and ink, with the toolbar floating just above it — <b>Enter</b> settles it, and so does a click anywhere else. A portrait’s field opens on its card, which is where a portrait’s words are; a caption and a picture keep the card they already had. The drawer’s Label field still works exactly as it did. <b>Del</b> removes the selected entry or connection, <b>Ctrl+C</b>/<b>Ctrl+X</b>/<b>Ctrl+V</b> copy, cut and paste one, and <b>Ctrl+Z</b> walks back your changes with <b>Ctrl+Y</b> to step forward again. Nothing needs an Apply button: what you change in a form takes effect as you make it, and one Ctrl+Z undoes the whole visit to that form.</p>
+          <p>Every edit you make happens here in your browser and takes effect immediately — nothing is written down until you press <b>Save</b> in the top bar (or <b>Ctrl+S</b>), which commits everything at once. Until then the bar says "Unsaved changes", and leaving the page will warn you.</p>
+          <p>Where Save writes depends on where the chart is open, and the <b>File</b> button says which. Published on claude.ai, it publishes a new version of the page, exactly as before. Anywhere else — your own web space, or the file sitting on your disk — there is nothing to publish to, so it keeps the chart in that browser instead, under this page's own address. That is the whole of the difference: the chart itself, every archetype, every connector and every keystroke, is ordinary HTML that needs no server and no account, and runs the same opened straight off a disk with no network at all.</p>
+          <p>Because a browser's storage belongs to one browser on one machine, <b>Export</b> under the same File button is what makes a chart portable: it writes out a complete, self-contained copy of this page with the current chart already inside it. Open that file anywhere and the chart is simply there — no import step, nothing to load. <b>Import</b> is for the other direction, pulling the chart out of such a file into the one you have open now, and it checks the file before it replaces anything.</p>
+          <p>Any boxed entry can wear <b>card layout</b> instead: the box divides into a picture at the top, the label as a heading below it and the note as body text under that, with the language-tab chips on the heading and the link badge on the picture. It is a per-entry switch in the entry's settings, not a chart-wide mode, so a chart can mix cards and plain entries freely. It replaces the entry's OUTLINE — a card is never wavy, whatever its border style — but keeps whatever the archetype draws around itself, so a hub card still echoes and a local card still has its stack. Connectors meeting a card's left or right side keep off the picture and arrive at the text.</p>
+          <p><b>Character bio</b> entries are small portrait circles: give one an image, and click it to open its text in a card beside it — written in the entry’s own ink, on the entry’s own background, like every other label on the chart. Every entry also has a <b>background</b> — one colour fills the box, more than one make a gradient across it — and a <b>border style</b>: the same six the connectors offer, solid, dashed, dotted, dash-dotted, double and wavy. Neither is an archetype: any entry may wear either, and a chart written when a filled box was a “mirror reality” and a rippled one a “pocket reality” opens with those two set to exactly what they used to draw. A <b>multiversal hub</b> and a <b>local multiverse</b> are no longer archetypes but tags: give an entry the tag <code>multiversal hub</code> and an echo spreads out of it; give it <code>local multiverse</code> and a stack of near-identical worlds stands behind it, each sheet a copy of the entry’s own outline — rippled where the entry’s border is — where only the front sheet takes connectors. Because they are tags, any archetype can carry either — a rippled entry can be a hub, a filled one can be a local multiverse, and each keeps its own border, its own colours and its own ports. Put the pointer on one of these entries, or pick it out, and its decoration performs what it means: the echo goes out, the light crosses the fan-fiction weave, the stack of worlds streams away and dissolves. The performance carries on across every redraw — typing in an entry's settings rebuilds its scenery on every keystroke, and each piece comes back exactly as far through as it was.</p>
+          <p>Tags are drawn as tags wherever they appear — on the panel, in an entry's settings, in the drawer — so a tag is never mistaken for a category or a title. <b>Untagged</b> is not one of them: it is where entries with no tags show up, so it is written plainly, in italic. The last group in the list is <b>Special</b>: it holds Untagged, anything nobody has filed yet, and every tag that <em>does</em> something, which is collected there whatever else claims it. Every category folds away at a click on its heading, and the box at the top of the list finds a tag by name.</p>
+          <p>Tag an entry <b>fan-fiction</b> and a gold diagonal weave appears on the canvas behind it, fading out a little past the box — a way to see at a glance which parts of the chart are apocryphal without spending a border or a colour on it. Tags and references share the <b>Management</b> panel: the eye hides or shows every tag at once, and <b>+</b> makes a new tag, category or reference. The <b>grid</b> button in the top bar rules the canvas in the same steps a drag snaps to, every fifth line stronger, for lining entries up by eye; it is your own view setting and changes nothing in the chart.</p>
+          <p>Only this chart's owner can change the drawing. Anyone else opening it gets a read-only view — everything reads, pans, filters and opens as normal, but the editing controls are simply not there. To comment, use the comment control in the artifact viewer around this page — threads stay attached to the chart and survive every new version of it.</p>
+          <p><b>Stickers</b> are small pictures you can drop into any text on the chart, the way you would an emoji — the ☺ button beside any text field inserts one, and the smiley icon in the top bar is where they are uploaded and named. Alongside the entries themselves you can place free-standing <b>Image</b> and <b>Text field</b> elements: they take no connections and no arrow ever detours around them, an image can be sent behind the arrows to sit as a backdrop, and a text field is turned by the round arrow at its own top-left corner — hold <b>Shift</b> to turn in eighths of a turn, double-click it to put the caption back level.</p>
+          <p>An entry's <b>comment</b> — the note in its own panel — is a document rather than a caption. It takes the same bold, italic, readings, colours, faces and citations as any other text on the chart and is drawn exactly as they are, and the ▣ button on its toolbar places a <b>picture or a video clip</b> in the flow of it, the way a figure stands in a printed document. A file is carried inside the chart itself, so it travels with it and needs nothing from the network; a clip too large for that can be given as a link instead. While the comment is open for writing a figure is <b>carried</b> by its own body to any line in the text, and <b>sized</b> by the corner that appears when you hover it. The ⤢ beside the note — there when there is a note — opens the whole comment at full size, in the same card this one is in, which is where a page of prose with figures in it is actually readable. Figures belong to the comment and are never drawn into the entry's own box. A clip too big to carry is <b>re-encoded to fit</b> rather than refused — that plays it through, so it takes as long as the clip lasts — and one too long even for that is best given as a link.</p>
+          <p>This is a first digitization pass and will contain errors and omissions; treat it as a draft to correct, not a final record.</p>
+          <div class="version-log" id="versionLog"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Suggestions are switched off for now: SUGGESTIONS_ENABLED below
+         hides the entry point and the panel. Everything they need — the
+         COMMENTS data region, the list, the moderation controls — is left
+         in place so turning them back on is one flag. -->
+    <div class="about-overlay" id="commentsOverlay">
+      <div class="about-card comments-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 style="font-family:'Big Shoulders Display',sans-serif;text-transform:uppercase;letter-spacing:0.5px;">Suggestions</h2>
+          <button class="detail-close" id="commentsClose">✕</button>
+        </div>
+        <div class="about-body">
+
+          <div class="comment-compose">
+            <div class="comment-compose-row">
+              <input id="commentNick" type="text" maxlength="28" placeholder="Your name" title="Signed on the suggestion so the owner knows who it came from">
+              <select id="commentStatus" title="What kind of change this is">
+                <option value="correction">Correction</option>
+                <option value="addition">Addition</option>
+                <option value="deletion">Deletion</option>
+              </select>
+            </div>
+            <textarea id="commentText" rows="3" placeholder="What should change, and why?" spellcheck="false"></textarea>
+            <div class="editor-status" id="commentStatusMsg"></div>
+            <div class="comment-compose-row">
+              <button type="button" class="editor-btn primary" id="commentSubmit">Post</button>
+              <button type="button" class="editor-btn" id="commentCopy">Copy for the comment thread</button>
+            </div>
+            <p class="comment-note" id="commentViewerNote">This chart is read-only for you, and a page like this one can only be written to by its owner — so a suggestion typed here cannot save itself into the chart. Write it above, press <b>Copy for the comment thread</b>, and paste it into the comment control in the viewer around this page; it arrives already signed and labelled, and the owner can post it into the list below.</p>
+            <p class="comment-note" id="commentOwnerNote">You own this chart, so <b>Post</b> adds a suggestion to the list straight away. It is stored with the chart and published the next time you press Save.</p>
+          </div>
+
+          <div class="comment-filter" id="commentFilter">
+            <button type="button" class="editor-btn on" data-filter="open">Open</button>
+            <button type="button" class="editor-btn" data-filter="done">Resolved</button>
+            <button type="button" class="editor-btn" data-filter="all">All</button>
+          </div>
+          <div class="comment-list" id="commentList"></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Free-standing elements — a picture or a block of text — are not
+         entries in the continuity, so they get this small menu on click
+         rather than the full entry panel on the right. -->
+    <!-- The sticker library: every picture the chart can drop into a
+         sentence, in one place, with the upload control that adds one. -->
+    <!-- Asking the user something, in the page.
+         window.prompt and window.confirm cannot be used here: the artifact
+         viewer runs this page in a sandboxed frame without allow-modals,
+         where both return silently — prompt gives null, confirm gives
+         false — so every dialog built on them appeared to do nothing at
+         all. This is the replacement, and it also looks like the rest of
+         the application, which the browser's own dialogs never did. -->
+    <div class="ask-overlay" id="askOverlay">
+      <div class="ask-box" role="dialog" aria-modal="true">
+        <h2 id="askTitle"></h2>
+        <p class="ask-message" id="askMessage"></p>
+        <div class="ask-fields" id="askFields"></div>
+        <div class="ask-actions">
+          <button class="editor-btn" id="askCancel">Cancel</button>
+          <button class="editor-btn primary" id="askOk">OK</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- Choosing which part of a picture to use. Both places that take an
+         image want a square — a portrait is a circle, a sticker is drawn
+         into a square cell — so the crop box is square and there is no
+         aspect-ratio control to get wrong. -->
+    <div class="crop-overlay" id="cropOverlay">
+      <div class="crop-box">
+        <div class="crop-head">
+          <h2 id="cropTitle">Choose the part to use</h2>
+          <button class="detail-close" id="cropClose">&#10005;</button>
+        </div>
+        <div class="crop-stage" id="cropStage">
+          <img id="cropImage" alt="">
+          <div class="crop-frame" id="cropFrame">
+            <span class="crop-grip" data-grip="nw"></span>
+            <span class="crop-grip" data-grip="ne"></span>
+            <span class="crop-grip" data-grip="sw"></span>
+            <span class="crop-grip" data-grip="se"></span>
+          </div>
+        </div>
+        <p class="crop-hint" id="cropHint">Drag inside the square to move it, or a corner to resize.</p>
+        <div class="crop-actions">
+          <button class="editor-btn" id="cropWhole">Whole image</button>
+          <span class="crop-spacer"></span>
+          <button class="editor-btn" id="cropCancel">Cancel</button>
+          <button class="editor-btn primary" id="cropUse">Use this part</button>
+        </div>
+      </div>
+    </div>
+
+    <div class="about-overlay" id="stickerOverlay">
+      <div class="about-card sticker-card">
+        <div class="detail-head" style="border-bottom:1px solid var(--line);">
+          <h2 style="font-family:'Big Shoulders Display',sans-serif;text-transform:uppercase;letter-spacing:0.5px;">Stickers</h2>
+          <button class="detail-close" id="stickerClose">✕</button>
+        </div>
+        <div class="about-body">
+          <p>A sticker is a small square picture you can drop into any text on the chart the way you would an emoji — an entry's label, a note, a language tab, a loose block of text. Use the ☺ button beside any text field to insert one.</p>
+          <div class="sticker-status editor-status" id="stickerStatus"></div>
+          <div class="sticker-add" id="stickerAdd">
+            <button type="button" class="editor-btn primary" id="stickerUpload">Add stickers…</button>
+            <span class="sticker-hint">Square images or GIFs. A still picture is shrunk to fit; an animated GIF is kept as it is, so keep those small.</span>
+          </div>
+          <div class="sticker-grid" id="stickerGrid"></div>
+        </div>
+      </div>
+    </div>
+    <input type="file" id="stickerFile" accept="image/*" multiple style="display:none;">
+
+    <!-- The miniature list that drops out of a text field's ☺ button. -->
+    <div class="sticker-picker" id="stickerPicker">
+      <div class="sticker-picker-grid" id="stickerPickerGrid"></div>
+      <button type="button" class="sticker-picker-manage" id="stickerPickerManage">Manage stickers…</button>
+    </div>
+
+    <div class="sticker-picker ref-picker" id="refPicker">
+      <div class="ref-picker-grid" id="refPickerGrid"></div>
+    </div>
+
+    <!-- Figures for an entry's comment. The file input takes pictures and
+         video alike; the link box is for a clip too large to carry. -->
+    <input type="file" id="mediaFile" accept="image/*,video/*" style="display:none;">
+    <div class="sticker-picker media-picker" id="mediaPicker">
+      <div class="media-picker-grid" id="mediaPickerGrid"></div>
+      <div class="media-picker-link">
+        <input type="text" id="mediaLinkInput" placeholder="…or paste a picture or video link" spellcheck="false">
+        <button type="button" id="mediaLinkAdd">Add</button>
+      </div>
+      <button type="button" class="sticker-picker-manage" id="mediaPickerFile">Add a picture or video from a file…</button>
+      <div class="media-picker-status" id="mediaPickerStatus"></div>
+    </div>
+
+    <div class="free-menu" id="freeMenu">
+      <div class="edge-popover-head">
+        <span id="freeMenuTitle">Element</span>
+        <button class="detail-close" id="freeMenuClose">✕</button>
+      </div>
+
+      <div id="freeMenuImagePart">
+        <div class="editor-field">
+          <label for="freeMenuImageUrl">Image — URL, or pick a file</label>
+          <input id="freeMenuImageUrl" type="text" placeholder="https://… or leave blank">
+          <div class="free-menu-row">
+            <button type="button" class="editor-btn" id="freeMenuImagePick">Choose file…</button>
+            <button type="button" class="editor-btn" id="freeMenuImageClear">Clear</button>
+          </div>
+        </div>
+        <div class="editor-field">
+          <label>Stacking</label>
+          <div class="free-menu-row" id="freeMenuLayerRow">
+            <button type="button" class="editor-btn" data-z="-1" title="Behind the entries and the arrows, as a backdrop">Behind</button>
+            <button type="button" class="editor-btn" data-z="1" title="Over the entries and the arrows">In front</button>
+          </div>
+        </div>
+      </div>
+
+      <div id="freeMenuTextPart">
+        <!-- The angle is set on the CAPTION, by the round arrow at its
+             top-left corner — not by a slider in here. See beginNodeRotate. -->
+        <div class="editor-field">
+          <label for="freeMenuText">Text</label>
+          <div class="mini-toolbar">
+            <button type="button" data-wrap-target="freeMenuText" data-wrap="bold">B</button>
+            <button type="button" data-wrap-target="freeMenuText" data-wrap="italic">I</button>
+            <button type="button" data-wrap-target="freeMenuText" data-wrap="ruby">Ruby</button>
+            <input type="text" class="tb-hex" data-hex-for="freeMenuText" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="freeMenuText" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+          </div>
+          <div class="mini-toolbar">
+            <select id="freeMenuFont" title="Font for this text"></select>
+            <input id="freeMenuFontSize" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px">
+          </div>
+          <textarea id="freeMenuText" rows="3" spellcheck="false"></textarea>
+        </div>
+      </div>
+
+      <div class="edge-popover-actions">
+        <button class="editor-btn" id="freeMenuDelete">Delete</button>
+      </div>
+    </div>
+
+    <!-- Export and import: how the chart leaves this page and comes back,
+         which is what keeps it independent of any one host. -->
+    <div class="file-popover" id="filePopover">
+      <div class="edge-popover-head">
+        <span>This chart as a file</span>
+        <button class="detail-close" id="fileClose">✕</button>
+      </div>
+      <div class="editor-status" id="fileStatus"></div>
+      <p class="file-note" id="fileWhere"></p>
+      <div class="file-actions">
+        <button type="button" class="editor-btn primary" id="fileExport">Export a standalone page</button>
+        <button type="button" class="editor-btn" id="fileExportData">Export just the contents</button>
+        <button type="button" class="editor-btn" id="fileImport">Import a chart file…</button>
+        <button type="button" class="editor-btn" id="fileForget">Discard changes saved here</button>
+      </div>
+      <p class="file-note">An exported page is the whole chart — drawing, editor and contents in one file. Open it anywhere, edit it, export it again; it needs no server and no account. <b>Just the contents</b> is the same entries without the page around them: a few kilobytes instead of a few hundred, for handing your work to someone rebuilding the page.</p>
+    </div>
+    <input type="file" id="fileImportInput" accept=".html,.htm,.js,.txt,text/html,text/plain" style="display:none;">
+
+    <div class="add-popover" id="addNodeOverlay">
+      <div class="edge-popover-head">
+        <span>New entry</span>
+        <button class="detail-close" id="addNodeClose">✕</button>
+      </div>
+      <div class="editor-status" id="addNodeStatus"></div>
+      <div class="editor-field">
+        <label for="addNodeLabel">Label</label>
+        <div class="mini-toolbar">
+          <button type="button" data-wrap-target="addNodeLabel" data-wrap="bold">B</button>
+          <button type="button" data-wrap-target="addNodeLabel" data-wrap="italic">I</button>
+          <button type="button" data-wrap-target="addNodeLabel" data-wrap="ruby">Ruby</button>
+          <input type="text" class="tb-hex" data-hex-for="addNodeLabel" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="addNodeLabel" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+        </div>
+        <div class="mini-toolbar">
+          <select hidden id="addNodeFont" title="Font for this entry's text"></select>
+          <input hidden id="addNodeFontSize" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px — blank uses the default (11.5)">
+        </div>
+        <textarea id="addNodeLabel" rows="2" spellcheck="false"></textarea>
+      </div>
+      <div class="editor-field">
+        <label>Node style</label>
+        <!-- Pictures, not a list of names. Five archetypes is a short
+             enough set to show whole, and each of them is a SHAPE — which
+             is the one thing a drop-down of words cannot say. The select
+             stays as the value everything else reads; the buttons write
+             into it. -->
+        <div class="node-style-choice" id="addNodeShapePick"></div>
+        <select id="addNodeShape" hidden>
+          <option value="rect">Default (rectangle)</option>
+          <option value="ellipse">Character bio (portrait circle)</option>
+          <option value="amalgam">Amalgam reality (gradient border &amp; text)</option>
+          <option value="image">Image</option>
+          <option value="textbox">Text field</option>
+        </select>
+      </div>
+      <div class="editor-field" id="addNodeBgField">
+        <label for="addNodeBg">Background</label>
+        <div class="field-with-reset">
+          <input id="addNodeBg" type="text" placeholder="white — or #f4e9c9, #d8e6f5">
+          <button type="button" class="hex-reset" id="addNodeBgReset" title="Back to the paper">⟲</button>
+        </div>
+      </div>
+      <div class="editor-field" id="addNodeBorderField">
+        <label>Border style</label>
+        <div class="style-choice" id="addNodeBorderStyle">
+          <button type="button" data-value="solid" title="Solid">──</button>
+          <button type="button" data-value="dashed" title="Dashed">╌╌</button>
+          <button type="button" data-value="dotted" title="Dotted">┈┈</button>
+          <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
+          <button type="button" data-value="double" title="Double">═</button>
+          <button type="button" data-value="wavy" title="Wavy — the old pocket-reality edge">∿</button>
+        </div>
+      </div>
+      <div class="editor-field" id="addNodeImageField" style="display:none;">
+        <label for="addNodeImage">Portrait — image URL, or pick a file</label>
+        <input id="addNodeImage" type="text" placeholder="https://… or leave blank">
+        <div style="display:flex;gap:8px;margin-top:6px;align-items:center;">
+          <button type="button" class="editor-btn" id="addNodeImagePick">Choose file…</button>
+          <button type="button" class="editor-btn" id="addNodeImageClear">Clear</button>
+        </div>
+      </div>
+      <div class="editor-field">
+        <label for="addNodeTags">Tags</label>
+        <div class="tag-field-row">
+          <div class="tag-chips" id="addNodeTagsChips"></div>
+          <button type="button" class="tag-add-btn" id="addNodeTagsAdd" title="Add a tag">+</button>
+          <input id="addNodeTags" type="text" hidden>
+          <div class="tag-menu" id="addNodeTagsMenu" hidden></div>
+        </div>
+      </div>
+      <div class="editor-field">
+        <label for="addNodeColors">Border colors (comma-separated hex)</label>
+        <input id="addNodeColors" type="text" placeholder="#20242b, #3fae4a">
+        <div class="swatch-strip" id="addNodeColorsSwatches"></div>
+      </div>
+      <p class="editor-help">Notes, links, connections and language tabs are set on the entry itself once it exists — select it and open its settings.</p>
+      <div class="edge-popover-actions">
+        <button class="editor-btn" id="addNodeCancel">Cancel</button>
+        <button class="editor-btn primary" id="addNodeSubmit">Add</button>
+      </div>
+    </div>
+
+    <div class="edge-popover" id="edgePopover">
+      <div class="edge-popover-head">
+        <span id="edgeStyleLabel" hidden></span>
+        <button class="detail-close" id="styleClose">✕</button>
+      </div>
+      <div class="editor-status" id="styleStatus"></div>
+
+      <div class="style-row">
+        <span class="style-row-label">Path</span>
+        <select id="styleRouting" class="style-select">
+          <option value="orthogonal">Orthogonal</option>
+          <option value="straight">Straight</option>
+        </select>
+      </div>
+
+      <div class="style-row">
+        <span class="style-row-label">Line</span>
+        <div class="style-choice" id="styleDash">
+          <button type="button" data-value="solid" title="Solid">──</button>
+          <button type="button" data-value="dashed" title="Dashed">╌╌</button>
+          <button type="button" data-value="dotted" title="Dotted">┈┈</button>
+          <button type="button" data-value="dashdot" title="Dash-dotted">─·</button>
+          <button type="button" data-value="double" title="Double">═</button>
+          <button type="button" data-value="sinusoid" title="Sinusoid (wavy)">∿</button>
+        </div>
+      </div>
+
+      <div class="style-row">
+        <span class="style-row-label">Ends</span>
+        <div class="style-choice" id="styleArrowEnds">
+          <button type="button" data-end="in" title="Arrowhead at the start (in)">◄</button>
+          <button type="button" data-end="out" title="Arrowhead at the end (out)">►</button>
+        </div>
+      </div>
+
+      <div class="style-row">
+        <span class="style-row-label">Fill</span>
+        <div class="style-choice" id="stylePaintMode">
+          <button type="button" data-value="default" title="The colour it inherits">A</button>
+          <button type="button" data-value="solid" title="One colour">■</button>
+          <button type="button" data-value="gradient" title="Gradient along the connector">▨</button>
+        </div>
+      </div>
+
+      <div class="style-row style-colors" id="styleColorRow">
+        <input type="text" id="styleColor" class="hex-input" placeholder="#20242b" maxlength="9" spellcheck="false">
+        <input type="text" id="styleColor2" class="hex-input" placeholder="#e08a1e" maxlength="9" spellcheck="false">
+        <span class="hex-preview" id="styleColorPreview"></span>
+      </div>
+
+      <div class="style-row">
+        <span class="style-row-label">Note</span>
+        <div class="style-choice" id="styleNoteSide">
+          <button type="button" data-value="above" title="Above the line">↑</button>
+          <button type="button" data-value="on" title="On the line, covering it">≡</button>
+          <button type="button" data-value="below" title="Below the line">↓</button>
+        </div>
+        <!-- The plate's ground. Its INK is the connector's and is not the
+             reader's to set; what it is written on is. -->
+        <input type="text" id="styleNoteBg" class="hex-input" placeholder="white" maxlength="9" spellcheck="false" title="The note plate's background — blank is the paper">
+      </div>
+      <div class="style-row">
+        <span class="style-row-label">Bends</span>
+        <button type="button" class="editor-btn" id="styleBendsClear" title="Straighten this connector — take every bend out">Straighten</button>
+      </div>
+      <p class="style-row-note">Drag the marks on the line. <b>Shift</b> lines one up with other connectors; double-click takes one out.</p>
+      <div class="style-row">
+        <span class="style-row-label">Callout</span>
+        <button type="button" class="style-callout-add" id="styleAddCallout" title="Add a comment card pointing at this connector — click the connector where it should attach, then click where the card should stand">⌐ Add a callout</button>
+      </div>
+      <div class="mini-toolbar" id="styleNoteToolbar">
+        <button type="button" data-wrap-target="styleNote" data-wrap="bold">B</button>
+        <button type="button" data-wrap-target="styleNote" data-wrap="italic">I</button>
+        <button type="button" data-wrap-target="styleNote" data-wrap="ruby">Ruby</button>
+        <button type="button" class="hex-reset" data-hex-reset="styleNote" title="Clear the formatting from this text — face, size, bold, italic and rules. The colour is not one of them: a remark on a connector is always written in that connector&#8217;s own ink.">⟲</button>
+      </div>
+      <textarea id="styleNote" class="style-note-input" rows="2" placeholder="A note on this connector" spellcheck="false"></textarea>
+
+      <div class="edge-popover-actions">
+        <button class="editor-btn danger" id="styleDelete">Delete</button>
+      </div>
+    </div>
+
+    <!-- A callout has one thing in it — words — so its panel is that and
+         nothing else. It borrows the connector popover's shell so the two
+         read as the same kind of object opened on a different thing. -->
+    <!-- The in-node editor.
+         An entry's words are written where they are drawn: the field
+         stands on the entry itself and the toolbar floats just above it,
+         so what you are typing and what it will look like are the same
+         thing in the same place. Enter settles it; so does a click
+         anywhere else. -->
+    <div class="node-editor" id="nodeEditor" hidden>
+      <div class="mini-toolbar" id="nodeEditorBar">
+        <button type="button" data-wrap-target="nodeEditorText" data-wrap="bold">B</button>
+        <button type="button" data-wrap-target="nodeEditorText" data-wrap="italic">I</button>
+        <button type="button" data-wrap-target="nodeEditorText" data-wrap="ruby">Ruby</button>
+        <input type="text" class="tb-hex" data-hex-for="nodeEditorText" value="#20242b" maxlength="9" spellcheck="false" title="Hex colour applied by the A button"><button type="button" class="hex-reset" data-hex-reset="nodeEditorText" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
+        <span class="tb-sep"></span>
+      </div>
+      <textarea id="nodeEditorText" class="node-editor-text" rows="1" spellcheck="false"></textarea>
+    </div>
+
+    <div class="edge-popover callout-popover" id="calloutPopover">
+      <div class="edge-popover-head">
+        <button class="detail-close" id="calloutClose">✕</button>
+      </div>
+      <div class="mini-toolbar" id="calloutToolbar">
+        <button type="button" data-wrap-target="calloutText" data-wrap="bold">B</button>
+        <button type="button" data-wrap-target="calloutText" data-wrap="italic">I</button>
+        <button type="button" data-wrap-target="calloutText" data-wrap="ruby">Ruby</button>
+        <button type="button" class="hex-reset" data-hex-reset="calloutText" title="Clear the formatting from this text — face, size, bold, italic and rules. The colour is not one of them: a remark on a connector is always written in that connector&#8217;s own ink.">⟲</button>
+      </div>
+      <textarea id="calloutText" class="style-note-input" rows="3" placeholder="What this points at" spellcheck="false"></textarea>
+      <div class="edge-popover-actions">
+        <button class="editor-btn danger" id="calloutDelete">Delete</button>
+      </div>
+    </div>
+  </div>
+</div>
+<!-- @@BODY:END@@ -->
+<script src="data.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
