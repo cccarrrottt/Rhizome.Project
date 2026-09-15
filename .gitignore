@@ -1,0 +1,21 @@
+# The built page. Three files, ~2.4 MB each, almost all of it the two base64
+# blobs in src/data.js — and every byte of it is reproducible from src/ by
+# `python3 build.py`, which tests/build_guard.py checks on every run. Keeping
+# them here would add ~7 MB to the history per version and never be the thing
+# anyone reads. CI builds them; the workflow publishes the standalone copy to
+# Pages and attaches all three to the run.
+dist/
+
+# build.py keeps three generations of src/data.js and dist/nexus.html here
+# before it overwrites either. They are a local undo, not project history.
+.backups/
+
+# tools/lint.py assembles src/app/*.js into one file here so eslint can see
+# the program as the program. Regenerated on every run.
+.lint/
+
+node_modules/
+__pycache__/
+*.pyc
+
+.DS_Store

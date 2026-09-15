@@ -1,0 +1,139 @@
+# What a push has to survive.
+#
+# Three things are checked, and they answer different questions:
+#
+#   build.py              can the split sources still be welded into one page
+#   tests/build_guard.py  does the welded page match what src/ says it should
+#   tools/lint.py         does the program, assembled and read as one scope,
+#                         still have no undefined, unused or twice-declared name
+#   tests/regression.js   does the page still DO what it did, in a real browser
+#
+# The regression suite runs twice, against two different things: `dist` drives
+# the built single file, `src` drives the same program served as separate
+# files through src/index.html. They exercise different loading paths, so a
+# green run on one says nothing about the other. Each takes around six
+# minutes, so they run as two jobs rather than one after the other.
+#
+# dist/ is not in the repository — it is rebuilt here, attached to the run as
+# an artifact, and, on main, the standalone copy becomes the published site.
+
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    name: Build, guard and lint
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      # There is no package-lock.json yet, so this is `install`, not `ci`.
+      # Add a lockfile and this becomes `npm ci`.
+      - name: Install eslint
+        run: npm install --no-audit --no-fund
+
+      - name: Build
+        run: python3 build.py
+
+      - name: Build guard
+        run: python3 tests/build_guard.py
+
+      - name: Lint
+        run: npm run lint
+
+      - name: Keep the built page with the run
+        uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+          retention-days: 14
+
+  test:
+    name: Regression (${{ matrix.target }})
+    runs-on: ubuntu-latest
+    needs: build
+    strategy:
+      fail-fast: false
+      matrix:
+        target: [dist, src]
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Playwright
+        run: |
+          npm install --no-audit --no-fund
+          npx playwright install --with-deps chromium
+
+      # The src suite serves src/ directly, but building first is what proves
+      # the checkout is whole, and it costs seconds.
+      - name: Build
+        run: python3 build.py
+
+      - name: Run the suite
+        run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }}
+
+  pages:
+    name: Publish to Pages
+    if: github.ref == 'refs/heads/main'
+    runs-on: ubuntu-latest
+    needs: [build, test]
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deploy.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Build
+        run: python3 build.py
+
+      # The standalone copy is the one with its own <!doctype html>, so it is
+      # the one that can be a page on its own. The other two exist for the
+      # artifact host, which supplies the wrapper itself.
+      - name: Stage the site
+        run: |
+          mkdir -p _site
+          cp dist/nexus-standalone.html _site/index.html
+
+      - uses: actions/configure-pages@v5
+
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: _site
+
+      - id: deploy
+        uses: actions/deploy-pages@v4

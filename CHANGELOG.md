@@ -6,6 +6,255 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.9.23 — "One place to write" — 2026-09-15
+
+- **The Label box is gone from an entry's settings.** An entry's words are
+  written *on* the entry: double-click it and the field opens where the text
+  is drawn, in the entry's own face, size and ink. Keeping a second copy of
+  them in a drawer at the other side of the screen meant two places to type
+  one sentence, joined by a live preview whose only job was to connect them —
+  and the copy further from the drawing was the one being typed in.
+  Everything an entry has that is *not* its words is still in the drawer.
+- **Nothing was lost with it.** The floating toolbar over the field is not a
+  smaller version of the box's — it is the same one. Every `.mini-toolbar` on
+  the page is fitted out by one pass (`wireStickerButtons`): face, size, the
+  rule and the strike with their kind between them, the sticker and the
+  citation. The field on the entry has always been on that list. Twelve
+  controls, the same twelve; measured, not assumed.
+- **Four controls nobody could reach went with it.** An entry's own face and
+  size were a hidden `<select>`/`<input>` pair beside the Label box and a
+  second hidden pair mirroring them in the language rows. None of the four
+  was ever shown, so the drawer was reading its own unreachable values back
+  on every commit — which is the only reason `font` and `fontSize` survived
+  an edit at all. They are carried through now, which is what was meant.
+  - `linkMirroredControl` and `syncFontMirrors` went with them: nothing else
+    on the page has a control that exists twice.
+- **A picture says so where the reader is pointing.** The drawer answered
+  "this archetype has no words" by greying out its Label row; the field
+  answers it by not opening.
+- `openLabelEditor` is `openEntrySettings`: with no Label box to put a cursor
+  in, what the function still does is select the entry and open its settings.
+- Five new checks in section 65, and ~50 test references moved from the
+  drawer's box to the field that replaced it.
+
+## 0.9.22 — "A remark that rides where you put it" — 2026-09-15
+
+- **A connector's note is started from its panel and slides along the line.**
+  Its words go on the plate, which left a connector with no note with nothing
+  to double-click — and so no way to write a first one. **Add a note** puts an
+  empty plate on the middle of the line with the caret in it; nothing typed
+  means no note. Drag the plate to move it along, `Shift` to aim at the places
+  a remark usually wants (the same ones a callout's anchor is offered).
+  - `noteAt` is carried through the style panel now, so a note slid to one end
+    no longer jumps back to the middle when its connector is recoloured.
+- **The field breaks the text where the thing under it breaks it.** An entry's
+  label is drawn on one line and allowed to run past the box; the field
+  wrapped it at its own border, so what you typed and what you got were two
+  different shapes. It keeps the breaks that are in the text, invents none,
+  and grows both ways from the entry's middle. A portrait's card and a
+  connector's plate do wrap, and the field goes on wrapping at their width.
+- **A portrait's card stays open while its words are being written.** The card
+  is SVG and the field is HTML over the top, so moving between them *leaves*
+  the card as far as the DOM is concerned — and leaving it is what closed it.
+- **A lineage cannot be carried through its own merge bar.** The bar hangs a
+  fixed clearance short of the nearest parent and may not be pushed inside the
+  entry it feeds, so a parent dragged far enough walked through it and came
+  back round the outside. It stops where the bar would.
+- **A bend dropped back where it came from restores the route.** A bend steps
+  by the grid and the run it came out of does not, so it landed a few units
+  off the line and the route gained a three-pixel step. Within half a grid
+  step the run wins; a bend that bends nothing is taken out.
+- **The unreleased ground is a close grid**, square to the page and dark
+  enough for the light crossing it to brighten something.
+- **A hub's echoes are all the same echo.** Each ring grew from a little under
+  its own size to its own size, so what left the entry was a small wave, a
+  middling one and a large one in turn. They now cover the same ground, one
+  after another. A local multiverse's sheets overlap properly for the same
+  reason: the next is at full strength before the last has gone.
+- **Typing in a language tab no longer un-hides the chart.** Every entry is
+  rebuilt as you type and what is hidden is a class put on afterwards, which
+  this one preview forgot to restore.
+- **A tab's words are written on the entry.** Switch an entry to a tab,
+  double-click it, and the field opens on *that* tab and writes back to it,
+  leaving the label and the other tabs alone.
+- The callout's panel has lost the line of prose explaining the gesture.
+- Eight new checks in section 64; the unreleased-ground check now tests the
+  ruling's *properties* rather than the hex it happened to be.
+
+## 0.9.21 — "One program, thirty-five files" — 2026-09-14
+
+The program is written in 35 files instead of one of eighteen thousand lines.
+**Nothing about it changed.**
+
+- **A split, not a rewrite.** The page is still one scope; `build.py` assembles
+  it by writing `src/app/*.js` out one after another in the order `APP_PARTS`
+  declares. The proof is mechanical rather than argued: the file the build
+  produces is byte for byte the file it produced before the split.
+  - `src/index.html` fetches the same parts in the same order, joins them, and
+    runs the result as **one** script — not as a `<script>` each. That is not a
+    detail: a function declaration hoists over the script it is written in, and
+    this program calls in every direction, so as separate scripts start-up
+    reaches for hundreds of names whose part has not run yet. There is no order
+    that fixes it, because the call graph has cycles — which is also the honest
+    reason this is not, and cannot cheaply be, a module system.
+- **Deliberately not a module system.** Drawing, routing and editing call one
+  another in every direction; one scope is what a call graph with cycles in it
+  actually is. Modules would also need a bundler, and a bundler would destroy
+  the `@@EDIT@@` markers the chart saves itself through — so the page could no
+  longer save itself, which is the one thing it must be able to do. What was
+  wanted was a file you can hold in your head; that is what this is.
+- **Three refusals guard the order**, because a part left out of an assembled
+  program does not fail loudly — it fails as a function that is simply not
+  there:
+  - a part `APP_PARTS` names and `src/app/` does not have;
+  - a part `src/app/` has and `APP_PARTS` does not name;
+  - `index.html` running them in a different order, or leaving one out.
+- **The linter runs against the assembled program**, not the parts: "nothing
+  defines this name" and "nothing reads this name" have no answer about a part
+  on its own. `tools/lint.py` assembles, lints, and carries each complaint back
+  to the file and line it came from — exact arithmetic, the assembly being
+  nothing but concatenation. `npm run lint` runs it.
+- Seven new checks in `tests/build_guard.py` cover all of the above, including
+  that the built page contains the parts concatenated verbatim.
+
+## 0.9.20 — "Nothing quiet left in it" — 2026-09-14
+
+A release with nothing new drawn in it. Every item here is something the
+program did wrongly, or expensively, or silently — and *silently* is the word
+that ties them together: not one of these had a symptom anybody could have
+reported.
+
+- **Two entries can no longer share a clipping mask.** The masks holding a
+  portrait's picture, a bio card and a caption inside their own outlines were
+  named by replacing every character illegal in an SVG id with an underscore.
+  That rule is neither reversible nor injective: `Ark 2` and `Ark.2` produced
+  the same name, and two entries named in Cyrillic produced the same row of
+  underscores. The second definition overwrote the first and one entry was
+  clipped by the other's shape — with no warning, because a repeated id inside
+  `<defs>` is legal SVG and the last one simply wins.
+  - A short hash of the *original* id is now appended. The readable part is
+    kept, because a definition you cannot recognise in an inspector is a
+    definition you cannot debug.
+- **An entry's id is checked for the one thing it cannot be.** A control
+  character or a line break survives neither an attribute nor the saved file,
+  and is invisible everywhere a reader would look for the mistake. Everything
+  else is allowed — any script, any punctuation, quotes and brackets included.
+  Restricting ids to ASCII, as one review proposed, would turn a chart whose
+  entries are named in Russian into a file this program cannot open: a worse
+  failure than the one it would guard against. The awkwardness of such a name
+  is handled where it is actually awkward, in `cssEscape` and `defId`.
+- **The chart survives the project's change of name.** Every key this page
+  writes into a browser still carried `axiomNexus.*`, and one of them holds
+  *the chart itself* for anyone keeping their only copy in a browser or on a
+  file they host. All five are renamed, and each reads the old key first:
+  - the new key is written only when it is absent, so a stale pre-rename value
+    can never overwrite work done since;
+  - the old key is never deleted, so an older copy of this same file still
+    finds its own work;
+  - chart keys are per-document, so the whole of local storage is swept once
+    at boot rather than guessing at names.
+  - The exported file is `rhizome-project-<date>.html`.
+- **A sticker's bytes are stored once, not once per undo step.** Every edit
+  takes a snapshot, and a snapshot re-encoded the sticker library and the
+  media shelf as text: about a megabyte per keystroke on a modest library,
+  kept sixty times over in the undo stack. Both regions are now snapshotted as
+  structure — the record is copied, the base64 is not — so an unchanged image
+  is *the same string object* in the history as on the page, and is compared
+  by identity instead of by reading a megabyte.
+  - The comparison stays exactly as exact, including for an image replaced in
+    place, which is how a sticker is replaced.
+  - A restore hands over copies, so a later edit cannot reach back and rewrite
+    the history it was undone from.
+  - An item a shallow copy cannot speak for falls back to the text form. The
+    alternative — an epoch counter bumped at every write site — would be
+    faster and would start lying the day somebody added a write site.
+- **The build refuses to lose work quietly.** `--pull` used to skip, in
+  silence, any `@@EDIT@@` region the source did not carry; skipping it reverts
+  that part of the chart to the seed data in `src/data.js`.
+  - A missing region now stops the build and is named. `--partial` is the one
+    honest reason to go on: a source saved before that region existed.
+  - A region that arrives emptied, or with most of its contents gone, stops
+    the build too. `--force` says you meant it.
+  - Every build reports what it carried and how many items came with it.
+  - And the two files that hold the chart's contents — `src/data.js`, and the
+    `dist/nexus.html` a plain rebuild carries from — are copied into
+    `.backups/` before either is written over, three generations deep. The
+    guards above refuse the damage they can recognise; this is for the damage
+    they cannot, and three generations because a bad pull is usually noticed
+    on the build after the one that made it.
+- **Eleven bindings nothing read are gone**, along with a second copy of the
+  function that escapes a value for a selector — the lossy one, which was the
+  one being called in several places.
+- **Tooling.** `package.json` (`build`, `test`, `test:src`, `test:build`,
+  `lint`) and an ESLint flat config set to exactly three rules: `no-unused-vars`,
+  `no-undef`, `no-redeclare`. Nothing about style; only the class of mistake a
+  single-scope program of this size makes easy and no test can catch.
+  `tests/build_guard.py` covers the build script's refusals, which is the one
+  part of the project the browser suite cannot reach.
+
+## 0.9.19 — "One field for every kind of text" — 2026-09-08
+
+- **The in-node field opens on everything that IS a piece of text**: an
+  entry's label, a portrait's card, a caption, a connector's note, and a
+  callout. Double-click any of them and the words open where they are
+  drawn, in that thing's own face and size, with the toolbar above.
+  - The three panels that used to hold a second copy of those words — the
+    connector's Note box, the callout's card, the caption's Text box —
+    have lost them. Each keeps everything about its subject that is *not*
+    the words: the note keeps its placement and its ground, the callout
+    keeps its Delete, the caption keeps its face, its size and its Delete.
+  - A remark on a connector still offers no colour box: it is written in
+    the line's own ink. The ⟲ stays, since a face, a size, a bold or a
+    rule are not the line's to decide.
+- **The field and its words scale together.** The floor on its width was a
+  flat 120 screen pixels while the type inside it scaled with the drawing,
+  so zooming out left a wide box with a line of ants in it, several times
+  the size of the entry underneath. The padding and the border scale too.
+- **A portrait's grips are back on the corners of its square**, where its
+  ports are and where every other entry's grips are.
+  - 0.9.16 moved them onto the rim because reaching for a corner let go of
+    the hover that was showing them. The cause is fixed instead: the
+    square answers the pointer now, so the ports and the grips stay up
+    until the pointer leaves the *box*.
+  - **A double click on the circle opens the settings.** A portrait holds
+    a picture; its words are on the card, and a double click there opens
+    them.
+  - **And the field opens on the card**, not beside it. The card's group
+    also holds the stub joining it to the portrait, so measuring the group
+    put the field half a card to the left of where it belonged.
+- **Selecting an entry no longer redraws its border heavier.** Three
+  pixels instead of the entry's own weight is a change to the drawing
+  rather than a mark on it: a dashed border's dashes thicken, a double
+  border's rails close up, a ripple flattens, and the box grows by most of
+  a pixel on every side. The glow says "this one" instead, a little
+  stronger — which is what a portrait has done since 0.9.18, and is right
+  for every archetype.
+- **A local multiverse's stack copies the entry's outline in every border
+  style.** Only the ripple was carried across, so a dashed entry stood in
+  front of a stack of solid rectangles — three boxes meant to read as one
+  world seen three times, drawn three different ways.
+- **A new tag that acts: `unreleased`.** It lays a cold grey comb of
+  straight verticals under the entry, where `fan-fiction` lays a warm gold
+  lattice — the same patch, the same fade, the same performance, a
+  different ruling, because the two say the same *kind* of thing about a
+  reality and belong in one visual language. An entry can carry both. The
+  fan-fiction weave is set back to about half the strength 0.9.18 gave it:
+  the ground has to stay the ground.
+- **A line break inside formatted words no longer breaks the words.** The
+  stored value was split on its newlines and each line read on its own —
+  correct only while no piece of formatting spans a break, and the instant
+  one does (Shift+Enter in the middle of an underlined phrase) one line
+  held an opening with no end and the next an end with no opening. Neither
+  parsed, so both were printed as the literal characters: the markup
+  itself appearing in the text.
+- **The middle of a merge's bar is a guide, not a mark.** Evenly spaced
+  lineages hand the bar over at one and the same place — its middle — so
+  every seam of such a merge resolved to that one point and the bar
+  carried two or three beads stacked on the same pixel. The middle is
+  drawn only while the entry is carried with **Shift** held, as the thing
+  being lined up on; a bead is drawn there only if the colour really
+  changes across it.
+
 ## 0.9.18 — "Written where it is drawn" — 2026-09-05
 
 - **An entry's words are written on the entry.** Double-click one and a
