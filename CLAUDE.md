@@ -44,12 +44,40 @@ build has seen. The pull refuses a region that is missing, emptied, or has
 lost most of its contents (`--partial`, `--force` to override), and keeps
 three generations of `src/data.js` and `dist/nexus.html` in `.backups/`.
 
+**The plain build carries them in memory only.** It writes the chart into the
+page it is building and leaves `src/data.js` exactly as stale as it was; only
+`--pull` writes back. That is the right split — a build should not quietly
+rewrite a source file, and `--pull` is the guarded version of that write — but
+it has a consequence worth stating plainly:
+
+> `dist/` is generated and ignored, so a clean checkout has no live page at
+> all. CI is a clean checkout. **What CI builds, and therefore what the
+> published site becomes, is `src/data.js` and nothing else** — however far
+> behind the artifact it has drifted.
+
+So the two copies can disagree indefinitely while every local build looks
+correct, because every local build carries the data across. Nothing about
+that is visible until a publish loses work nobody deleted.
+
+`python3 tools/data_check.py` asks the question directly. It reads only,
+compares the regions of `src/data.js` against `dist/nexus.html`, and exits
+non-zero when the sources are behind. A missing `dist/` is reported as a
+fresh clone rather than as a failure — otherwise it would cry wolf on every
+CI run, which is where it runs unattended. The comparison is on region
+TEXT, not on item counts: renaming an entry changes no count, and most
+staleness looks like that.
+
+The build says the same two things itself — that it had nothing to carry
+from, or that what it carried differs from the sources — so neither case
+can happen in silence any more.
+
 ## Before you say anything is done
 
-Four checks, and all four have to be green:
+Five checks, and all five have to be green:
 
 ```bash
 python3 build.py
+python3 tools/data_check.py      # ~instant, and run it AFTER the build
 python3 tests/build_guard.py     # ~seconds
 python3 tools/lint.py            # ~seconds
 node tests/regression.js         # ~6 minutes, against dist

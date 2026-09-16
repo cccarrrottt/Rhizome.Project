@@ -53,6 +53,17 @@ carries those regions over from the existing dist/nexus.html instead of
 resetting them to whatever src/data.js happens to say. If you have edited
 the chart in the browser since the last build, save that page and pass it
 with --pull so the edits come back into the sources.
+
+It carries them IN MEMORY. The built page gets the chart and src/data.js is
+left as it was; only --pull writes back, because a build should not quietly
+rewrite a source file. The consequence is easy to miss and expensive: dist/
+is generated and not committed, so a clean checkout has no live page, and a
+clean checkout is what CI is — what CI builds, and therefore what the
+published site becomes, is src/data.js and nothing else, however far behind
+it has drifted. Both of those situations used to pass without a word. Now a
+build says when it had nothing to carry from, and says when what it carried
+differs from the sources; tools/data_check.py asks the same question on its
+own and answers with an exit code.
 """
 import re
 import shutil
@@ -249,8 +260,15 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
     src/data.js still held. Now it stops and names what is missing — and takes
     --partial for the one honest reason a region can be absent, which is a
     source file saved before that region existed.
+
+    Returns the rewritten text and the list of regions that actually CHANGED.
+    Which of those two things matters depends on who is calling: a --pull is
+    expected to change things and writes the result back, so drift there is
+    the point. Carrying from dist/nexus.html changes only the page being
+    built, and a region that differs means the sources are behind the live
+    chart — see the note build() prints about it.
     """
-    carried, missing, shrunk = [], [], []
+    carried, missing, shrunk, drifted = [], [], [], []
     for name in REGIONS:
         live = region(source_text, name)
         if live is None:
@@ -260,10 +278,18 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
         m = re.search(pattern, data_js, re.S)
         if not m:
             sys.exit(f'build: src/data.js has no {name} region to replace')
-        had, now = items_in(m.group(0)), items_in(live)
+        held = m.group(0)
+        had, now = items_in(held), items_in(live)
         emptied = had > 0 and now == 0
         if emptied or (had >= SHRINK_MIN_ITEMS and now < had * SHRINK_FLOOR):
             shrunk.append(f'{name}: {had} -> {now}')
+        # Compared as text, not by the item count. Two regions can hold the
+        # same number of things and none of the same things — renaming an
+        # entry is the ordinary case — and a count that called that "no
+        # change" would be a staleness check that misses most staleness.
+        if live.strip() != held.strip():
+            drifted.append(f'{name}: {had} -> {now}' if had != now
+                           else f'{name}: {now}, edited')
         data_js = data_js[:m.start()] + live + data_js[m.end():]
         carried.append(f'{name} ({now})')
 
@@ -285,7 +311,7 @@ def carry_data(data_js, source_text, label, partial=False, force=False):
         print(f'  shrank sharply (allowed by --force): {"; ".join(shrunk)}')
     if carried:
         print(f'  carried from {label}: {", ".join(carried)}')
-    return data_js
+    return data_js, drifted
 
 
 def build():
@@ -303,7 +329,6 @@ def build():
     # rebuild must not roll them back to the sources' seed data.
     partial = '--partial' in sys.argv
     force = '--force' in sys.argv
-    pull = None
     if '--pull' in sys.argv:
         i = sys.argv.index('--pull')
         if i + 1 >= len(sys.argv):
@@ -311,17 +336,40 @@ def build():
         pull = Path(sys.argv[i + 1])
         if not pull.exists():
             sys.exit(f'build: {pull} does not exist')
-        data_js = carry_data(data_js, read(pull), pull.name, partial, force)
+        data_js, _ = carry_data(data_js, read(pull), pull.name, partial, force)
         # The one write in this script that destroys something: the seed data
         # in src/data.js is replaced by whatever came out of the saved page.
         # The guards in carry_data refuse the damage they can recognise; this
         # is for the damage they cannot.
         keep_a_copy(SRC / 'data.js', 'pull')
         (SRC / 'data.js').write_text(data_js, encoding='utf-8')
-        print(f'  wrote those regions back into src/data.js')
+        print('  wrote those regions back into src/data.js')
     elif (DIST / 'nexus.html').exists():
-        data_js = carry_data(data_js, read(DIST / 'nexus.html'), 'dist/nexus.html',
-                             partial, force)
+        data_js, drifted = carry_data(data_js, read(DIST / 'nexus.html'),
+                                      'dist/nexus.html', partial, force)
+        if drifted:
+            # The page just built has the live chart in it. src/data.js does
+            # not — and src/data.js is the only one of the two that is in the
+            # repository, so it is the one CI builds from and the one that
+            # becomes the published site. Left alone, the two go on diverging
+            # and the divergence is invisible: every local build looks right,
+            # because every local build carries the data across in memory.
+            print('  NOTE: src/data.js is behind dist/nexus.html — '
+                  + '; '.join(drifted))
+            print('        This build is correct; the SOURCES are stale, and the')
+            print('        sources are what CI publishes. Carry them across with')
+            print('        python3 build.py --pull dist/nexus.html')
+    else:
+        # Nothing to carry from, so the page gets whatever src/data.js holds.
+        # In a fresh clone and in CI that is the only possible answer and the
+        # right one. On a machine that HAD a live page it means dist/ was
+        # cleaned away, and publishing this build would replace the chart with
+        # the seed — which is precisely the accident that leaves no trace, so
+        # it is said out loud rather than inferred from a missing line.
+        print('  NOTE: no dist/nexus.html to carry the chart from, so this page')
+        print('        holds what src/data.js holds and nothing else. Right for a')
+        print('        fresh clone and for CI. If this machine had a live page,')
+        print('        pull from a saved copy of it before publishing this build.')
 
     # Markers around everything the page is made of.
     #

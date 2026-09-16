@@ -52,6 +52,14 @@ jobs:
       - name: Install eslint
         run: npm install --no-audit --no-fund
 
+      # Before the build, deliberately. A checkout has no dist/, so this is
+      # the one moment the chart in the REPOSITORY can be seen on its own —
+      # and the repository's copy is what this run publishes. Build first and
+      # the comparison becomes a tautology, because dist/ would then have
+      # been made from src/ a step earlier.
+      - name: What chart this checkout carries
+        run: python3 tools/data_check.py
+
       - name: Build
         run: python3 build.py
 
