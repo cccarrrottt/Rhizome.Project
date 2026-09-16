@@ -1,15 +1,16 @@
 # Rhizome Project
 
-**Version 0.9.18** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.9.23** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
-`src/app.js`, which is the single source of truth).
+`src/app/20-about.js`, which is the single source of truth).
 
 A hand-drawn continuity map of the Transformers G1 "OG World", redrawn as an
 interactive chart and published as a Claude artifact.
 
-> Formerly *Axiom Nexus*. The rename is cosmetic: browser storage keys and the
-> `@@EDIT@@` region names are unchanged, so charts saved or exported under the
-> old name open unaltered.
+> Formerly *Axiom Nexus*. As of 0.9.20 the browser storage keys carry the new
+> name as well; each one reads the old key first and never deletes it, so a
+> chart saved under the old name opens unaltered and an older copy of the file
+> still finds its own work. The `@@EDIT@@` region names are unchanged.
 
 ## Layout
 
@@ -18,12 +19,61 @@ src/
   index.html   markup — a real standalone document you can open in a browser
   style.css    every rule on the page
   data.js      the chart's contents, in @@EDIT@@ regions (see below)
-  app.js       everything the page does — layout, routing, editing, saving
+  app/         the program, 35 files, one per subsystem — see "One scope, many
+               files" below; the order is APP_PARTS in build.py
 build.py       welds src/ into the single file the artifact host needs
-dist/
+eslint.config.mjs  three rules, all three about bindings that are not what
+                   they look like; see the file for why there are only three
+tools/lint.py  lints the ASSEMBLED program and reports per part
+tests/
+  regression.js   the browser suite, run against dist and against src
+  build_guard.py  checks the built page against what src/ says it should be
+package.json   npm run build / test / test:src / test:build / lint
+.github/workflows/ci.yml
+               build, guard, lint, both suites; publishes the standalone
+               copy to Pages from main
+.backups/      the last three copies of src/data.js and dist/nexus.html,
+               written before either is overwritten; not part of the sources
+dist/          GENERATED — not in the repository, see "The repository" below
   nexus.html         the editable chart      → published WITH write access
   nexus-share.html   the same, read-only     → published WITHOUT it
+  nexus-standalone.html  a whole document    → what Pages serves
 ```
+
+## One scope, many files
+
+`src/app/` holds 35 files, one per subsystem. They are **not modules**. The
+page is a single scope, and the build assembles it by writing those files out
+one after another in the order `APP_PARTS` (in `build.py`) declares — exactly
+as the single `app.js` used to read top to bottom. Nothing has its own scope,
+nothing imports anything, and no name changed meaning by moving; when the
+split was made, the built page came out byte for byte identical.
+
+ES modules were considered and rejected, on the program rather than on taste.
+Drawing, routing and editing call one another in every direction, so there is
+no order in which each part only uses what came before it — one scope is what a
+call graph with cycles in it actually is. Modules would also need a bundler,
+and a bundler would destroy the `@@EDIT@@` markers the page saves itself
+through. The goal was a file you can hold in your head, not a dependency graph.
+
+For the same reason `src/index.html` does not load the parts as a `<script>`
+each: it fetches them, joins them, and runs the result as **one** script, which
+is exactly what the published page is. A function declaration hoists over the
+script it is written in, so as separate scripts the program's start-up reaches
+for hundreds of names whose part has not run yet. (It therefore has to be
+served over HTTP; for a file you can open by double-clicking, build and use
+`dist/nexus-standalone.html`.)
+
+Three things could quietly break the order, and the build refuses all three: a
+part `APP_PARTS` names that `src/app/` does not have, a part `src/app/` has
+that `APP_PARTS` does not name, and `src/index.html` running them in a
+different order. A part left out of an assembled program does not fail
+loudly — it fails as a function that is simply not there.
+
+For the same reason the linter runs on the assembled program: run
+`npm run lint` (which is `tools/lint.py`), never `eslint src/app` — the three
+rules ask questions that only have answers about the whole program. Complaints
+come back addressed to the part and line they belong to.
 
 ## Why there is a build step
 
@@ -54,6 +104,35 @@ python3 build.py                    # src/ -> dist/
 python3 build.py --pull live.html   # take the chart's data from a saved
                                     # copy of the live artifact first
 ```
+
+## The repository
+
+`dist/` is **not** committed. All three files come to about 7 MB, nearly all
+of it the two base64 blobs in `src/data.js`, and every byte is reproducible
+from the sources by `python3 build.py` — which `tests/build_guard.py` checks
+on every run. Committing them would grow the history by that much per version
+and would never be the thing anyone reads. So: clone, then build.
+
+```bash
+git clone https://github.com/cccarrrottt/Rhizome.Project
+cd Rhizome.Project
+npm install          # eslint and playwright; there is no lockfile yet
+python3 build.py     # writes dist/
+```
+
+CI runs on every push and pull request: the build, the build guard, the lint,
+and the regression suite twice — once against `dist`, once against `src`,
+because they load the program by different paths and a green run on one says
+nothing about the other. The built files are attached to each run as an
+artifact, so a copy is always downloadable without building.
+
+On `main`, and only after everything above is green, `dist/nexus-standalone.html`
+is published to GitHub Pages as `index.html`. That is the copy with its own
+`<!doctype html>`; the other two exist for the artifact host, which supplies
+the wrapper itself.
+
+> Pages has to be switched on once, by hand: **Settings → Pages → Source →
+> GitHub Actions**. Until then the `pages` job is the only one that fails.
 
 ## Where the chart's contents actually live
 
@@ -290,8 +369,16 @@ Both cost real bugs in this codebase, and both look fine in the source:
 
 ## Tests
 
+    python3 tests/build_guard.py      # the built page against what src/ says
+    python3 tools/lint.py             # the assembled program, reported per part
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
+
+The two regression runs take about six minutes each and both want port 8830,
+so run them one after the other — or set `RHIZOME_TEST_PORT` to move one of
+them. They pick up Playwright from `node_modules` and let it choose its own
+browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
+instead, which is what CI and the original sandbox each do.
 
 111 scenarios (105 against `src`, where reading its own source does not apply), driven through a real browser against the real built page: boot, undo/redo, all
 nine archetypes, card layout, connector clearance on a dense chart, every panel, tag filtering,

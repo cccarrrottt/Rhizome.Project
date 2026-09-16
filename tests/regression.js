@@ -1,5 +1,5 @@
 #!/usr/bin/env node
-/* Axiom Nexus — regression suite.
+/* Rhizome Project — regression suite.
  *
  *   node tests/regression.js              test dist/nexus.html
  *   node tests/regression.js src          test src/index.html instead
@@ -10,14 +10,29 @@
  * serves the page over HTTP from a throwaway server, because half the point is
  * exercising the code paths that a file:// origin would take differently.
  */
-const { chromium } = require('/opt/node-tools/node_modules/playwright-core');
+/* Playwright comes from wherever this machine keeps it. The sandbox this
+   chart grew up in ships a copy at a fixed path, with a browser beside it;
+   a CI runner installs the npm package and lets Playwright find its own
+   browser. Neither should have to know the other exists, so the suite asks
+   for each in turn and takes the first that answers. */
+const { chromium } = (() => {
+  const tried = ['/opt/node-tools/node_modules/playwright-core',
+                 'playwright', 'playwright-core'];
+  for(const where of tried){
+    try { return require(where); } catch(e){ /* next */ }
+  }
+  console.error('Playwright is not installed. Run: npm ci  (or npm i -D playwright)');
+  process.exit(2);
+})();
 const http = require('http'), fs = require('fs'), path = require('path');
 
 const ROOT = path.join(__dirname, '..');
 const MODE = process.argv[2] === 'src' ? 'src' : 'dist';
 const DIR  = path.join(ROOT, MODE);
 const PAGE = MODE === 'src' ? 'index.html' : 'nexus.html';
-const PORT = 8830;
+/* 8830 unless told otherwise — the override is for running two suites at
+   once, which is the only way they collide. */
+const PORT = Number(process.env.RHIZOME_TEST_PORT) || 8830;
 
 const MIME = {'.html':'text/html; charset=utf-8', '.css':'text/css; charset=utf-8',
               '.js':'text/javascript; charset=utf-8'};
@@ -46,7 +61,11 @@ async function main(){
     r.end(body);
   });
   await new Promise(r => srv.listen(PORT, r));
-  const browser = await chromium.launch({executablePath: '/opt/pw-browsers/chromium'});
+  /* The pinned browser if this machine has one, otherwise whatever
+     Playwright installed for itself. */
+  const PINNED = '/opt/pw-browsers/chromium';
+  const browser = await chromium.launch(
+    fs.existsSync(PINNED) ? {executablePath: PINNED} : {});
 
   const errors = [];
   const ctx = await browser.newContext({viewport:{width:1500, height:950}});
@@ -59,7 +78,7 @@ async function main(){
   page.on('console', m => { if(m.type() === 'error' && !NOISE.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('requestfailed', () => {});
 
-  console.log(`\nAxiom Nexus regression — ${MODE}/${PAGE}\n`);
+  console.log(`\nRhizome Project regression — ${MODE}/${PAGE}\n`);
 
   await page.goto(`http://127.0.0.1:${PORT}/${PAGE}`, {waitUntil:'networkidle'});
   await wait(1500);
@@ -195,7 +214,6 @@ async function main(){
         {pos:[700, 700], tags:['fan-fiction']}]);
     });
     await new Promise(r => setTimeout(r, 400));
-    const edgeBefore = document.querySelectorAll('#edgeLayer path.edge-hit').length;
     const row = document.querySelector('#legendList .legend-item[data-tag="fan-fiction"]');
     // Hiding is the row's eye button now, not the row itself — the row had
     // to give the gesture up so it could also carry a delete cross.
@@ -409,7 +427,7 @@ async function main(){
       bold: sp.some(t=> t.getAttribute('font-weight') === '700'),
       italic: sp.some(t=> t.getAttribute('font-style') === 'italic'),
       coloured: sp.some(t=> (t.getAttribute('style')||'').indexOf('#c23b22') >= 0),
-      isRich: !!richFields.get('styleNote')
+      isRich: !!richFields.get('nodeEditorText')
     };
     refill(EDGE_STYLES, []);
     rebuildChart();
@@ -770,7 +788,7 @@ async function main(){
     const bead = document.querySelector('.amalgam-bead[data-to="sa_c"]');
     const out = {found: !!bead};
     if(bead){
-      const bx = +bead.getAttribute('cx'), by = +bead.getAttribute('cy');
+      const by = +bead.getAttribute('cy');
       /* The bar is LEVEL. Two rounds were spent bending it — away from the
          entry, then towards it — and neither was ever what was wanted: the
          bar is the height the lineages arrive at, so every point of it
@@ -1211,12 +1229,15 @@ async function main(){
     // An amalgam offers no text colour; anything else still does.
     selectedId = 'b3';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 250));
-    out.plainHex = getComputedStyle(document.querySelector('[data-hex-for="editLabelInput"]')).display;
+    out.plainHex = getComputedStyle(document.querySelector('[data-hex-for="nodeEditorText"]')).display;
     document.getElementById('editShapeInput').value = 'amalgam';
     document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
     await new Promise(r=> setTimeout(r, 250));
-    out.mirrorHex = getComputedStyle(document.querySelector('[data-hex-for="editLabelInput"]')).display;
+    out.mirrorHex = getComputedStyle(document.querySelector('[data-hex-for="nodeEditorText"]')).display;
     document.getElementById('editShapeInput').value = 'rect';
     document.getElementById('editShapeInput').dispatchEvent(new Event('change', {bubbles:true}));
     await new Promise(r=> setTimeout(r, 250));
@@ -1498,9 +1519,12 @@ async function main(){
     rebuildChart(); await new Promise(r=> setTimeout(r, 350));
     selectedId = 'tc';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 300));
-    const surface = richFields.get('editLabelInput').surface;
-    const box = document.querySelector('[data-hex-for="editLabelInput"]');
+    const surface = richFields.get('nodeEditorText').surface;
+    const box = document.querySelector('[data-hex-for="nodeEditorText"]');
     const swatch = ()=>{
       const rc = box.getBoundingClientRect();
       box.dispatchEvent(new MouseEvent('mousedown',
@@ -1585,9 +1609,12 @@ async function main(){
     rebuildChart(); await new Promise(r=> setTimeout(r, 380));
     selectedId = 'clr';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 300));
-    const surf = richFields.get('editLabelInput').surface;
-    const hexBox = document.querySelector('[data-hex-for="editLabelInput"]');
+    const surf = richFields.get('nodeEditorText').surface;
+    const hexBox = document.querySelector('[data-hex-for="nodeEditorText"]');
     const t0 = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT).nextNode();
     const rg = document.createRange(); rg.setStart(t0, 0); rg.setEnd(t0, 5);
     const sel0 = window.getSelection(); sel0.removeAllRanges(); sel0.addRange(rg);
@@ -1604,7 +1631,7 @@ async function main(){
     selectedId = 'clr';
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 300));
-    out.survivesReopen = /color/.test(richFields.get('editLabelInput').surface.innerHTML);
+    out.survivesReopen = /color/.test(richFields.get('nodeEditorText').surface.innerHTML);
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 200));
 
@@ -1710,8 +1737,12 @@ async function main(){
         r11.cardH > r11.plateH, `${r11.cardH} vs ${r11.plateH}`);
   check('and keeps the offset it was aimed at as its connector moves',
         r11.cardSideStable, r11.cardSides);
-  check('the bar carries a gradient bead at every colour change',
-        r11.jointCount === 2 && r11.jointsGradient, JSON.stringify(r11.jointCount));
+  /* One bead, not two drawn on top of one another. Evenly spaced lineages
+     hand the bar over at one and the same place — its middle — so every
+     seam of such a merge resolves to that point, and the bar used to carry
+     a bead there per seam, each drawn over the last. */
+  check('the bar carries one gradient bead where its colours change',
+        r11.jointCount === 1 && r11.jointsGradient, JSON.stringify(r11.jointCount));
   check('and the junction keeps its own, painted over them all',
         r11.junctionGradient && r11.junctionLast);
   /* No leash any more: nothing PULLS the entry back towards its lineages,
@@ -1917,7 +1948,8 @@ async function main(){
       }
       return false;
     }));
-    // A bead sits on every seam: three joints for four lineages.
+    /* A bead sits on every seam that is a real hand-over: three for four
+       lineages, and none of them on the same pixel as another. */
     const joints = document.querySelectorAll('.amalgam-joint[data-to="bsm"]').length;
     applyEdit(()=>{ workingNodes = before; });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
@@ -1927,6 +1959,10 @@ async function main(){
         barSplit.everyTurns && barSplit.reverses === false, JSON.stringify(barSplit));
   check('and a bead sits on every seam between them', barSplit.joints === 3,
         String(barSplit.joints));
+  /* The middle of the bar is not one of them. It is where an evenly spaced
+     merge puts all of its seams at once, and a dot in the centre of a
+     plain line marks nothing a reader can act on — it is only worth
+     knowing while the entry is being lined up on it, which is a guide. */
 
   /* ---- 32. this round: the grid, the grip, the bar's own colours ---- */
   const r13 = await page.evaluate(async ()=>{
@@ -2104,11 +2140,15 @@ async function main(){
     /* Type is set from the toolbar and the toolbar REPORTS what it sees:
        the entry-wide face dropdown is gone, and the pickers show the face
        and size of what is selected, or "custom" across a mixture. */
-    out.entryFaceHidden = document.getElementById('editFontInput').hidden;
+    // The entry-wide face control is gone outright, not merely hidden.
+    out.entryFaceHidden = !document.getElementById('editFontInput');
     selectedId = 'ty';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 320));
-    const surf = richFields.get('editLabelInput').surface;
+    const surf = richFields.get('nodeEditorText').surface;
     const bar = toolbarForSurface(surf);
     out.hasFace = !!bar.querySelector('.tb-font:not(.tb-size)');
     out.hasSize = !!bar.querySelector('.tb-size');
@@ -2148,7 +2188,7 @@ async function main(){
 
     /* The colour reset clears the WHOLE text, not just a selection. */
     pickRange(0, 5);
-    const hexBox = document.querySelector('[data-hex-for="editLabelInput"]');
+    const hexBox = document.querySelector('[data-hex-for="nodeEditorText"]');
     hexBox.value = '#c23b22';
     const hb = hexBox.getBoundingClientRect();
     hexBox.dispatchEvent(new MouseEvent('mousedown',
@@ -2162,7 +2202,7 @@ async function main(){
     out.twoColours = /c23b22/.test(richHtmlToMarkup(surf)) && /2f6fb5/.test(richHtmlToMarkup(surf));
     // One press of the reset, with only ONE of them selected.
     pickRange(0, 5);
-    document.querySelector('[data-hex-reset="editLabelInput"]').click();
+    document.querySelector('[data-hex-reset="nodeEditorText"]').click();
     await new Promise(r=> setTimeout(r, 900));
     const after = richHtmlToMarkup(surf);
     out.allColoursGone = !/\{\{#/.test(after);
@@ -2175,7 +2215,7 @@ async function main(){
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 320));
     out.amalTextColour = getComputedStyle(
-      document.querySelector('[data-hex-for="editLabelInput"]')).display;
+      document.querySelector('[data-hex-for="nodeEditorText"]')).display;
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -2243,7 +2283,7 @@ async function main(){
         r14.endRounded && r14.midSquare,
         JSON.stringify({ends:r14.endRounded, middle:r14.midSquare}));
   check('a merge works on a side port too, beads and all',
-        r14.sideMembers === 3 && r14.sideBarVertical && r14.sideBeads === 2,
+        r14.sideMembers === 3 && r14.sideBarVertical && r14.sideBeads === 1,
         JSON.stringify({members:r14.sideMembers, vertical:r14.sideBarVertical, beads:r14.sideBeads}));
   check('an amalgam’s beads and arrowhead stay lit while its construction is selected',
         r14.beadsVisible && r14.headVisible,
@@ -2523,8 +2563,11 @@ async function main(){
     /* ⟲ strips everything, not only the colour. */
     selectedId = 'fm';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 320));
-    document.querySelector('[data-hex-reset="editLabelInput"]').click();
+    document.querySelector('[data-hex-reset="nodeEditorText"]').click();
     await new Promise(r=> setTimeout(r, 1100));
     out.strippedText = workingNodes.find(x=> x[0]==='fm')[1];
     // …and the border reset puts the outline back to the default ink.
@@ -2539,13 +2582,13 @@ async function main(){
     selectedId = 'ln';
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 320));
-    const bar = toolbarForSurface(richFields.get('editLabelInput').surface);
+    const bar = toolbarForSurface(richFields.get('nodeEditorText').surface);
     syncToolbarFace(bar);
     out.sizeShown = bar.querySelector('.tb-size').value;
     out.nodeFsHere = NODE_FS;
     out.faceShown = bar.querySelector('.tb-font:not(.tb-size)').value;
     out.customHidden = [...bar.querySelectorAll('option[value="__mixed__"]')].every(o=> o.hidden);
-    out.entrySizeFieldGone = document.getElementById('editFontSizeInput').hidden;
+    out.entrySizeFieldGone = !document.getElementById('editFontSizeInput');
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -2670,8 +2713,12 @@ async function main(){
                          null,null,null,null,{pos:[36000,-900]}]);
       workingNodes.push(['sr','a{{z:26|{{s:sc_probe}}}}b{{z:26|{{r:q1}}}}c{{s:sc_probe}}{{r:q1}}',
                          null,null,null,null,{pos:[36300,-900]}]);
-      workingNodes.push(['pk2','pocket',null,null,null,'pocket',
-                         {pos:[36600,-900], colors:['#111111','#2f6fb5','#c23b22']}]);
+      /* One pk2, with its parent. There used to be two — the same id pushed
+         first without a parent and then again with one — which the chart
+         survives, because the entry map keeps the last of a duplicate, but
+         which made the fixture read as though it were testing something
+         about duplicates when it was testing a pocket-reality's border. A
+         fixture whose first line is dead is a fixture nobody can trust. */
       workingNodes.push(['pk1','feeder',null,null,null,null,{pos:[36600,-1100]}]);
       workingNodes.push(['pk2','pocket','pk1',null,null,'pocket',
                          {pos:[36600,-900], colors:['#111111','#2f6fb5','#c23b22']}]);
@@ -2967,8 +3014,11 @@ async function main(){
     await new Promise(r=> setTimeout(r, 320));
     selectedId = 'rz';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 350));
-    const rec = richFields.get('editLabelInput');
+    const rec = richFields.get('nodeEditorText');
     const surf = rec.surface;
     const rb = surf.querySelector('ruby');
     const rng = document.createRange();
@@ -2978,7 +3028,7 @@ async function main(){
     await new Promise(r=> setTimeout(r, 250));
     out.rubyWhole = richHtmlToMarkup(surf);
     // A sticker put "on" a reading lands beside it, not inside it.
-    setRichValue(document.getElementById('editLabelInput'), '[[base|anno]]');
+    setRichValue(document.getElementById('nodeEditorText'), '[[base|anno]]');
     await new Promise(r=> setTimeout(r, 150));
     const rb2 = surf.querySelector('ruby');
     const rng2 = document.createRange();
@@ -2989,7 +3039,7 @@ async function main(){
     out.stickerBeside = richHtmlToMarkup(surf);
 
     /* The size picker counts a sticker as a run, and says so in italics. */
-    setRichValue(document.getElementById('editLabelInput'), 'word {{z:26|{{s:rz_probe}}}} tail');
+    setRichValue(document.getElementById('nodeEditorText'), 'word {{z:26|{{s:rz_probe}}}} tail');
     await new Promise(r=> setTimeout(r, 200));
     const all = document.createRange(); all.selectNodeContents(surf);
     const s3 = window.getSelection(); s3.removeAllRanges(); s3.addRange(all);
@@ -3000,11 +3050,11 @@ async function main(){
     out.sizeReadsItalic = getComputedStyle(sizeSel).fontStyle === 'italic';
 
     /* ⟲ leaves a citation a citation. */
-    setRichValue(document.getElementById('editLabelInput'), 'A {{#c23b22|**bold**}} {{r:rz1}} B');
+    setRichValue(document.getElementById('nodeEditorText'), 'A {{#c23b22|**bold**}} {{r:rz1}} B');
     await new Promise(r=> setTimeout(r, 180));
-    document.querySelector('[data-hex-reset="editLabelInput"]').click();
+    document.querySelector('[data-hex-reset="nodeEditorText"]').click();
     await new Promise(r=> setTimeout(r, 950));
-    out.resetKeepsRef = document.getElementById('editLabelInput').value;
+    out.resetKeepsRef = document.getElementById('nodeEditorText').value;
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -3026,7 +3076,6 @@ async function main(){
     out.noCapOnOuter = !document.querySelector('.edge-cap[data-to="cap_c"]');
     const inner = document.querySelector('#edgeLayer .edge.struct[data-to="cap_b"]:not(.edge-cap)');
     const nums = (inner.getAttribute('d').match(/-?[\d.]+/g) || []).map(Number);
-    const na = nodes.get('cap_a');
     // The first straight run out of the port clears all three borders.
     out.runOutClears = (nums[3] - nums[1]) >= 2 * RING_STEP;
 
@@ -3174,13 +3223,16 @@ async function main(){
     /* The buttons toggle, and a citation is never drawn through. */
     selectedId = 'ln1';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 350));
-    const surf = richFields.get('editLabelInput').surface;
+    const surf = richFields.get('nodeEditorText').surface;
     const bar = toolbarForSurface(surf);
     out.hasLineButtons = !!bar.querySelector('.tb-line-under') &&
                          !!bar.querySelector('.tb-line-strike') &&
                          !!bar.querySelector('.tb-line-style');
-    setRichValue(document.getElementById('editLabelInput'), 'alpha beta');
+    setRichValue(document.getElementById('nodeEditorText'), 'alpha beta');
     await new Promise(r=> setTimeout(r, 160));
     const pickAll = ()=>{
       const rr = document.createRange(); rr.selectNodeContents(surf);
@@ -3195,7 +3247,7 @@ async function main(){
     // A rule never reaches a citation: an atomic inline box does not take
     // a decoration propagated from the run around it.
     refill(REFS, [{key:'lnr', title:'', detail:'S', url:''}]);
-    setRichValue(document.getElementById('editLabelInput'), 'a {{u:solid|b {{r:lnr}} c}} d');
+    setRichValue(document.getElementById('nodeEditorText'), 'a {{u:solid|b {{r:lnr}} c}} d');
     await new Promise(r=> setTimeout(r, 200));
     const chip = surf.querySelector('[data-ref]');
     out.chipNotRuled = !!chip && getComputedStyle(chip).display === 'inline-block';
@@ -3203,24 +3255,30 @@ async function main(){
     /* A sticker is a picture: it has a size but no face. */
     STICKERS.push({key:'ln_s', name:'s', src:'data:image/png;base64,iVBORw0KGgo='});
     rebuildStickerMap();
-    setRichValue(document.getElementById('editLabelInput'), 'word {{s:ln_s}} tail');
+    setRichValue(document.getElementById('nodeEditorText'), 'word {{s:ln_s}} tail');
     await new Promise(r=> setTimeout(r, 180));
     pickAll();
     syncToolbarFace(bar);
     out.faceNotMixed = bar.querySelector('.tb-font:not(.tb-size):not(.tb-line-style)').value !== '__mixed__';
 
     /* ⟲ takes the formatting off a reading and leaves the reading. */
-    setRichValue(document.getElementById('editLabelInput'), '{{#c23b22|**[[base|anno]]**}} x');
+    setRichValue(document.getElementById('nodeEditorText'), '{{#c23b22|**[[base|anno]]**}} x');
     await new Promise(r=> setTimeout(r, 180));
-    document.querySelector('[data-hex-reset="editLabelInput"]').click();
+    document.querySelector('[data-hex-reset="nodeEditorText"]').click();
     await new Promise(r=> setTimeout(r, 950));
-    out.resetKeepsRuby = document.getElementById('editLabelInput').value;
+    out.resetKeepsRuby = document.getElementById('nodeEditorText').value;
     /* …and the reading is set in the project's own face while it is being
        written, not the browser's. */
-    setRichValue(document.getElementById('editLabelInput'), '[[base|anno]]');
+    setRichValue(document.getElementById('nodeEditorText'), '[[base|anno]]');
     await new Promise(r=> setTimeout(r, 200));
     const rt = surf.querySelector('rt');
-    out.rubyStyled = !!rt && /Plex Mono/.test(getComputedStyle(rt).fontFamily);
+    /* The field wears the ENTRY's face now, not the drawer's mono — so what
+       this is about is the property the chart actually promises: a reading
+       is set in the same face as the words it stands over, whatever that
+       face is, rather than dropping to the browser's default serif. */
+    out.rubyStyled = !!rt &&
+      getComputedStyle(rt).fontFamily === getComputedStyle(surf).fontFamily &&
+      !/^(serif|Times)/i.test(getComputedStyle(rt).fontFamily);
     document.getElementById('detailEditToggle').click();
     await new Promise(r=> setTimeout(r, 250));
 
@@ -3300,7 +3358,6 @@ async function main(){
     dead.className = 'icon-action eye-mini';
     dead.disabled = true;
     document.getElementById('legendList').appendChild(dead);
-    const before = getComputedStyle(dead).borderColor;
     dead.classList.add('probe-hover');
     out.disabledOpacity = +getComputedStyle(dead).opacity;
     out.disabledCursor = getComputedStyle(dead).cursor;
@@ -3542,9 +3599,12 @@ async function main(){
        flattened by the stylesheet. */
     selectedId = 'ry2';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await new Promise(r=> setTimeout(r, 350));
-    const surf = richFields.get('editLabelInput').surface;
-    setRichValue(document.getElementById('editLabelInput'), '[[w|{{#c23b22|**a**}}]]');
+    const surf = richFields.get('nodeEditorText').surface;
+    setRichValue(document.getElementById('nodeEditorText'), '[[w|{{#c23b22|**a**}}]]');
     await new Promise(r=> setTimeout(r, 220));
     const rtEl = surf.querySelector('rt');
     const cs = rtEl ? getComputedStyle(rtEl.querySelector('b') || rtEl) : null;
@@ -3552,7 +3612,7 @@ async function main(){
     out.fieldShowsColour = !!cs && /199|c23b22|rgb\(194, 59, 34\)|rgb\(194,59,34\)/.test(cs.color);
     /* A selection inside ONE half is formatted on its own; one that
        straddles the two is still widened to the whole reading. */
-    setRichValue(document.getElementById('editLabelInput'), '[[base|anno]]');
+    setRichValue(document.getElementById('nodeEditorText'), '[[base|anno]]');
     await new Promise(r=> setTimeout(r, 200));
     const rt2 = surf.querySelector('rt');
     const rr = document.createRange();
@@ -3687,6 +3747,9 @@ async function main(){
     await wait(400);
     selectNode('fp1');
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await wait(300);
     selectNode('fp2');
     await wait(200);
@@ -3699,12 +3762,16 @@ async function main(){
     selectNode('fp1');
     document.getElementById('detailEditToggle').click();
     await wait(280);
-    const surf = richFields.get('editLabelInput').surface;
+    const surf = richFields.get('nodeEditorText').surface;
     surf.focus();
     document.dispatchEvent(new KeyboardEvent('keydown',
       {key:'/', code:'Slash', bubbles:true}));
     await wait(100);
     out.slashStaysInField = document.activeElement === surf;
+    // Let the field go: what follows is about the loose element's own menu,
+    // and an open field would answer its keys first.
+    closeNodeEditor(true);
+    await wait(150);
     document.getElementById('detailEditToggle').click();
     await wait(200);
 
@@ -3966,8 +4033,11 @@ async function main(){
        is the line break. */
     selectedId = 'w1';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await wait(340);
-    const surf = richFields.get('editLabelInput').surface;
+    const surf = richFields.get('nodeEditorText').surface;
     surf.focus();
     surf.textContent = 'typed';
     surf.dispatchEvent(new Event('input', {bubbles:true}));
@@ -4161,9 +4231,9 @@ async function main(){
 
     /* Typing at the head of either half of a reading lands in that half. */
     {
-      const surf = richFields.get('editLabelInput').surface;
+      const surf = richFields.get('nodeEditorText').surface;
       const put = (markup, half)=>{
-        setRichValue(document.getElementById('editLabelInput'), markup);
+        setRichValue(document.getElementById('nodeEditorText'), markup);
         const t = half === 'base' ? surf.querySelector('ruby').firstChild
                                   : surf.querySelector('rt').firstChild;
         const rg = document.createRange(); rg.setStart(t, 0); rg.collapse(true);
@@ -4558,11 +4628,14 @@ async function main(){
     rebuildChart(); await wait(400);
     selectedId = 'rbz';
     document.getElementById('detailEditToggle').click();
+    // The entry's words are typed ON the entry now, so the field that
+    // holds them is opened there rather than in the drawer.
+    openNodeEditor(selectedId);
     await wait(340);
     {
-      const surf = richFields.get('editLabelInput').surface;
+      const surf = richFields.get('nodeEditorText').surface;
       const over = (markup, from, to)=>{
-        setRichValue(document.getElementById('editLabelInput'), markup);
+        setRichValue(document.getElementById('nodeEditorText'), markup);
         surf.focus();
         const walk = document.createTreeWalker(surf, NodeFilter.SHOW_TEXT);
         let seen = 0, s0 = null, o0 = 0, s1 = null, o1 = 0, t;
@@ -4589,11 +4662,14 @@ async function main(){
       });
       rebuildChart(); await wait(420);
       selectedId = 'clr';
-      const rec = richFields.get('editLabelInput');
-      setRichValue(document.getElementById('editLabelInput'), '');
+      openNodeEditor('clr');
+      await wait(200);
+      const rec = richFields.get('nodeEditorText');
+      setRichValue(document.getElementById('nodeEditorText'), '');
       rec.surface.dispatchEvent(new Event('input', {bubbles:true}));
       await wait(120);
-      flushNodeEditCommit();
+      // The words are committed by the field that takes them.
+      closeNodeEditor();
       await wait(420);
       const found = workingNodes.find(t=> t[0] === 'clr');
       out.labelCleared = !!found && (found[1] === '' || found[1] == null);
@@ -4934,7 +5010,11 @@ async function main(){
                 const g = document.querySelector(
                   `#arrowLayer g.edge-arrow[data-from="pkR"][data-to="pk_${sd}"]`);
                 heads++;
-                if(g && g.getAttribute('clip-path') === `url(#outside-pkR-r${ring})`) clips++;
+                // Asked of the program rather than spelled out again here: the
+                // id of a clip in <defs> is the program's rule to state, and a
+                // test that restates it only checks that two copies agree.
+                const want = 'url(#' + defId('outside-', 'pkR') + '-r' + ring + ')';
+                if(g && g.getAttribute('clip-path') === want) clips++;
               }
             }
           }
@@ -4986,7 +5066,10 @@ async function main(){
       const surf = richFields.get('detailNoteInput').surface;
       out.noteItalic = getComputedStyle(surf).fontStyle;
       out.noteFamily = getComputedStyle(surf).fontFamily;
-      out.editFamily = getComputedStyle(richFields.get('editLabelInput').surface).fontFamily;
+      /* Against another of the drawer's own fields: the in-node one wears
+         whatever face its entry wears, so it cannot stand for "every other
+         formatted text" any more. The add form's label box can. */
+      out.editFamily = getComputedStyle(richFields.get('addNodeLabel').surface).fontFamily;
       out.figuresShown = surf.querySelectorAll('.rich-figure img').length;
       out.figureRoundTrip = richHtmlToMarkup(surf);
       // A figure is for the document, never for the drawing.
@@ -5061,23 +5144,27 @@ async function main(){
                          {pos:[-40,140], leader:{from:'coA', to:'coB', at:0.5}}]);
     });
     await wait(700);
-    /* One click picks it up and opens nothing; the second opens its card. */
+    /* One click picks it up and offers the one thing the drawing cannot,
+       which is a way to remove it; the second opens its WORDS, on the card
+       itself, because that is where they are drawn. */
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('click', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
     await wait(350);
     out.oneClickSelects = selectedId === 'coC' &&
-                          !document.getElementById('calloutPopover').classList.contains('open');
+                          document.getElementById('calloutPopover').classList.contains('open');
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
-    await wait(350);
-    out.ownPanel = document.getElementById('calloutPopover').classList.contains('open');
+    await wait(400);
+    out.ownPanel = !document.getElementById('nodeEditor').hidden &&
+                   nodeEditorTarget && nodeEditorTarget.id === 'coC';
     out.noDrawer = !document.getElementById('detail').classList.contains('open');
-    out.panelHasWords = richFields.get('calloutText').surface.textContent === 'Remark';
-    /* …and the panel writes the card's own words. */
-    setRichValue(document.getElementById('calloutText'), 'Rewritten');
-    flushCalloutCommit();
+    out.panelHasWords = richFields.get('nodeEditorText').surface.textContent === 'Remark';
+    /* …and what is typed there is the card's own words. */
+    setRichValue(richFields.get('nodeEditorText').textarea, 'Rewritten');
+    commitNodeEditorText();
     await wait(400);
     out.panelWrites = (nodes.get('coC') || {}).label === 'Rewritten';
+    closeNodeEditor(true);
     closeCalloutPopover();
     await wait(250);
 
@@ -5460,9 +5547,12 @@ async function main(){
     document.querySelector('.node[data-id="cs"]').dispatchEvent(
       new MouseEvent('click', {bubbles:true, cancelable:true, clientX:400, clientY:500}));
     await wait(320);
-    out.openWithoutFocus = !document.getElementById('calloutPopover').classList.contains('open') &&
-                           selectedId === 'cs' &&
-                           document.activeElement !== richFields.get('calloutText').surface;
+    /* The card that opens holds only the Delete, so nothing has taken the
+       keyboard and Delete still means "delete this". */
+    out.openWithoutFocus = selectedId === 'cs' &&
+                           document.getElementById('nodeEditor').hidden &&
+                           (!document.activeElement || !document.activeElement.classList ||
+                            !document.activeElement.classList.contains('rich-surface'));
     document.dispatchEvent(new KeyboardEvent('keydown', {key:'Delete', bubbles:true}));
     await wait(460);
     out.deletedByKey = !workingNodes.some(x=> x[0] === 'cs');
@@ -5688,7 +5778,6 @@ async function main(){
     const beforeStyles = EDGE_STYLES.slice();
     const out = {};
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
-    const bends = (d)=> (d || '').split('Q').length - 1;
 
     /* A staircase down an empty corridor collapses to the L it always was. */
     {
@@ -5912,9 +6001,16 @@ async function main(){
     {
       const g = document.querySelector('.node[data-id="pb"]');
       const ring = g.querySelector(':scope > circle.bio-ring');
-      const pad  = g.querySelector(':scope > circle.node-hover-pad');
+      /* A portrait's pad is the SQUARE it is drawn inside, not a ring
+         around the circle: its ports stand at the sides of that square and
+         its grips at its corners, and a pad shaped like the circle let the
+         entry go the moment the pointer moved off the picture towards
+         either of them. It is painted with nothing, so it covers no line
+         and hides no connector — but it is filled for the pointer. */
+      const pad  = g.querySelector(':scope > rect.node-hover-solid');
       out.ringFilled = ring && getComputedStyle(ring).fill !== 'none';
-      out.padHollow  = pad && getComputedStyle(pad).fill === 'none';
+      out.padHollow  = !!pad && getComputedStyle(pad).fill === 'rgba(0, 0, 0, 0)' &&
+                       getComputedStyle(pad).pointerEvents === 'all';
       const n = nodes.get('pb'), rect = svg.getBoundingClientRect();
       const px = rect.left + (n.x + n.w/2)*vs + vx, py = rect.top + (n.y + n.h/2)*vs + vy;
       const top = document.elementsFromPoint(px, py)[0];
@@ -6117,7 +6213,7 @@ async function main(){
   /* Shift+Enter breaks the line once. */
   const brk = await page.evaluate(async ()=>{
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
-    const rec = richFields.get('editLabelInput');
+    const rec = richFields.get('nodeEditorText');
     setRichValue(rec.textarea, 'one');
     rec.surface.focus();
     const r = document.createRange();
@@ -6277,10 +6373,15 @@ async function main(){
       await wait(120);
       g.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:400, clientY:400}));
       await wait(450);
-      out.freeCardOpen = document.getElementById('freeMenu').classList.contains('open');
+      /* A caption's words are written ON the caption; its card holds the
+         face, the size and the Delete, and comes up on a single click. */
+      out.freeCardOpen = !document.getElementById('nodeEditor').hidden &&
+                         nodeEditorTarget && nodeEditorTarget.id === 'ft';
       out.notTheDrawer = document.getElementById('detailEditForm').style.display !== 'block';
-      const rec = richFields.get('freeMenuText');
+      const rec = richFields.get('nodeEditorText');
       out.caretInTheWords = !!rec && document.activeElement === rec.surface;
+      closeNodeEditor(true);
+      await wait(200);
       /* Turning is done on the caption now, not in this card — and it
          happens as the hand moves, since the drawn group is turned
          directly rather than rebuilt from the entry. */
@@ -6295,17 +6396,22 @@ async function main(){
     /* A picture has no words, so the Label row is shut — and open again on
        the next entry. */
     selectNode('fi'); await wait(350);
-    if(document.getElementById('detailEditForm').style.display !== 'block')
+    if(document.getElementById('detailEditForm').style.display !== 'block'){
       document.getElementById('detailEditToggle').click();
+    }
     await wait(400);
     {
-      const rec = richFields.get('editLabelInput');
-      const wrap = document.getElementById('editLabelInput').closest('.editor-field');
-      out.labelShut = rec.surface.getAttribute('contenteditable') === 'false' &&
-                      [...wrap.querySelectorAll('button')].every(b=> b.disabled);
+      /* A picture has no words, and the field that writes words says so by
+         refusing to open on it. The drawer used to answer this by shutting
+         its Label row; there is no Label row, and "the field will not open
+         here" is the same statement made where it belongs. */
+      out.labelShut = openNodeEditor('fi') === false &&
+                      document.getElementById('nodeEditor').hidden;
       selectNode('fa'); await wait(400);
-      out.labelBackOn = rec.surface.getAttribute('contenteditable') === 'true' &&
-                        [...wrap.querySelectorAll('button')].every(b=> !b.disabled);
+      out.labelBackOn = openNodeEditor('fa') === true &&
+                        !document.getElementById('nodeEditor').hidden;
+      closeNodeEditor(true);
+      await wait(150);
     }
     deselect();
 
@@ -6450,8 +6556,9 @@ async function main(){
     selectNode('ka');
     await wait(380);
     out.cardWithPanel = cards() >= 1;
-    if(document.getElementById('detailEditForm').style.display !== 'block')
+    if(document.getElementById('detailEditForm').style.display !== 'block'){
       document.getElementById('detailEditToggle').click();
+    }
     await wait(400);
     out.checkboxOffered =
       getComputedStyle(document.getElementById('editBioCardField')).display !== 'none';
@@ -6492,7 +6599,7 @@ async function main(){
     out.inkNow = [noteInk(), calloutInk()].join(' ');
     out.noColourControl = !document.querySelector('[data-hex-for="calloutText"]') &&
                           !document.querySelector('[data-hex-for="styleNote"]') &&
-                          !!document.querySelector('[data-hex-for="editLabelInput"]');
+                          !!document.querySelector('[data-hex-for="nodeEditorText"]');
 
     /* The Add form's Label row is shut for a picture too. */
     {
@@ -6635,9 +6742,9 @@ async function main(){
     await wait(700);
     {
       selectNode('ft'); paintMultiSelection();
-      openFreeMenu('ft', {clientX:400, clientY:400});
-      await wait(150);
-      const surf = richFields.get('freeMenuText').surface;
+      openNodeEditor('ft');
+      await wait(200);
+      const surf = richFields.get('nodeEditorText').surface;
       surf.focus();
       const sel = window.getSelection(), rg = document.createRange();
       rg.selectNodeContents(surf); sel.removeAllRanges(); sel.addRange(rg);
@@ -6689,23 +6796,35 @@ async function main(){
       out.plateLive = /0,\s*136,\s*255|#0088ff/.test(plateStroke() || '');
       out.plateNow = plateStroke();
 
-      out.resetOnNote = !!document.querySelector('#styleNoteToolbar [data-hex-reset]');
-      out.resetOnCallout = !!document.querySelector('#calloutToolbar [data-hex-reset]');
-      out.noHexOnNote = !document.querySelector('#styleNoteToolbar .tb-hex') &&
-                        !document.querySelector('#calloutToolbar .tb-hex');
+      /* The ⟲ lives on the field the words are written in, which is the
+         one on the drawing now — and there is still no colour box beside
+         it, because a remark on a line is written in the line's own ink. */
+      closeEdgePopover();
+      await wait(200);
+      openEdgeNoteEditor('ia','ib');
+      await wait(300);
+      out.resetOnNote = !!document.querySelector('#nodeEditorBar [data-hex-reset]');
+      out.resetOnCallout = out.resetOnNote;
+      /* The box is still in the toolbar — the same toolbar serves an
+         entry's label, where the colour IS the reader's — but it is not
+         offered while the field is open on a connector's remark. */
+      out.noHexOnNote = (()=>{
+        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        return !hex || getComputedStyle(hex).display === 'none';
+      })();
       // It clears the formatting the reader CAN set.
-      const ns = richFields.get('styleNote').surface;
-      setRichValue(document.getElementById('styleNote'), '**bold** text');
+      const ns = richFields.get('nodeEditorText').surface;
+      setRichValue(richFields.get('nodeEditorText').textarea, '**bold** text');
       await wait(60);
       ns.focus();
       { const sel = window.getSelection(), rg = document.createRange();
         rg.selectNodeContents(ns); sel.removeAllRanges(); sel.addRange(rg); }
-      document.querySelector('#styleNoteToolbar [data-hex-reset]')
+      document.querySelector('#nodeEditorBar [data-hex-reset]')
         .dispatchEvent(new MouseEvent('click', {bubbles:true}));
       await wait(140);
-      out.noteCleared = document.getElementById('styleNote').value === 'bold text';
-      out.noteAfter = document.getElementById('styleNote').value;
-      closeEdgePopover();
+      out.noteCleared = richFields.get('nodeEditorText').textarea.value === 'bold text';
+      out.noteAfter = richFields.get('nodeEditorText').textarea.value;
+      closeNodeEditor(false);
       await wait(120);
     }
 
@@ -6758,6 +6877,9 @@ async function main(){
       await wait(700);
       selectNode('cx');
       detailEditToggle.onclick({stopPropagation(){}});
+      // The entry's words are typed ON the entry now, so the field that
+      // holds them is opened there rather than in the drawer.
+      openNodeEditor(selectedId);
       await wait(200);
       document.querySelector('.node[data-id="cb"]')
         .dispatchEvent(new MouseEvent('mouseenter', {bubbles:false}));
@@ -6774,7 +6896,7 @@ async function main(){
       g.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true}));
       await wait(340);
       out.cardEdits = selectedId === 'cb' &&
-        nodeEditorTarget === 'cb' &&
+        nodeEditorTarget && nodeEditorTarget.id === 'cb' &&
         !document.getElementById('nodeEditor').hidden &&
         document.activeElement === richFields.get('nodeEditorText').surface;
       closeNodeEditor(true);
@@ -6790,9 +6912,11 @@ async function main(){
     await wait(800);
     {
       selectNode('ha');
-      detailEditToggle.onclick({stopPropagation(){}});
+      // The words are on the entry, so the field is opened there — without
+      // it the surface still holds whatever was last written in it.
+      openNodeEditor('ha');
       await wait(220);
-      const surf = richFields.get('editLabelInput').surface;
+      const surf = richFields.get('nodeEditorText').surface;
       surf.focus();
       const tn = surf.querySelector('div') || surf;
       const node = tn.firstChild || tn;
@@ -6802,7 +6926,7 @@ async function main(){
       // selectionchange is queued, not synchronous — the watcher that keeps
       // the last picked-out run has to be given the turn it runs in.
       await wait(80);
-      const box = document.querySelector('[data-hex-for="editLabelInput"]');
+      const box = document.querySelector('[data-hex-for="nodeEditorText"]');
       box.focus();
       await wait(120);
       out.heldPainted = (()=>{ try{ return CSS.highlights.get('held-selection').size; }
@@ -6810,8 +6934,8 @@ async function main(){
       box.value = '#ff8800';
       applyHexFromBox(box, '#ff8800');
       await wait(600);
-      out.heldApplied = /#ff8800\|Alpha/.test(document.getElementById('editLabelInput').value);
-      out.heldValue = document.getElementById('editLabelInput').value;
+      out.heldApplied = /#ff8800\|Alpha/.test(document.getElementById('nodeEditorText').value);
+      out.heldValue = document.getElementById('nodeEditorText').value;
       out.heldCleared = (()=>{ try{ return CSS.highlights.get('held-selection').size === 0; }
                                catch(e){ return false; } })();
       closeEditForm(); deselect();
@@ -6974,7 +7098,6 @@ async function main(){
     });
     await wait(800);
     {
-      const n = nodes.get('zt');
       const g = document.querySelector('.node[data-id="zt"]');
       const handle = g && g.querySelector('.node-rotate');
       out.hasHandle = !!handle;
@@ -7246,6 +7369,9 @@ async function main(){
       /* and the drawer says which, and writing it there reaches the entry */
       selectNode('bcP');
       detailEditToggle.onclick({stopPropagation(){}});
+      // The entry's words are typed ON the entry now, so the field that
+      // holds them is opened there rather than in the drawer.
+      openNodeEditor(selectedId);
       await wait(300);
       out.sideField = editBioSide ? editBioSide.value : '?';
       if(editBioSide){ editBioSide.value = 'auto'; queueNodeEditCommit(0); }
@@ -7303,7 +7429,7 @@ async function main(){
     await wait(800);
     {
       selectNode('lvH');
-      openLabelEditor('lvH');
+      openEntrySettings('lvH');
       await wait(1400);
       const phase = ()=>{
         const r = document.querySelector('.node-aura[data-id="lvH"] .hub-echo');
@@ -7314,7 +7440,7 @@ async function main(){
         return Number(a.currentTime) - del;
       };
       const t0 = performance.now(), p0 = phase();
-      const rec = richFields.get('editLabelInput');
+      const rec = richFields.get('nodeEditorText');
       if(rec){ rec.surface.focus(); document.execCommand('insertText', false, 'X'); }
       await wait(60);
       const t1 = performance.now(), p1 = phase();
@@ -7491,8 +7617,13 @@ async function main(){
   check('picking a portrait out does not thicken its rim', r40.ringWidthHeld, r40.ringWidth);
   check('a decoration redrawn mid-performance carries on from where it was',
         r40.livelyOn && r40.phaseKept, r40.phaseNumbers);
-  check('the merge beads every seam on its bar, except the one under the junction',
-        r40.beadsSameColour === 2 && r40.beadsOneChange === 2 && r40.beadsOnTheSeam < 2,
+  /* Evenly spaced lineages hand the bar over at one and the same place —
+     its middle — so all of this merge's seams land there. A bead there
+     marks a real change of colour and nothing else: with three lineages of
+     one colour it marks nothing and is not drawn, and the middle itself is
+     shown only as a guide, while the entry is being lined up on it. */
+  check('the merge beads the middle of its bar only where the colour changes',
+        r40.beadsSameColour === 0 && r40.beadsOneChange === 1 && r40.beadsOnTheSeam === 0,
         JSON.stringify({same:r40.beadsSameColour, changed:r40.beadsOneChange,
                         onSeam:r40.beadsOnTheSeam}));
   check('and its entry cannot be carried off the end of its own bar',
@@ -7543,7 +7674,7 @@ async function main(){
       await wait(420);
       const rec = richFields.get('nodeEditorText');
       const ed = document.getElementById('nodeEditor');
-      out.opensOnEntry = !ed.hidden && nodeEditorTarget === 'neA';
+      out.opensOnEntry = !ed.hidden && nodeEditorTarget && nodeEditorTarget.id === 'neA';
       out.tookTheWords = rec.surface.textContent === 'Alpha';
       out.hasKeyboard = document.activeElement === rec.surface;
       /* It stands ON the entry: the field's left edge is the entry's, and
@@ -7584,8 +7715,9 @@ async function main(){
     }
     {
       /* A portrait's words are on its card, so the field opens there. */
-      const card = document.querySelector('.bio-card-g[data-id="neB"]')
-                || (openBioCard('neB'), null);
+      // Opening it is the point; the card element is looked up again below,
+      // after the wait, because the one that matters is the drawn one.
+      if(!document.querySelector('.bio-card-g[data-id="neB"]')) openBioCard('neB');
       await wait(400);
       const g = document.querySelector('.bio-card-g[data-id="neB"]');
       out.cardFound = !!g;
@@ -7594,7 +7726,7 @@ async function main(){
         await wait(420);
         const rec = richFields.get('nodeEditorText');
         const cb = g.getBoundingClientRect(), sb = rec.surface.getBoundingClientRect();
-        out.onTheCard = nodeEditorTarget === 'neB' && Math.abs(sb.x - cb.x) < 24;
+        out.onTheCard = nodeEditorTarget && nodeEditorTarget.id === 'neB' && Math.abs(sb.x - cb.x) < 24;
         // a click anywhere else settles it, keeping what was typed
         rec.surface.focus();
         document.execCommand('insertText', false, '!');
@@ -7612,8 +7744,12 @@ async function main(){
       const g = document.querySelector('.node[data-id="neC"]');
       dbl(g);
       await wait(420);
-      out.captionKeepsItsCard = document.getElementById('nodeEditor').hidden &&
-                                freeMenu.classList.contains('open');
+      /* A caption's words are written ON the caption now, like everything
+         else on the chart. Its card keeps the face, the size and the
+         Delete, and is one click away. */
+      out.captionKeepsItsCard = !document.getElementById('nodeEditor').hidden &&
+                                nodeEditorTarget && nodeEditorTarget.id === 'neC';
+      closeNodeEditor(true);
       closeFreeMenu();
       await wait(200);
     }
@@ -7627,9 +7763,11 @@ async function main(){
     await wait(800);
     {
       selectNode('kdA');
-      openLabelEditor('kdA');
+      // The field this is about is the one the words are typed in, and it
+      // stands on the entry — the settings drawer no longer holds one.
+      openNodeEditor('kdA');
       await wait(400);
-      const rec = richFields.get('editLabelInput');
+      const rec = richFields.get('nodeEditorText');
       rec.surface.focus();
       document.execCommand('insertText', false, 'x');
       await wait(200);
@@ -7728,7 +7866,10 @@ async function main(){
     {
       const w = document.querySelector('.fanfic-weave[data-id="ffA"]');
       out.weaveOpacity = w ? +getComputedStyle(w).opacity : 0;
-      out.weaveReads = out.weaveOpacity > 0.5 && out.weaveOpacity < 1;
+      /* Read as gold from across the chart, and still the GROUND: 0.26 was
+         a suggestion only a reader already looking for it could see, and
+         0.7 was a pattern the entry had to compete with. */
+      out.weaveReads = out.weaveOpacity > 0.25 && out.weaveOpacity < 0.55;
       const txt = document.querySelector('.bio-card-g[data-id="inkA"] text');
       out.cardInk = txt ? (txt.getAttribute('fill') || '') : '?';
       out.cardTakesTheEntry = /c23b22/i.test(out.cardInk);
@@ -7767,11 +7908,11 @@ async function main(){
     await wait(900);
     {
       selectNode('auO');
-      openLabelEditor('auO');
+      openEntrySettings('auO');
       await wait(500);
       const aura = ()=> document.querySelector('.node-aura[data-id="auH"]');
       out.dimAtRest = aura() ? +getComputedStyle(aura()).opacity : null;
-      const rec = richFields.get('editLabelInput');
+      const rec = richFields.get('nodeEditorText');
       rec.surface.focus();
       document.execCommand('insertText', false, 'Z');
       const seen = [];
@@ -7807,7 +7948,7 @@ async function main(){
   check('a portrait’s words are written on its card, and a click away keeps them',
         r41.cardFound && r41.onTheCard && r41.clickAwaySettles,
         JSON.stringify({card:r41.cardFound, on:r41.onTheCard, away:r41.clickAwaySettles}));
-  check('a caption keeps the card it already had', r41.captionKeepsItsCard);
+  check('a caption writes its words on itself too', r41.captionKeepsItsCard);
   check('a press on the drawing gives the keyboard back to the drawing',
         r41.typingCounts && r41.chartTakesTheKeys && r41.selectIsNotTyping,
         JSON.stringify({typing:r41.typingCounts, chart:r41.chartTakesTheKeys,
@@ -7838,6 +7979,725 @@ async function main(){
         JSON.stringify({up:r41.marksAtOnce, down:r41.marksGoWithIt}));
   check('scenery does not flash while another entry is being written',
         r41.steady, 'at rest ' + r41.dimAtRest + ' -> ' + r41.seen);
+
+  /* ---- 27w. section 62: one field, two grounds, a square to grab ---- */
+  const r42 = await page.evaluate(async ()=>{
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const out = {};
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const dbl = (el)=>{
+      ['mousedown','mouseup','click','mousedown','mouseup','click','dblclick'].forEach(t=>
+        el.dispatchEvent(new MouseEvent(t, {bubbles:true, cancelable:true, button:0,
+                                            clientX: 300, clientY: 300})));
+    };
+
+    /* ---- the one field, on all four kinds of text ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['w1','Alpha',null,null,null,null,{pos:[-320,-160], size:[170,60]}]);
+      workingNodes.push(['w2','Beta','w1',null,null,null,{pos:[220,140]}]);
+      workingNodes.push(['w3','Caption',null,null,null,'textbox',{pos:[-320,220]}]);
+      workingNodes.push(['w4','Remark',null,null,null,'callout',
+                         {pos:[220,-220], leader:{from:'w1', to:'w2', at:0.5}}]);
+      EDGE_STYLES.push({from:'w1', to:'w2', note:'a note', notePos:'above'});
+    });
+    await wait(1000);
+    fitToView(160);
+    await wait(400);
+    {
+      // a connector's note, written on the note
+      const plate = document.querySelector('.edge-note[data-from="w1"][data-to="w2"]');
+      out.plateFound = !!plate;
+      if(plate){
+        plate.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true}));
+        await wait(420);
+        const rec = richFields.get('nodeEditorText');
+        out.noteOpens = !document.getElementById('nodeEditor').hidden &&
+                        nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
+                        rec.surface.textContent === 'a note';
+        /* Its ink is the connector's, so the field offers no colour box. */
+        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        out.noteNoColour = !hex || getComputedStyle(hex).display === 'none';
+        rec.surface.focus();
+        document.execCommand('insertText', false, ' more');
+        await wait(200);
+        rec.surface.dispatchEvent(new KeyboardEvent('keydown',
+          {key:'Enter', bubbles:true, cancelable:true}));
+        await wait(420);
+        out.noteWritten = (edgeStyleFor('w1','w2').note || '') === 'a note more';
+      }
+      // a caption
+      dbl(document.querySelector('.node[data-id="w3"]'));
+      await wait(420);
+      out.captionOpens = !document.getElementById('nodeEditor').hidden &&
+                         nodeEditorTarget && nodeEditorTarget.id === 'w3';
+      closeNodeEditor(true); await wait(200);
+      // a callout
+      dbl(document.querySelector('.node[data-id="w4"]'));
+      await wait(420);
+      out.calloutOpens = !document.getElementById('nodeEditor').hidden &&
+                         nodeEditorTarget && nodeEditorTarget.id === 'w4';
+      {
+        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        out.calloutNoColour = !hex || getComputedStyle(hex).display === 'none';
+      }
+      closeNodeEditor(true); closeCalloutPopover(); await wait(200);
+      // an ordinary entry keeps its colour box, because the colour is its own
+      dbl(document.querySelector('.node[data-id="w1"]'));
+      await wait(420);
+      {
+        const hex = document.querySelector('#nodeEditorBar .tb-hex');
+        out.entryHasColour = !!hex && getComputedStyle(hex).display !== 'none';
+      }
+      closeNodeEditor(true); await wait(200);
+      // and the three boxes that held a second copy of those words are gone
+      out.boxesGone = !document.getElementById('styleNote') &&
+                      !document.getElementById('calloutText') &&
+                      !document.getElementById('freeMenuText');
+    }
+
+    /* ---- the field scales with the drawing ---- */
+    {
+      openNodeEditor('w1');
+      await wait(400);
+      const rec = richFields.get('nodeEditorText');
+      const keep = vs;
+      const a = {w: rec.surface.getBoundingClientRect().width,
+                 fs: parseFloat(getComputedStyle(rec.surface).fontSize)};
+      vs = keep * 0.4; applyTransform();
+      await wait(300);
+      const b = {w: rec.surface.getBoundingClientRect().width,
+                 fs: parseFloat(getComputedStyle(rec.surface).fontSize)};
+      const rw = b.w / a.w, rf = b.fs / a.fs;
+      out.scalesTogether = Math.abs(rw - 0.4) < 0.08 && Math.abs(rf - 0.4) < 0.08;
+      out.scaleRatios = rw.toFixed(2) + '/' + rf.toFixed(2);
+      vs = keep; applyTransform();
+      await wait(200);
+      closeNodeEditor(true);
+      await wait(200);
+    }
+
+    /* ---- a portrait: the square, the grips, the two double clicks ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['pq','Portrait',null,null,null,'ellipse',
+                         {pos:[-90,-90], size:[180,180], bioCard:true}]);
+    });
+    await wait(900);
+    fitToView(260);
+    await wait(300);
+    {
+      const g = document.querySelector('.node[data-id="pq"]');
+      const pad = g.querySelector(':scope > rect.node-hover-solid');
+      out.padIsTheSquare = !!pad && getComputedStyle(pad).pointerEvents === 'all' &&
+                           getComputedStyle(pad).fill === 'rgba(0, 0, 0, 0)';
+      const n = nodes.get('pq');
+      const grip = g.querySelector('.node-resize-nw');
+      const gb = grip.getBoundingClientRect(), r = svg.getBoundingClientRect();
+      out.gripAtTheCorner = Math.abs((gb.x + gb.width/2) - (r.left + n.x*vs + vx)) < 12 &&
+                           Math.abs((gb.y + gb.height/2) - (r.top + n.y*vs + vy)) < 12;
+      /* The pointer can reach it: the point just inside the square's corner
+         is over the entry, not over empty canvas. */
+      const cx = r.left + (n.x + 4)*vs + vx, cy = r.top + (n.y + 4)*vs + vy;
+      const top = document.elementsFromPoint(cx, cy)[0];
+      out.cornerIsTheEntry = !!top && !!top.closest && !!top.closest('.node[data-id="pq"]');
+      // a double click on the circle opens the settings, not the words
+      dbl(g);
+      await wait(450);
+      out.circleOpensSettings = document.getElementById('nodeEditor').hidden &&
+                                document.getElementById('detailEditForm').style.display === 'block';
+      closeEditForm(); await wait(200);
+      // …and one on the card opens the words, ON the card
+      openBioCard('pq', true);
+      await wait(400);
+      const card = document.querySelector('.bio-card-g[data-id="pq"]');
+      card.dispatchEvent(new MouseEvent('dblclick', {bubbles:true, cancelable:true}));
+      await wait(420);
+      const rec = richFields.get('nodeEditorText');
+      const box = card.dataset.box.split(' ').map(Number);
+      const r2 = svg.getBoundingClientRect();
+      out.cardOpensWords = !document.getElementById('nodeEditor').hidden &&
+        Math.abs(rec.surface.getBoundingClientRect().x - (r2.left + box[0]*vs + vx)) < 8;
+      /* The card wrote its own rectangle down: the group's bounding box
+         also holds the stub, and measuring that put the field half a card
+         to the left of where it belonged. */
+      out.cardKnowsItsBox = box.length === 4 && box.every(v=> Number.isFinite(v)) &&
+                            box[0] > nodes.get('pq').x;
+      closeNodeEditor(true); closeBioCard();
+      await wait(200);
+    }
+
+    /* ---- the look: weights, stacks, grounds ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; EDGE_STYLES.length = 0;
+      workingNodes.push(['lk1','Dashed',null,null,null,null,{pos:[-360,-40], border:'dashed'}]);
+      workingNodes.push(['lk2','Stack',null,null,null,null,
+                         {pos:[80,-40], border:'dashed', tags:['local multiverse']}]);
+      workingNodes.push(['lk3','Double stack',null,null,null,null,
+                         {pos:[-360,200], border:'double', tags:['local multiverse']}]);
+      workingNodes.push(['lk4','Unreleased',null,null,null,null,
+                         {pos:[80,200], tags:['unreleased','fan-fiction']}]);
+    });
+    await wait(1000);
+    {
+      const outline = ()=> document.querySelector(
+        '.node[data-id="lk1"] > rect:not(.node-hover-pad):not(.node-hover-solid):not(.border-inner)');
+      const before = getComputedStyle(outline()).strokeWidth;
+      selectNode('lk1');
+      await wait(300);
+      out.weightHeld = getComputedStyle(outline()).strokeWidth === before;
+      out.weights = before + ' -> ' + getComputedStyle(outline()).strokeWidth;
+      out.stillGlows = /drop-shadow/.test(getComputedStyle(outline()).filter || '');
+      deselect(); await wait(200);
+      // the stack takes the entry's own border style
+      const sheet = document.querySelector('.node-aura[data-id="lk2"] .local-sheet');
+      out.sheetDashed = !!sheet && sheet.getAttribute('stroke-dasharray') === '7 5';
+      out.doubleSheets = document.querySelectorAll('.node-aura[data-id="lk3"] .local-sheet').length;
+      // both grounds, on one entry, at the same size
+      const rule = document.querySelector('.unreleased-rule[data-id="lk4"]');
+      const weave = document.querySelector('.fanfic-weave[data-id="lk4"]');
+      out.bothGrounds = !!rule && !!weave;
+      out.groundsAgree = out.bothGrounds &&
+        Math.abs(+rule.getAttribute('width') - +weave.getAttribute('width')) < 0.01;
+      /* Cold, desaturated and darker than the gold weave beside it — which
+         is what "grey rather than gold" means. Written as a property rather
+         than as the hex it happened to be, so re-tuning the ground does not
+         fail a test that was never about that number. */
+      out.ruleInk = getComputedStyle(
+        document.querySelector('#svgDefs .unreleased-line') ||
+        document.querySelector('.unreleased-line')).stroke || '';
+      out.ruleIsGrey = out.bothGrounds && (()=>{
+        const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(out.ruleInk);
+        if(!m) return false;
+        const r = +m[1], g = +m[2], b = +m[3];
+        const spread = Math.max(r,g,b) - Math.min(r,g,b);
+        return spread < 40 && b >= r && (r*0.299 + g*0.587 + b*0.114) < 150;
+      })();
+      out.unreleasedIsSpecial = tagIsSpecial('unreleased');
+      out.ruleOpacity = +getComputedStyle(rule).opacity;
+    }
+
+    /* ---- a line break inside formatting ---- */
+    {
+      const html = markupToRichHtml('{{u:solid|first\nsecond}} tail');
+      out.noLeakedMarkup = html.indexOf('{{') < 0 && html.indexOf('}}') < 0;
+      out.underlineBothLines = (html.match(/data-under/g) || []).length === 2;
+      const holder = document.createElement('div');
+      holder.innerHTML = html;
+      const back = richHtmlToMarkup(holder);
+      out.roundTrip = back;
+      out.roundTripClean = /^\{\{u:solid\|first\}\}\n\{\{u:solid\|second\}\} tail$/.test(back);
+    }
+
+    refill(EDGE_STYLES, beforeStyles);
+    applyEdit(()=>{ workingNodes = beforeNodes; });
+    rebuildChart(); buildManagement();
+    await wait(520);
+    return out;
+  });
+  check('a connector’s note is written on the note',
+        r42.plateFound && r42.noteOpens && r42.noteWritten,
+        JSON.stringify({plate:r42.plateFound, opens:r42.noteOpens, written:r42.noteWritten}));
+  check('so are a caption and a callout, and the boxes that held them are gone',
+        r42.captionOpens && r42.calloutOpens && r42.boxesGone,
+        JSON.stringify({caption:r42.captionOpens, callout:r42.calloutOpens,
+                        boxes:r42.boxesGone}));
+  check('a remark takes its line’s ink, so the field offers no colour for it',
+        r42.noteNoColour && r42.calloutNoColour && r42.entryHasColour,
+        JSON.stringify({note:r42.noteNoColour, callout:r42.calloutNoColour,
+                        entry:r42.entryHasColour}));
+  check('the field and its words shrink together with the drawing',
+        r42.scalesTogether, r42.scaleRatios);
+  check('a portrait is grabbed by the square it is drawn inside',
+        r42.padIsTheSquare && r42.gripAtTheCorner && r42.cornerIsTheEntry,
+        JSON.stringify({pad:r42.padIsTheSquare, grip:r42.gripAtTheCorner,
+                        reach:r42.cornerIsTheEntry}));
+  check('its circle opens the settings and its card opens the words, on the card',
+        r42.circleOpensSettings && r42.cardOpensWords && r42.cardKnowsItsBox,
+        JSON.stringify({circle:r42.circleOpensSettings, card:r42.cardOpensWords,
+                        box:r42.cardKnowsItsBox}));
+  check('picking an entry out does not redraw its border heavier',
+        r42.weightHeld && r42.stillGlows, r42.weights);
+  check('a stack of worlds copies the entry’s border, whatever style it is',
+        r42.sheetDashed && r42.doubleSheets === 4,
+        JSON.stringify({dashed:r42.sheetDashed, doubleParts:r42.doubleSheets}));
+  check('an unreleased entry stands on a grey ruled ground of its own',
+        r42.bothGrounds && r42.groundsAgree && r42.ruleIsGrey &&
+        r42.unreleasedIsSpecial && r42.ruleOpacity > 0.2 && r42.ruleOpacity < 0.6,
+        JSON.stringify({both:r42.bothGrounds, same:r42.groundsAgree,
+                        grey:r42.ruleIsGrey, special:r42.unreleasedIsSpecial,
+                        opacity:r42.ruleOpacity}));
+  check('a line break inside formatted words does not print the markup',
+        r42.noLeakedMarkup && r42.underlineBothLines && r42.roundTripClean,
+        JSON.stringify({clean:r42.noLeakedMarkup, both:r42.underlineBothLines,
+                        back:r42.roundTrip}));
+
+  /* ---- 27x. section 63: ids that cannot collide, keys that survive a rename ---- */
+  const r43 = await page.evaluate(async ()=>{
+    const out = {};
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+
+    /* A definition in <defs> is named after the entry it belongs to. Two
+       entries whose ids differ only in characters that are not legal in an
+       SVG id must still arrive at two different definitions — an id
+       collision there is legal SVG, so nothing warns and one entry is
+       simply clipped by the other's mask. */
+    out.defIdDistinct = defId('cardclip-', 'Ark 2') !== defId('cardclip-', 'Ark.2');
+    out.defIdStable   = defId('cardclip-', 'Ark 2') === defId('cardclip-', 'Ark 2');
+    out.defIdReadable = defId('cardclip-', 'Ark 2').indexOf('cardclip-Ark_2') === 0;
+    out.defIdByScript = defId('bioclip-', 'Прайм') !== defId('bioclip-', 'Праим');
+    out.defIdLegal    = /^[A-Za-z0-9_-]+$/.test(defId('textclip-', 'Прайм «1»'));
+
+    /* What an id may be is "anything a person writes a name in". What it may
+       not be is something that cannot survive being written down. */
+    const okId = (id)=>{ try{ validateNodes([[id, 'x']]); return true; }catch(e){ return false; } };
+    out.acceptsCyrillic = okId('Прайм');
+    out.acceptsPunct    = okId('a"b\'c]');
+    out.rejectsControl  = !okId('a\u0007b');
+    out.rejectsNewline  = !okId('a\nb');
+    out.rejectsBlank    = !okId('   ');
+
+    /* The project changed its name; a browser holding the only copy of a
+       chart must not lose it to that. */
+    try{
+      localStorage.removeItem('rhizome.__probeA');
+      localStorage.removeItem('axiomNexus.__probeA');
+      localStorage.setItem('axiomNexus.__probeA', 'kept');
+      out.carriedName  = carryOverKey('axiomNexus.__probeA', 'rhizome.__probeA')
+                         === 'rhizome.__probeA';
+      out.carriedValue = localStorage.getItem('rhizome.__probeA') === 'kept';
+      // The old key stays: an older copy of this same file must still open.
+      out.oldLeftAlone = localStorage.getItem('axiomNexus.__probeA') === 'kept';
+      // And a stale pre-rename value must never overwrite newer work.
+      localStorage.setItem('rhizome.__probeA', 'newer');
+      carryOverKey('axiomNexus.__probeA', 'rhizome.__probeA');
+      out.newerWins = localStorage.getItem('rhizome.__probeA') === 'newer';
+      localStorage.removeItem('rhizome.__probeA');
+      localStorage.removeItem('axiomNexus.__probeA');
+    }catch(e){ out.carryThrew = String(e); }
+    out.keysRenamed = STORE_PREFIX === 'rhizome.chart:' &&
+                      ALIGN_GRID_KEY.indexOf('rhizome.') === 0 &&
+                      COMMENT_NICK_KEY.indexOf('rhizome.') === 0 &&
+                      CLIP_KEY.indexOf('rhizome.') === 0 &&
+                      READONLY_KEY.indexOf('rhizome.') === 0;
+    out.fileName  = chartFileName();
+    out.fileNamed = /^rhizome-project-\d{4}-\d{2}-\d{2}\.html$/.test(out.fileName);
+
+    /* The sticker library and the media shelf are snapshotted by structure,
+       not by text: an undo step costs a few small records and the base64 is
+       stored once however deep the stack goes. */
+    const bigSrc = 'data:image/png;base64,' + 'A'.repeat(4000);
+    applyEdit(()=>{ STICKERS.push({key:'hv_probe', name:'heavy', src:bigSrc});
+                    rebuildStickerMap(); });
+    const snap = snapshotParts();
+    out.heavyIsStructural = !!(snap.s && snap.s.flat) && snap.s.json === undefined;
+    const rec  = snap.s.flat.find(x=> x.key === 'hv_probe');
+    const live = STICKERS.find(x=> x.key === 'hv_probe');
+    // The very same string object, not a copy of it: that is the saving.
+    out.heavyShares = !!rec && !!live && rec.src === live.src && rec !== live;
+    out.cleanNow = !partsDiffer(snap);
+    // An image replaced in place — which is how a sticker is replaced — is
+    // still a change, and the structural form has to see it.
+    live.src = bigSrc + 'B';
+    out.seesInPlaceEdit = partsDiffer(snap);
+    live.src = bigSrc;
+    out.seesItBack = !partsDiffer(snap);
+    // A restore must hand over copies, or a later edit reaches back and
+    // rewrites the history it was undone from.
+    restoreSnapshot(snap);
+    const after = STICKERS.find(x=> x.key === 'hv_probe');
+    out.restoreCopies = !!after && after !== rec && after.src === bigSrc;
+    after.src = 'touched';
+    out.historyIntact = rec.src === bigSrc;
+    // An item a shallow copy cannot speak for falls back to the text form,
+    // and the answer stays exact.
+    const odd = snapHeavy([{key:'k', meta:{deep:1}}]);
+    out.oddFallsBack = odd.json !== undefined && odd.flat === undefined;
+    out.oddCompares  = !heavyDiffers([{key:'k', meta:{deep:1}}], odd) &&
+                        heavyDiffers([{key:'k', meta:{deep:2}}], odd);
+
+    undoLastEdit();
+    await wait(240);
+    out.undoRemovedIt = !STICKERS.some(x=> x.key === 'hv_probe');
+    rebuildChart(); buildManagement();
+    await wait(240);
+    return out;
+  });
+  check('two entries whose ids differ only in punctuation get two clip paths',
+        r43.defIdDistinct && r43.defIdStable && r43.defIdByScript,
+        JSON.stringify({distinct:r43.defIdDistinct, stable:r43.defIdStable,
+                        script:r43.defIdByScript}));
+  check('a definition’s id stays readable and stays a legal id',
+        r43.defIdReadable && r43.defIdLegal,
+        JSON.stringify({readable:r43.defIdReadable, legal:r43.defIdLegal}));
+  check('an id may be written in any script, but not in control characters',
+        r43.acceptsCyrillic && r43.acceptsPunct && r43.rejectsControl &&
+        r43.rejectsNewline && r43.rejectsBlank,
+        JSON.stringify({cyrillic:r43.acceptsCyrillic, punct:r43.acceptsPunct,
+                        ctrl:r43.rejectsControl, nl:r43.rejectsNewline,
+                        blank:r43.rejectsBlank}));
+  check('the rename carries the old keys over instead of losing them',
+        r43.carriedName && r43.carriedValue && r43.oldLeftAlone && r43.newerWins,
+        JSON.stringify({name:r43.carriedName, value:r43.carriedValue,
+                        old:r43.oldLeftAlone, newer:r43.newerWins,
+                        threw:r43.carryThrew || null}));
+  check('and every key, and the file it exports, carries the project’s own name',
+        r43.keysRenamed && r43.fileNamed,
+        JSON.stringify({keys:r43.keysRenamed, file:r43.fileName}));
+  check('a sticker’s bytes are held once, not once per undo step',
+        r43.heavyIsStructural && r43.heavyShares,
+        JSON.stringify({structural:r43.heavyIsStructural, shared:r43.heavyShares}));
+  check('and comparing by structure stays exactly as exact as comparing text',
+        r43.cleanNow && r43.seesInPlaceEdit && r43.seesItBack &&
+        r43.oddFallsBack && r43.oddCompares,
+        JSON.stringify({clean:r43.cleanNow, sees:r43.seesInPlaceEdit,
+                        back:r43.seesItBack, fallback:r43.oddFallsBack,
+                        exact:r43.oddCompares}));
+  check('an undone library is restored as copies, leaving its history alone',
+        r43.restoreCopies && r43.historyIntact && r43.undoRemovedIt,
+        JSON.stringify({copies:r43.restoreCopies, intact:r43.historyIntact,
+                        undone:r43.undoRemovedIt}));
+
+  /* ---- 27y. section 64: a note that rides, a ground that reads ---- */
+  const r44 = await page.evaluate(async ()=>{
+    const out = {};
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const before = workingNodes.slice();
+    const fire = (t, x, y, o)=> window.dispatchEvent(new MouseEvent(t,
+      Object.assign({bubbles:true, clientX:x, clientY:y, button:0}, o||{})));
+
+    /* The unreleased ground is a close grid, square to the page, and dark
+       enough for the light crossing it to have something to brighten. */
+    {
+      const pat = document.getElementById('unreleased-rule');
+      const path = pat && pat.querySelector('path');
+      const d = path ? path.getAttribute('d') : '';
+      out.unreleasedStep = pat ? +pat.getAttribute('width') : null;
+      out.unreleasedIsGrid = /H[\d.]+/.test(d) && /V[\d.]+/.test(d);
+      out.unreleasedDenser = out.unreleasedStep > 0 && out.unreleasedStep <= 8;
+      const cs = path ? getComputedStyle(path) : null;
+      const rgb = cs ? cs.stroke : '';
+      const lum = (()=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
+        return m ? (+m[1]*0.299 + +m[2]*0.587 + +m[3]*0.114) : 255; })();
+      out.unreleasedInk = rgb;
+      out.unreleasedDark = lum < 120;
+    }
+
+    /* Every echo covers the same ground, so what leaves a hub is one wave
+       repeated rather than a small one and then a bigger one. */
+    applyEdit(()=>{
+      workingNodes.push(['s64h','Hub',null,null,null,null,
+                         {pos:[52000,-9000], tags:['multiversal hub']}]);
+    });
+    rebuildChart(); await wait(350);
+    {
+      const rings = [...document.querySelectorAll('.node-aura[data-id="s64h"] .hub-echo')];
+      out.echoCount = rings.length;
+      const spans = rings.map(r=>{
+        const w = +r.getAttribute('width');
+        const s0 = +(r.style.getPropertyValue('--echo-sx0') || 0);
+        const s1 = +(r.style.getPropertyValue('--echo-sx1') || 0);
+        return {from: +(w*s0).toFixed(2), to: +(w*s1).toFixed(2)};
+      });
+      out.echoSpans = spans;
+      // The same two widths for all of them, whatever their own size is.
+      out.echoesAgree = spans.length > 1 &&
+        spans.every(v=> Math.abs(v.from - spans[0].from) < 0.5 &&
+                        Math.abs(v.to - spans[0].to) < 0.5);
+      out.echoesGrow = spans.length > 0 && spans[0].to > spans[0].from;
+    }
+
+    /* A connector's note: started from the panel, written on the plate,
+       and then slid along the line. */
+    applyEdit(()=>{
+      workingNodes.push(['s64a','A',null,null,null,null,{pos:[52000,-8600]}]);
+      workingNodes.push(['s64b','B','s64a',null,null,null,{pos:[52400,-8600]}]);
+    });
+    rebuildChart(); await wait(350);
+    flyToNode('s64a'); await wait(400);
+    openEdgeStylePopover('s64a','s64b'); await wait(250);
+    out.addNoteBtn = !!document.getElementById('styleAddNote');
+    document.getElementById('styleAddNote').click();
+    await wait(400);
+    out.emptyPlateDrawn = !!document.querySelector('.edge-note[data-from="s64a"] .edge-note-plate');
+    out.noteEditorOpened = !!(nodeEditorTarget && nodeEditorTarget.kind === 'note' &&
+                              nodeEditorTarget.from === 's64a');
+    {
+      const rec = richFields.get('nodeEditorText');
+      rec.surface.textContent = 'a remark';
+      rec.surface.dispatchEvent(new Event('input', {bubbles:true}));
+      await wait(200);
+      closeNodeEditor(); await wait(350);
+    }
+    out.noteWritten = edgeStyleFor('s64a','s64b').note;
+    {
+      const plate = document.querySelector('.edge-note[data-from="s64a"] .edge-note-plate');
+      const pr = plate.getBoundingClientRect();
+      const cx = pr.left + pr.width/2, cy = pr.top + pr.height/2;
+      out.atBefore = edgeStyleFor('s64a','s64b').noteAt ?? 0.5;
+      plate.parentNode.dispatchEvent(new MouseEvent('mousedown',
+        {bubbles:true, clientX:cx, clientY:cy, button:0}));
+      fire('mousemove', cx + 60, cy); await wait(50);
+      fire('mousemove', cx + 120, cy); await wait(50);
+      out.beadsUnderShift = (()=>{
+        fire('mousemove', cx + 100, cy, {shiftKey:true});
+        return document.querySelectorAll('.leader-snap').length;
+      })();
+      fire('mouseup', cx + 120, cy); await wait(350);
+      out.atAfter = edgeStyleFor('s64a','s64b').noteAt;
+      out.noteSlid = out.atAfter !== out.atBefore;
+    }
+    if(typeof closeEdgePopover === 'function') closeEdgePopover();
+    await wait(200);
+
+    /* A parent of a merge stops at its own bar instead of walking through
+       it and coming back round the outside. */
+    applyEdit(()=>{
+      for(let i = 0; i < 3; i++){
+        workingNodes.push(['s64p'+i, 'P'+i, null,null,null,null, {pos:[53000+i*220, -9600]}]);
+      }
+      workingNodes.push(['s64m','Merged',['s64p0','s64p1','s64p2'],null,null,'amalgam',
+                         {pos:[53250,-9200]}]);
+    });
+    rebuildChart(); await wait(400);
+    flyToNode('s64m'); await wait(500);
+    {
+      const g = document.querySelector('.node[data-id="s64p2"]');
+      const r0 = g.getBoundingClientRect();
+      const cx = r0.left + r0.width/2, cy = r0.top + r0.height/2;
+      g.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, clientX:cx, clientY:cy, button:0}));
+      for(const dy of [60, 180, 340, 520]){ fire('mousemove', cx, cy + dy); await wait(40); }
+      fire('mouseup', cx, cy + 520); await wait(400);
+      const p = nodes.get('s64p2'), b = nodes.get('s64m');
+      const bar = amalgamBars.get('s64m');
+      out.parentBottom = +(p.y + p.h).toFixed(1);
+      out.entryTop = +b.y.toFixed(1);
+      out.parentHeldOff = (p.y + p.h) < b.y;
+      out.parentAboveBar = !!bar && (p.y + p.h) <= bar.cross + 1;
+    }
+
+    /* A language tab is written on the entry, like every other piece of
+       text — and typing in the drawer's tab rows does not un-hide the
+       chart. */
+    applyEdit(()=>{
+      workingNodes.push(['s64t','Main', null,null,null,null,
+                         {pos:[54000,-9000], tags:['probe-hidden'],
+                          multiLang:true, langTabs:[{tag:'JP', text:'first'}]}]);
+      workingNodes.push(['s64x','Other', null,null,null,null,
+                         {pos:[54300,-9000], tags:['probe-hidden']}]);
+    });
+    rebuildChart(); buildManagement(); await wait(400);
+    {
+      // Hide the tag, then type in the tab row and see whether they return.
+      hiddenTags.add('probe-hidden');
+      applyVisibility(); await wait(150);
+      const hiddenBefore = document.querySelectorAll('.node.hidden, .node[style*="display: none"]').length;
+      out.hidTheTagged = !document.querySelector('.node[data-id="s64x"]') ||
+        getComputedStyle(document.querySelector('.node[data-id="s64x"]')).display === 'none';
+      selectNode('s64t');
+      await wait(200);
+      // The tab rows are built when the entry's settings are opened.
+      detailEditToggle.onclick({stopPropagation(){}});
+      // The entry's words are typed ON the entry now, so the field that
+      // holds them is opened there rather than in the drawer.
+      openNodeEditor(selectedId);
+      await wait(300);
+      const row = document.querySelector('#editLangTabList .lang-tab-row .lang-tab-text');
+      out.tabRowFound = !!row;
+      if(row){
+        row.textContent = 'firstx';
+        row.dispatchEvent(new Event('input', {bubbles:true}));
+        await wait(250);
+      }
+      const other = document.querySelector('.node[data-id="s64x"]');
+      out.stillHiddenAfterTyping = !other || getComputedStyle(other).display === 'none';
+      out.hiddenBefore = hiddenBefore;
+      hiddenTags.delete('probe-hidden');
+      applyVisibility(); await wait(150);
+    }
+    {
+      // The field opens on the TAB that is showing, and writes back to it.
+      activeLangTab.set('s64t', 0);
+      renderNodes(); await wait(200);
+      const opened = openNodeEditor('s64t');
+      await wait(250);
+      out.tabEditorOpened = opened && !!(nodeEditorTarget && nodeEditorTarget.tab === 0);
+      const rec = richFields.get('nodeEditorText');
+      out.tabEditorShowsTab = rec.surface.textContent;
+      rec.surface.textContent = 'tabbed';
+      rec.surface.dispatchEvent(new Event('input', {bubbles:true}));
+      await wait(250);
+      closeNodeEditor(); await wait(300);
+      const n = nodes.get('s64t');
+      out.tabTextWritten = n.langTabs && n.langTabs[0] && n.langTabs[0].text;
+      out.labelUntouched = n.label;
+      activeLangTab.set('s64t', null);
+    }
+
+    applyEdit(()=>{ workingNodes = before; });
+    rebuildChart(); buildManagement(); await wait(400);
+    return out;
+  });
+  check('the unreleased ground is a close grid, not a comb of bars',
+        r44.unreleasedIsGrid && r44.unreleasedDenser,
+        JSON.stringify({grid:r44.unreleasedIsGrid, step:r44.unreleasedStep}));
+  check('and dark enough for the light crossing it to show',
+        r44.unreleasedDark, r44.unreleasedInk);
+  check('every echo a hub sends out covers the same ground',
+        r44.echoesAgree && r44.echoesGrow && r44.echoCount > 1,
+        JSON.stringify({rings:r44.echoCount, spans:r44.echoSpans}));
+  check('a note is started from the panel and written on its own plate',
+        r44.addNoteBtn && r44.emptyPlateDrawn && r44.noteEditorOpened &&
+        r44.noteWritten === 'a remark',
+        JSON.stringify({btn:r44.addNoteBtn, plate:r44.emptyPlateDrawn,
+                        opened:r44.noteEditorOpened, text:r44.noteWritten}));
+  check('and then slides along its connector, with places to aim at',
+        r44.noteSlid && r44.beadsUnderShift > 0,
+        JSON.stringify({from:r44.atBefore, to:r44.atAfter, beads:r44.beadsUnderShift}));
+  check('a merge’s lineage cannot be carried through its own bar',
+        r44.parentHeldOff && r44.parentAboveBar,
+        JSON.stringify({parent:r44.parentBottom, entry:r44.entryTop,
+                        held:r44.parentHeldOff, aboveBar:r44.parentAboveBar}));
+  check('typing in a language tab does not bring the hidden chart back',
+        r44.tabRowFound && r44.hidTheTagged && r44.stillHiddenAfterTyping,
+        JSON.stringify({row:r44.tabRowFound, hid:r44.hidTheTagged,
+                        stayed:r44.stillHiddenAfterTyping}));
+  check('and the field opens on the tab that is showing, and writes to it',
+        r44.tabEditorOpened && r44.tabEditorShowsTab === 'firstx' &&
+        r44.tabTextWritten === 'tabbed' && r44.labelUntouched === 'Main',
+        JSON.stringify({opened:r44.tabEditorOpened, showed:r44.tabEditorShowsTab,
+                        wrote:r44.tabTextWritten, label:r44.labelUntouched}));
+
+  /* ---- 27z. section 65: one place to write, and it carries everything ---- */
+  const r45 = await page.evaluate(async ()=>{
+    const out = {};
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const before = workingNodes.slice();
+
+    /* The drawer's Label box, its toolbar and the four hidden font controls
+       that hung off it are gone from the document — not hidden, gone. */
+    out.labelBoxGone = !document.getElementById('editLabelInput');
+    out.labelToolbarGone = !document.querySelector('[data-wrap-target="editLabelInput"]');
+    out.hiddenFontGone = !document.getElementById('editFontInput') &&
+                         !document.getElementById('editFontSizeInput') &&
+                         !document.getElementById('editFontMirror') &&
+                         !document.getElementById('editFontSizeMirror');
+
+    /* And the field that took its place carries every control it had. The
+       toolbar is built onto every .mini-toolbar on the page by one pass, so
+       this is a check that the in-node bar is on that list — the six that
+       are added at runtime are the ones worth naming. */
+    {
+      const bar = document.getElementById('nodeEditorBar');
+      const has = (sel)=> !!bar.querySelector(sel);
+      out.barCarries = {
+        bold:   has('[data-wrap="bold"]'),
+        italic: has('[data-wrap="italic"]'),
+        ruby:   has('[data-wrap="ruby"]'),
+        hex:    has('.tb-hex'),
+        reset:  has('.hex-reset'),
+        face:   has('.tb-font:not(.tb-size):not(.tb-line-style)'),
+        size:   has('.tb-size'),
+        rule:   has('.tb-line-group .tb-line-under'),
+        strike: has('.tb-line-group .tb-line-strike'),
+        kind:   has('.tb-line-style'),
+        sticker:has('.tb-sticker-btn'),
+        cite:   has('.tb-ref-btn')
+      };
+      out.barComplete = Object.keys(out.barCarries).every(k=> out.barCarries[k]);
+    }
+
+    /* An entry's words and its own face survive an edit made in the drawer.
+       The form used to read the words out of its own box and write them
+       back; with the box gone it has to carry them, or every change of
+       colour would empty the entry. */
+    applyEdit(()=>{
+      workingNodes.push(['s65a', 'Kept words', null, null, null, null,
+                         {pos:[60000,-14000], font:'orbitron', fontSize:14, colors:['#2f6fb5']}]);
+    });
+    rebuildChart(); await wait(400);
+    flyToNode('s65a'); await wait(400);
+    {
+      selectNode('s65a');
+      if(detailEditForm.style.display !== 'block'){
+        detailEditToggle.onclick({stopPropagation(){}});
+      }
+      await wait(300);
+      editColorsInput.value = '#c23b22';
+      editColorsInput.dispatchEvent(new Event('input', {bubbles:true}));
+      await wait(200);
+      flushNodeEditCommit();
+      await wait(400);
+      const e = workingNodes.find(t=> t[0] === 's65a');
+      const o = e && e[6];
+      out.wordsSurvive = e && e[1];
+      out.faceSurvives = o && o.font;
+      out.sizeSurvives = o && o.fontSize;
+      out.colourChanged = !!(o && o.colors && o.colors[0] === '#c23b22');
+      closeEditForm();
+      await wait(200);
+    }
+
+    /* A picture has no words, so the field will not open on it. */
+    applyEdit(()=>{
+      workingNodes.push(['s65i', '', null, null, null, 'image',
+                         {pos:[60300,-14000], size:[120,90]}]);
+    });
+    rebuildChart(); await wait(400);
+    out.pictureRefuses = openNodeEditor('s65i') === false &&
+                         document.getElementById('nodeEditor').hidden;
+
+    /* An amalgam paints its own ink, so the field offers no colour for it —
+       the rule that used to be about the Label box and now has to reach the
+       field that replaced it. */
+    applyEdit(()=>{
+      workingNodes.push(['s65p', 'P', null,null,null,null, {pos:[60000,-14300]}]);
+      workingNodes.push(['s65q', 'Q', null,null,null,null, {pos:[60200,-14300]}]);
+      workingNodes.push(['s65m', 'M', ['s65p','s65q'], null, null, 'amalgam',
+                         {pos:[60100,-13800]}]);
+    });
+    rebuildChart(); await wait(400);
+    {
+      selectNode('s65m');
+      if(detailEditForm.style.display !== 'block'){
+        detailEditToggle.onclick({stopPropagation(){}});
+      }
+      await wait(320);
+      const hexes = [...document.querySelectorAll('[data-hex-for="nodeEditorText"]')];
+      out.amalgamHexHidden = hexes.length > 0 && hexes.every(h=> h.hidden);
+      /* Opened afresh on an ordinary entry: the form fills on open, and it
+         is the fill that decides whether the colour is offered. */
+      closeEditForm();
+      await wait(150);
+      selectNode('s65a');
+      detailEditToggle.onclick({stopPropagation(){}});
+      await wait(320);
+      out.plainHexBack = hexes.every(h=> !h.hidden);
+      closeEditForm();
+      await wait(200);
+    }
+
+    applyEdit(()=>{ workingNodes = before; });
+    rebuildChart(); buildManagement(); await wait(400);
+    return out;
+  });
+  check('the drawer’s Label box and its hidden font controls are gone',
+        r45.labelBoxGone && r45.labelToolbarGone && r45.hiddenFontGone,
+        JSON.stringify({box:r45.labelBoxGone, bar:r45.labelToolbarGone,
+                        font:r45.hiddenFontGone}));
+  check('and the field on the entry carries every control the box had',
+        r45.barComplete, JSON.stringify(r45.barCarries));
+  check('an edit in the drawer keeps the entry’s words, face and size',
+        r45.wordsSurvive === 'Kept words' && r45.faceSurvives === 'orbitron' &&
+        r45.sizeSurvives === 14 && r45.colourChanged,
+        JSON.stringify({words:r45.wordsSurvive, face:r45.faceSurvives,
+                        size:r45.sizeSurvives, colour:r45.colourChanged}));
+  check('a picture has no words, and the field says so by not opening',
+        r45.pictureRefuses);
+  check('a merge offers no say in its ink, and an ordinary entry still does',
+        r45.amalgamHexHidden && r45.plainHexBack,
+        JSON.stringify({merge:r45.amalgamHexHidden, plain:r45.plainHexBack}));
 
   /* ---- 28. nothing threw along the way ---- */
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

@@ -100,19 +100,16 @@
       <div class="detail-tags" id="detailTags">—</div>
       <div class="detail-body">
         <div class="detail-edit-form" id="detailEditForm" style="display:none;">
-          <div class="editor-field">
-            <label for="editLabelInput">Label</label>
-            <div class="mini-toolbar">
-              <button type="button" data-wrap-target="editLabelInput" data-wrap="bold">B</button>
-              <button type="button" data-wrap-target="editLabelInput" data-wrap="italic">I</button>
-              <button type="button" data-wrap-target="editLabelInput" data-wrap="ruby">Ruby</button>
-              <input type="text" class="tb-hex" data-hex-for="editLabelInput" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="editLabelInput" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
-              <span class="tb-sep"></span>
-              <select hidden id="editFontInput" title="Font for this entry's text"></select>
-              <input hidden id="editFontSizeInput" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px — blank uses the default (11.5)">
-            </div>
-            <textarea id="editLabelInput" rows="2" spellcheck="false"></textarea>
-          </div>
+          <!-- The Label box is gone.
+               An entry's words are written ON the entry: double-click it and
+               the field opens where the text is drawn, in the entry's own
+               face, size and ink, carrying the same toolbar this box used to
+               carry — the very same one, built by wireStickerButtons onto
+               every .mini-toolbar on the page. Keeping a second copy of the
+               words here meant two places to type the same sentence and a
+               live preview whose only job was to connect them; and the copy
+               that was further from the drawing was the one being typed in.
+               Everything an entry has that is NOT its words is still here. -->
           <div class="editor-field">
             <label for="editLinkInput">Link URL</label>
             <input id="editLinkInput" type="text" placeholder="https://…">
@@ -223,8 +220,11 @@
               <button type="button" data-wrap-target="__editLangTabs__" data-wrap="ruby">Ruby</button>
               <input type="text" class="tb-hex" data-hex-for="__editLangTabs__" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="__editLangTabs__" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
               <span class="tb-sep"></span>
-              <select hidden id="editFontMirror" title="Font for this entry's text — the same setting as the one above the Label"></select>
-              <input hidden id="editFontSizeMirror" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px — the same setting as the one above the Label">
+              <!-- The two hidden mirrors of the entry's own face and size went
+                   with the Label box they mirrored. Neither was ever shown, so
+                   neither was ever reachable; the face and size of a RUN of
+                   text are set from the Face…/Size… pickers on this toolbar,
+                   which is where a reader was already setting them. -->
             </div>
             <div class="lang-tab-list" id="editLangTabList"></div>
             <button type="button" class="lang-tab-add" id="editLangTabAdd">+ Add tab</button>
@@ -288,21 +288,21 @@
           <p>The Rhizome Project is a hand-drawn continuity map — originally sketched by hand — redrawn here as an explorable chart of the Transformers <em>OG&nbsp;World</em>: the main G1 line, from Beast Wars through the cartoon, comics, and toy-era spin-offs.</p>
           <p>Arrows trace direct lineage — an adaptation, a sequel, a continuation. Hover an entry and its edges light up: drag from one to any edge of another to connect them. An entry with two border colors offers each border separately, so a black border can carry a black arrow and a grey one a grey arrow. Click any arrow to restyle it or give it a note, which rides above or below the line at its midpoint and takes the same bold, italic, ruby, colour and stickers as any other text on the chart. While that panel is open, pale marks appear along the line itself — one in the middle of every straight run — and dragging one puts a <b>corner</b> there. Drag a corner again to move it, double-click it to take it out, or press <b>Straighten</b> to lose them all. The route stays a set of right angles either way; what a corner decides is which way round it goes, which is the one thing the router cannot know for you. Hold <b>Shift</b> while dragging a corner and it lines itself up with the OTHER connectors — the corridor another route already occupies, or the height a neighbouring corner sits at — and with nothing else, since a bend has no edge of its own to match against a box's.</p>
           <p>An <b>amalgam reality</b> is one made of others, and its arrows say so: where several lineages arrive at the same edge of one, they line up into a single bar divided into a stretch of each parent's colour, and one arrow carrying all of those colours runs from the middle of that bar into the entry.</p>
-          <p>Positions start out computed, not hand-traced — the chart lays itself out top-to-bottom in the order it unfolds, with unconnected clusters kept apart automatically. Drag any entry to overrule that and pin it where you want, and everything you haven't touched keeps flowing on its own. Hold <b>Ctrl</b> while dragging to come off the grid entirely — which is how you line up two connected entries of different heights, whose ports sit at an offset no grid step can match. An ordinary drag then moves in grid steps while <em>keeping</em> that fine offset, so an alignment you have made survives every later move; hold <b>Shift</b> when you want to give it up and put the entry back on the grid proper. A <b>character bio</b> is a portrait with a card of words beside it: hover the circle and the card opens, and it stays open while you read it. The circle is resized by any of its four corners and stays a circle, and the card keeps up with it through the whole drag; connectors into a portrait finish on the CIRCLE, so three lines arriving at one portrait all meet its rim rather than the square it is drawn inside. The card is no wider and no taller than its words, is up for as long as the panel is, and can be asked to stay open for good — double-click it to edit what it says. Which side it hangs on is yours to set in the entry's settings: left, right, or left to the chart, which puts it on whichever side has room. It steps back with its portrait when something else is selected, and it stays out of the way while it is: a card does not appear over a chart you have already picked something out of. A portrait takes no scenery tags — an echo or a stack of worlds says something about a reality, not about a person. Shift is also how you ask for <b>smart guides</b>: hold it while dragging and an entry carried near another's edge or centre line settles onto it, with a dashed line showing what it lined up with. Two <em>middles</em> are offered before two edges: on entries of different heights the edges are near each other in several places at once, so an edge-to-edge match a pixel closer used to win every time and the alignment that makes the connector between them run dead straight was unreachable. The connectors are offered too — the far end of one leaving the entry, which is the offset that makes that connector straight, and any other connector's run of the same orientation, so two lines that nearly agree can be made to read as one. An amalgam is also offered the middle of its own bar, which is where the merged arrow leaves from. Let go of Shift and the entry goes exactly where your hand puts it. Every box also carries a <b>resize grip at each of its four corners</b> — drag one and the opposite corner stays put; a corner already occupied by the link badge or the language chips simply has no grip, so the badge stays clickable.</p>
+          <p>Positions start out computed, not hand-traced — the chart lays itself out top-to-bottom in the order it unfolds, with unconnected clusters kept apart automatically. Drag any entry to overrule that and pin it where you want, and everything you haven't touched keeps flowing on its own. Hold <b>Ctrl</b> while dragging to come off the grid entirely — which is how you line up two connected entries of different heights, whose ports sit at an offset no grid step can match. An ordinary drag then moves in grid steps while <em>keeping</em> that fine offset, so an alignment you have made survives every later move; hold <b>Shift</b> when you want to give it up and put the entry back on the grid proper. A <b>character bio</b> is a portrait with a card of words beside it: hover the circle and the card opens, and it stays open while you read it. The circle is resized by the corners of the square it is drawn inside — where its ports are — and stays a circle; the whole of that square answers the pointer, so the ports and the grips stay up until you leave the box rather than the picture. A double click on the circle opens the settings, since the circle holds a picture; the words are on the card, and a double click there opens them. The card keeps up with the circle through the whole drag; connectors into a portrait finish on the CIRCLE, so three lines arriving at one portrait all meet its rim rather than the square it is drawn inside. The card is no wider and no taller than its words, is up for as long as the panel is, and can be asked to stay open for good — double-click it to edit what it says. Which side it hangs on is yours to set in the entry's settings: left, right, or left to the chart, which puts it on whichever side has room. It steps back with its portrait when something else is selected, and it stays out of the way while it is: a card does not appear over a chart you have already picked something out of. A portrait takes no scenery tags — an echo or a stack of worlds says something about a reality, not about a person. Shift is also how you ask for <b>smart guides</b>: hold it while dragging and an entry carried near another's edge or centre line settles onto it, with a dashed line showing what it lined up with. Two <em>middles</em> are offered before two edges: on entries of different heights the edges are near each other in several places at once, so an edge-to-edge match a pixel closer used to win every time and the alignment that makes the connector between them run dead straight was unreachable. The connectors are offered too — the far end of one leaving the entry, which is the offset that makes that connector straight, and any other connector's run of the same orientation, so two lines that nearly agree can be made to read as one. An amalgam is also offered the middle of its own bar, which is where the merged arrow leaves from — marked with a dot while you are aiming at it, and not drawn at any other time. Let go of Shift and the entry goes exactly where your hand puts it. Every box also carries a <b>resize grip at each of its four corners</b> — drag one and the opposite corner stays put; a corner already occupied by the link badge or the language chips simply has no grip, so the badge stays clickable.</p>
           <p>Tags can be gathered into <b>categories</b>. Open the <b>Management</b> panel, press <b>Organize</b>, and you can drop tags into a category from the menu on each tag's row, and rename or remove it later — removing a category leaves its tags alone, it only undoes the grouping. A category's dot hides or shows everything under it at once. A category is renamed where it stands: double-click its name, type over it, Enter to keep it. A tag is MADE the same way: press <b>+</b>, and an empty tag shape appears in the bin under the search box with the caret in it — type the name, press Enter, and carry it onto whichever category it belongs to. Nothing typed, <b>Escape</b>, or a click anywhere else, and no tag was made at all. That bin holds every tag no category claims, and dropping a tag into it is how one comes back OUT of a category. Making a tag before anything wears it is how you set up a vocabulary first and apply it afterwards; and in an entry's own Tags field the menu beside the box offers whatever already exists, so a tag gets picked rather than retyped into a second, nearly identical one.</p>
           <p>Any text on the chart can carry a <b>reference</b>. The <b>[n]</b> button on a text's toolbar cites one, and it appears as a small raised number — click that number, and only that number, to open the Management panel at the reference it points to, with its details and its link. A bracketed number you simply type is ordinary text and is never a citation. The numbers are positions in the list, not stored values, so reordering the list renumbers every mark in the chart at once, and deleting a reference takes its marks with it rather than leaving them pointing at nothing.</p>
           <p>Beside the three note placements a connector has a <b>Callout</b> button, and a callout is a thing of its own rather than a fourth placement: it is an <em>entry</em>, a small comment card with a line drawn to the place on the connector it is talking about. Press the button and the placing happens in two moves. First click the connector where the callout should attach — hold <b>Shift</b> and only the two ends, the quarters and the middle are offered. Then move away from that point and click again: that is where the card stands. <b>Shift</b> snaps the angle to eighths of a turn, <b>Ctrl</b> takes the length off the grid. The card appears there, empty with the cursor already in it.</p>
           <p>Because a callout is an entry, everything an entry can do it can do. A connector can carry as many of them as you like and none of them touches the note the connector wears; they are copied, undone and saved like any other entry, and <b>connectors attach to them exactly as they attach to a reality</b> — drag from a callout's edge to draw one. All but one edge, that is: the side its own leader arrives at is already spoken for and offers no port.</p>
           <p>A callout is drawn in its connector's colour, border and words alike — a remark about a line belongs to the line, so there is no colour control on it, nor on the plate a connector wears, and both follow the connector's colour the moment it changes. The ⟲ on those two toolbars still clears a face, a size, a bold or a rule; the inherited ink is the one thing there it leaves alone. One click picks it up, like anything else on the chart, so <b>Delete</b> still deletes it; a double click opens a card of its own rather than the entry panel — the words and a Delete, which is the whole of what a callout has. Carrying the card swings it about the place it points at: <b>Shift</b> holds the angle to eighths of a turn and draws the eight rays it is snapping to, <b>Ctrl</b> comes off the grid. And the dot on the connector is a handle too: drag it and the attachment slides along the line, carrying the card with it — plain steps by the grid, <b>Shift</b> offers a place every twentieth of the line, <b>Ctrl</b> is free. The handle is drawn above every connector, so nothing a connector lays down to be clickable by can cover it, and the dot grows under the pointer to say so. Where a callout attaches is a PLACE on the drawing, not a proportion of a route: move one of the entries and the anchor stays where it was, on the nearest part of the connector’s new shape. A callout is set at the same size as the plate it is the other form of, connectors do not bend to avoid one, and moving either entry carries the card along with its connector so the leader keeps the length and angle it was aimed at.</p>
           <p>When you give an entry a portrait or add a sticker, you choose <b>which part of the picture to use</b>: the shape you drag over the image is what gets kept — a circle for a character bio, since that is how a portrait is drawn, and a square everywhere else. Leave it alone and you get the whole picture centred, exactly as before. Animated GIFs skip this — they are stored whole so they keep moving.</p>
-          <p>Tag entries to organize and filter them; colour and node style are yours to set by hand. Typeface and text colour are set on a <em>selection</em> from any text's own toolbar, so one entry can mix faces — and the words stay visibly chosen while you type a hex value for them — and the ⟲ beside the colour hands a run back to whatever the entry itself paints its text with. Double-click any entry and its words open <em>on the entry</em>: a field at the entry’s own width, in its face and size and ink, with the toolbar floating just above it — <b>Enter</b> settles it, and so does a click anywhere else. A portrait’s field opens on its card, which is where a portrait’s words are; a caption and a picture keep the card they already had. The drawer’s Label field still works exactly as it did. <b>Del</b> removes the selected entry or connection, <b>Ctrl+C</b>/<b>Ctrl+X</b>/<b>Ctrl+V</b> copy, cut and paste one, and <b>Ctrl+Z</b> walks back your changes with <b>Ctrl+Y</b> to step forward again. Nothing needs an Apply button: what you change in a form takes effect as you make it, and one Ctrl+Z undoes the whole visit to that form.</p>
+          <p>Tag entries to organize and filter them; colour and node style are yours to set by hand. Typeface and text colour are set on a <em>selection</em> from any text's own toolbar, so one entry can mix faces — and the words stay visibly chosen while you type a hex value for them — and the ⟲ beside the colour hands a run back to whatever the entry itself paints its text with. Double-click anything on the chart that IS a piece of text — an entry’s label, a portrait’s card, a caption, a connector’s note, a callout — and the words open <em>where they are drawn</em>: a field at that thing’s own width, in its face and size and ink, with the toolbar floating just above it. <b>Enter</b> settles it, and so does a click anywhere else. The panels that used to hold a second copy of those words keep everything about their subject that is <em>not</em> the words. A remark on a connector offers no colour box there, because it is written in the line’s own ink. The drawer’s Label field still works exactly as it did. <b>Del</b> removes the selected entry or connection, <b>Ctrl+C</b>/<b>Ctrl+X</b>/<b>Ctrl+V</b> copy, cut and paste one, and <b>Ctrl+Z</b> walks back your changes with <b>Ctrl+Y</b> to step forward again. Nothing needs an Apply button: what you change in a form takes effect as you make it, and one Ctrl+Z undoes the whole visit to that form.</p>
           <p>Every edit you make happens here in your browser and takes effect immediately — nothing is written down until you press <b>Save</b> in the top bar (or <b>Ctrl+S</b>), which commits everything at once. Until then the bar says "Unsaved changes", and leaving the page will warn you.</p>
           <p>Where Save writes depends on where the chart is open, and the <b>File</b> button says which. Published on claude.ai, it publishes a new version of the page, exactly as before. Anywhere else — your own web space, or the file sitting on your disk — there is nothing to publish to, so it keeps the chart in that browser instead, under this page's own address. That is the whole of the difference: the chart itself, every archetype, every connector and every keystroke, is ordinary HTML that needs no server and no account, and runs the same opened straight off a disk with no network at all.</p>
           <p>Because a browser's storage belongs to one browser on one machine, <b>Export</b> under the same File button is what makes a chart portable: it writes out a complete, self-contained copy of this page with the current chart already inside it. Open that file anywhere and the chart is simply there — no import step, nothing to load. <b>Import</b> is for the other direction, pulling the chart out of such a file into the one you have open now, and it checks the file before it replaces anything.</p>
           <p>Any boxed entry can wear <b>card layout</b> instead: the box divides into a picture at the top, the label as a heading below it and the note as body text under that, with the language-tab chips on the heading and the link badge on the picture. It is a per-entry switch in the entry's settings, not a chart-wide mode, so a chart can mix cards and plain entries freely. It replaces the entry's OUTLINE — a card is never wavy, whatever its border style — but keeps whatever the archetype draws around itself, so a hub card still echoes and a local card still has its stack. Connectors meeting a card's left or right side keep off the picture and arrive at the text.</p>
-          <p><b>Character bio</b> entries are small portrait circles: give one an image, and click it to open its text in a card beside it — written in the entry’s own ink, on the entry’s own background, like every other label on the chart. Every entry also has a <b>background</b> — one colour fills the box, more than one make a gradient across it — and a <b>border style</b>: the same six the connectors offer, solid, dashed, dotted, dash-dotted, double and wavy. Neither is an archetype: any entry may wear either, and a chart written when a filled box was a “mirror reality” and a rippled one a “pocket reality” opens with those two set to exactly what they used to draw. A <b>multiversal hub</b> and a <b>local multiverse</b> are no longer archetypes but tags: give an entry the tag <code>multiversal hub</code> and an echo spreads out of it; give it <code>local multiverse</code> and a stack of near-identical worlds stands behind it, each sheet a copy of the entry’s own outline — rippled where the entry’s border is — where only the front sheet takes connectors. Because they are tags, any archetype can carry either — a rippled entry can be a hub, a filled one can be a local multiverse, and each keeps its own border, its own colours and its own ports. Put the pointer on one of these entries, or pick it out, and its decoration performs what it means: the echo goes out, the light crosses the fan-fiction weave, the stack of worlds streams away and dissolves. The performance carries on across every redraw — typing in an entry's settings rebuilds its scenery on every keystroke, and each piece comes back exactly as far through as it was.</p>
+          <p><b>Character bio</b> entries are small portrait circles: give one an image, and click it to open its text in a card beside it — written in the entry’s own ink, on the entry’s own background, like every other label on the chart. Every entry also has a <b>background</b> — one colour fills the box, more than one make a gradient across it — and a <b>border style</b>: the same six the connectors offer, solid, dashed, dotted, dash-dotted, double and wavy. Neither is an archetype: any entry may wear either, and a chart written when a filled box was a “mirror reality” and a rippled one a “pocket reality” opens with those two set to exactly what they used to draw. A <b>multiversal hub</b> and a <b>local multiverse</b> are no longer archetypes but tags: give an entry the tag <code>multiversal hub</code> and an echo spreads out of it; give it <code>local multiverse</code> and a stack of near-identical worlds stands behind it, each sheet a copy of the entry’s own outline in the entry’s own border style — dashed where the entry is dashed, doubled where it is doubled, rippled where it ripples — where only the front sheet takes connectors. Because they are tags, any archetype can carry either — a rippled entry can be a hub, a filled one can be a local multiverse, and each keeps its own border, its own colours and its own ports. Put the pointer on one of these entries, or pick it out, and its decoration performs what it means: the echo goes out, the light crosses the fan-fiction weave, the stack of worlds streams away and dissolves. The performance carries on across every redraw — typing in an entry's settings rebuilds its scenery on every keystroke, and each piece comes back exactly as far through as it was.</p>
           <p>Tags are drawn as tags wherever they appear — on the panel, in an entry's settings, in the drawer — so a tag is never mistaken for a category or a title. <b>Untagged</b> is not one of them: it is where entries with no tags show up, so it is written plainly, in italic. The last group in the list is <b>Special</b>: it holds Untagged, anything nobody has filed yet, and every tag that <em>does</em> something, which is collected there whatever else claims it. Every category folds away at a click on its heading, and the box at the top of the list finds a tag by name.</p>
-          <p>Tag an entry <b>fan-fiction</b> and a gold diagonal weave appears on the canvas behind it, fading out a little past the box — a way to see at a glance which parts of the chart are apocryphal without spending a border or a colour on it. Tags and references share the <b>Management</b> panel: the eye hides or shows every tag at once, and <b>+</b> makes a new tag, category or reference. The <b>grid</b> button in the top bar rules the canvas in the same steps a drag snaps to, every fifth line stronger, for lining entries up by eye; it is your own view setting and changes nothing in the chart.</p>
+          <p>Tag an entry <b>unreleased</b> and a cold grey comb of straight verticals appears on the canvas under it — it exists, it is documented, and it never came out. Tag one <b>fan-fiction</b> and a warm gold diagonal weave appears there instead, and an entry may carry both. The weave appears on the canvas behind it, fading out a little past the box — a way to see at a glance which parts of the chart are apocryphal without spending a border or a colour on it. Tags and references share the <b>Management</b> panel: the eye hides or shows every tag at once, and <b>+</b> makes a new tag, category or reference. The <b>grid</b> button in the top bar rules the canvas in the same steps a drag snaps to, every fifth line stronger, for lining entries up by eye; it is your own view setting and changes nothing in the chart.</p>
           <p>Only this chart's owner can change the drawing. Anyone else opening it gets a read-only view — everything reads, pans, filters and opens as normal, but the editing controls are simply not there. To comment, use the comment control in the artifact viewer around this page — threads stay attached to the chart and survive every new version of it.</p>
           <p><b>Stickers</b> are small pictures you can drop into any text on the chart, the way you would an emoji — the ☺ button beside any text field inserts one, and the smiley icon in the top bar is where they are uploaded and named. Alongside the entries themselves you can place free-standing <b>Image</b> and <b>Text field</b> elements: they take no connections and no arrow ever detours around them, an image can be sent behind the arrows to sit as a backdrop, and a text field is turned by the round arrow at its own top-left corner — hold <b>Shift</b> to turn in eighths of a turn, double-click it to put the caption back level.</p>
           <p>An entry's <b>comment</b> — the note in its own panel — is a document rather than a caption. It takes the same bold, italic, readings, colours, faces and citations as any other text on the chart and is drawn exactly as they are, and the ▣ button on its toolbar places a <b>picture or a video clip</b> in the flow of it, the way a figure stands in a printed document. A file is carried inside the chart itself, so it travels with it and needs nothing from the network; a clip too large for that can be given as a link instead. While the comment is open for writing a figure is <b>carried</b> by its own body to any line in the text, and <b>sized</b> by the corner that appears when you hover it. The ⤢ beside the note — there when there is a note — opens the whole comment at full size, in the same card this one is in, which is where a page of prose with figures in it is actually readable. Figures belong to the comment and are never drawn into the entry's own box. A clip too big to carry is <b>re-encoded to fit</b> rather than refused — that plays it through, so it takes as long as the clip lasts — and one too long even for that is best given as a link.</p>
@@ -475,19 +475,16 @@
       <div id="freeMenuTextPart">
         <!-- The angle is set on the CAPTION, by the round arrow at its
              top-left corner — not by a slider in here. See beginNodeRotate. -->
+        <!-- The WORDS are written on the caption: double-click it. What
+             is set here is the caption's own face and size, which belong
+             to the whole of it rather than to a run inside it. -->
         <div class="editor-field">
-          <label for="freeMenuText">Text</label>
-          <div class="mini-toolbar">
-            <button type="button" data-wrap-target="freeMenuText" data-wrap="bold">B</button>
-            <button type="button" data-wrap-target="freeMenuText" data-wrap="italic">I</button>
-            <button type="button" data-wrap-target="freeMenuText" data-wrap="ruby">Ruby</button>
-            <input type="text" class="tb-hex" data-hex-for="freeMenuText" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="freeMenuText" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
-          </div>
+          <label for="freeMenuFont">Type</label>
           <div class="mini-toolbar">
             <select id="freeMenuFont" title="Font for this text"></select>
             <input id="freeMenuFontSize" type="number" min="6" max="40" step="0.5" placeholder="11.5" title="Font size in px">
           </div>
-          <textarea id="freeMenuText" rows="3" spellcheck="false"></textarea>
+          <p class="style-row-note">Double-click the caption to write on it.</p>
         </div>
       </div>
 
@@ -650,6 +647,13 @@
 
       <div class="style-row">
         <span class="style-row-label">Note</span>
+        <!-- The way a note is STARTED.
+             Its words are written on the plate, by double-clicking it — which
+             leaves nothing to double-click on a connector that has no note
+             yet, and so no way to write a first one at all. This puts an
+             empty plate on the middle of the line with the caret in it; drag
+             the plate afterwards to slide it along. -->
+        <button type="button" class="style-callout-add" id="styleAddNote" title="Put a note on the middle of this connector and start writing it">≡ Add a note</button>
         <div class="style-choice" id="styleNoteSide">
           <button type="button" data-value="above" title="Above the line">↑</button>
           <button type="button" data-value="on" title="On the line, covering it">≡</button>
@@ -668,13 +672,11 @@
         <span class="style-row-label">Callout</span>
         <button type="button" class="style-callout-add" id="styleAddCallout" title="Add a comment card pointing at this connector — click the connector where it should attach, then click where the card should stand">⌐ Add a callout</button>
       </div>
-      <div class="mini-toolbar" id="styleNoteToolbar">
-        <button type="button" data-wrap-target="styleNote" data-wrap="bold">B</button>
-        <button type="button" data-wrap-target="styleNote" data-wrap="italic">I</button>
-        <button type="button" data-wrap-target="styleNote" data-wrap="ruby">Ruby</button>
-        <button type="button" class="hex-reset" data-hex-reset="styleNote" title="Clear the formatting from this text — face, size, bold, italic and rules. The colour is not one of them: a remark on a connector is always written in that connector&#8217;s own ink.">⟲</button>
-      </div>
-      <textarea id="styleNote" class="style-note-input" rows="2" placeholder="A note on this connector" spellcheck="false"></textarea>
+      <!-- The note's WORDS are written on the note, by double-clicking the
+           plate on the drawing. What stays here is everything about it
+           that is not the words: where it rides, what it is written on,
+           and whether it becomes a callout instead. -->
+      <p class="style-row-note" id="styleNoteHint">Double-click the note to write it; drag it to slide it along the line. <b>Shift</b> offers the ends, the quarters and the middle.</p>
 
       <div class="edge-popover-actions">
         <button class="editor-btn danger" id="styleDelete">Delete</button>
@@ -705,13 +707,14 @@
       <div class="edge-popover-head">
         <button class="detail-close" id="calloutClose">✕</button>
       </div>
-      <div class="mini-toolbar" id="calloutToolbar">
-        <button type="button" data-wrap-target="calloutText" data-wrap="bold">B</button>
-        <button type="button" data-wrap-target="calloutText" data-wrap="italic">I</button>
-        <button type="button" data-wrap-target="calloutText" data-wrap="ruby">Ruby</button>
-        <button type="button" class="hex-reset" data-hex-reset="calloutText" title="Clear the formatting from this text — face, size, bold, italic and rules. The colour is not one of them: a remark on a connector is always written in that connector&#8217;s own ink.">⟲</button>
-      </div>
-      <textarea id="calloutText" class="style-note-input" rows="3" placeholder="What this points at" spellcheck="false"></textarea>
+      <!-- A callout's words are written on the card itself, by double-clicking
+           it, and this panel used to say so in a line of prose. A caption that
+           explains a gesture is a caption that has to be read every time the
+           panel opens, forever, by somebody who learned the gesture the first
+           time; and it was the only thing here besides the Delete, so the
+           panel read as a paragraph with a button under it. All this panel has
+           is the one thing the drawing cannot offer, which is a way to remove
+           the callout. -->
       <div class="edge-popover-actions">
         <button class="editor-btn danger" id="calloutDelete">Delete</button>
       </div>
@@ -720,6 +723,84 @@
 </div>
 <!-- @@BODY:END@@ -->
 <script src="data.js"></script>
-<script src="app.js"></script>
+<script>
+/* The parts of this program, run as the one program they are.
+ *
+ * src/app/ holds a file per subsystem, and it is tempting to load them as a
+ * <script> each. That does not work, and not for a small reason: a function
+ * declaration hoists over the script it is written in, so in the single file
+ * this was split out of, a statement near the top could call a function
+ * declared near the bottom — and this program does that everywhere, being one
+ * mutually recursive web of drawing, routing and editing. Loaded as separate
+ * scripts, each part becomes its own program and a name only exists once its
+ * own part has run; start-up then reaches for hundreds of names that are not
+ * there yet. Ordering the parts to avoid it is not possible, because the web
+ * has cycles — which is the honest reason this is not a module system.
+ *
+ * So the parts are joined and run as ONE script, which is exactly what the
+ * published page is. The list below is the program's order and must match
+ * APP_PARTS in build.py; the build refuses to run if the two disagree.
+ */
+(function(){
+  var PARTS = [
+    '01-store.js',
+    '02-model.js',
+    '03-markup.js',
+    '04-assets.js',
+    '05-render-text.js',
+    '06-edge-geometry.js',
+    '07-router-ortho.js',
+    '08-router-astar.js',
+    '09-bends-ports.js',
+    '10-decor.js',
+    '11-edge-notes.js',
+    '12-ports-draw.js',
+    '13-render-nodes.js',
+    '14-edges-draw.js',
+    '15-amalgam.js',
+    '16-tags.js',
+    '17-ask-refs.js',
+    '18-canvas-gestures.js',
+    '19-selection-search.js',
+    '20-about.js',
+    '21-edit-model.js',
+    '22-file-comments.js',
+    '23-quick-edit.js',
+    '24-rich-fields.js',
+    '25-figures.js',
+    '26-bio-crop.js',
+    '27-sticker-ui.js',
+    '28-media-ui.js',
+    '29-editors.js',
+    '30-node-editor.js',
+    '31-free-menu.js',
+    '32-guides-bends.js',
+    '33-leader.js',
+    '34-add-node.js',
+    '35-draw-out.js',
+  ];
+  var NL = String.fromCharCode(10);
+  Promise.all(PARTS.map(function(p){
+    return fetch('app/' + p).then(function(r){
+      if(!r.ok) throw new Error('app/' + p + ' — ' + r.status);
+      return r.text();
+    });
+  })).then(function(sources){
+    var s = document.createElement('script');
+    /* Named, so a debugger shows the assembled program under one honest name
+       rather than as an anonymous blob. It is the same text the build inlines
+       into the published page. */
+    s.textContent = sources.join('') + NL + '//# sourceURL=app.js' + NL;
+    document.body.appendChild(s);
+  }).catch(function(e){
+    document.body.innerHTML =
+      '<pre style="padding:24px;font:13px/1.6 ui-monospace,monospace">' +
+      'This page could not load the program.' + NL + NL + e.message + NL + NL +
+      'src/index.html has to be served over HTTP — opening it straight off disk ' +
+      'blocks the fetches. For a file you can open by double-clicking, build and ' +
+      'use dist/nexus-standalone.html.</pre>';
+  });
+})();
+</script>
 </body>
 </html>

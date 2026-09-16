@@ -381,30 +381,24 @@
    * .dim sets the group's opacity, which nothing transitions — so the
    * scenery now behaves exactly as the thing it is scenery for. */
   .node-aura.dim{opacity:0.14;}
-  /* The glow traces the BORDER, whatever shape the border is.
+  /* Picked out, an entry KEEPS ITS BORDER.
    *
-     One six-pixel shadow is wider than a pocket reality's ripple is deep,
-     so the wave was smoothed away and what showed around a rippled entry
-     was a soft rounded rectangle — the halo of a shape the entry is not.
-     A tight shadow follows the outline exactly; the wide one behind it
-     gives the selection its presence without deciding the shape. */
-  .node.selected > rect, .node.selected > polygon, .node.selected > ellipse, .node-bio.selected > circle, .node.selected > path{
-    stroke-width:3;
-    filter:drop-shadow(0 0 1.6px rgba(194,59,34,0.85))
-           drop-shadow(0 0 5px rgba(194,59,34,0.4));
-  }
-  /* A portrait's border keeps its weight.
-   *
-     Every other entry can be given a heavier outline without anything else
-     moving — the border is drawn on empty paper. A portrait's is drawn on
-     the PICTURE: the image is clipped to just inside the rim, so a border
-     that grows from two pixels to three eats into the photograph and the
-     circle's outer edge steps outward by half a pixel at the same time.
-     Selecting one made the picture visibly shift, which is not what
-     selecting something should do. The glow says it instead, a little
-     stronger to make up for the weight it is not allowed to add. */
+     The selection used to redraw the outline at three pixels instead of
+     the entry's own weight, and that is a change to the drawing rather
+     than a mark on it: a dashed border's dashes thicken and shorten, a
+     double border's two rails close up, a ripple's wave flattens, and the
+     whole box grows by most of a pixel on every side. On a portrait it was
+     worst — the picture is clipped to just inside the rim, so the
+     photograph visibly moved — and the fix that was made for the portrait
+     is right for every archetype. The glow says "this one", a little
+     stronger to make up for the weight it is no longer allowed to add.
+     The shadow traces the border itself, whatever shape it is: one wide
+     shadow smooths a ripple away into the halo of a shape the entry is
+     not, so a tight one follows the outline exactly and a wider one
+     behind it gives the selection its presence. */
+  .node.selected > rect, .node.selected > polygon, .node.selected > ellipse,
+  .node-bio.selected > circle, .node.selected > path,
   .node-bio.selected > circle.bio-ring{
-    stroke-width:2;
     filter:drop-shadow(0 0 2.2px rgba(194,59,34,0.95))
            drop-shadow(0 0 7px rgba(194,59,34,0.5));
   }
@@ -439,12 +433,28 @@
      At 0.12 the lattice was a suggestion that only became a colour when
      the light crossed it — and the light only crosses it under the
      pointer, so at every other moment the mark did not say what it was.
-     At 0.26 it said it only to a reader already looking for it. Short of
-     opaque, deliberately: it is the ground the entry stands on, and an
-     entry has to stay the thing you read first. */
-  .fanfic-weave{opacity:0.7;}
+     At 0.26 it said it only to a reader already looking for it, and 0.7
+     was an overcorrection — the ground competed with the entry standing on
+     it. Short of opaque either way: an entry has to stay the thing you
+     read first. */
+  .fanfic-weave{opacity:0.36;}
   /* The same lattice as it looks where the light falls on it. */
   .fanfic-line-lit{stroke:#ffcf3d;stroke-width:4.6;}
+
+  /* ---- the unreleased ground ---------------------------------------
+     A comb of straight verticals rather than a weave, and a cold metallic
+     grey rather than gold: nothing was made here by anybody, which is the
+     whole of what the tag says. Same patch, same fade, same performance as
+     the weave, so an entry carrying both tags stands on one piece of
+     ground with two rulings on it. */
+  /* A close grid wants a thinner line than a comb of bars did, or the mesh
+     fills in and the ground becomes a solid wash. Darker than it was, so
+     the light crossing it has something to brighten — at #7d8794 and a
+     third of the opacity, the sweep was happening to a ruling nobody could
+     see it happen to. */
+  .unreleased-line{stroke:#525c6b;stroke-width:1.5;fill:none;}
+  .unreleased-rule{opacity:0.5;}
+  .unreleased-line-lit{stroke:#c6d0dd;stroke-width:1.9;}
 
   /* ---- what a special tag does, performed ---------------------------
      Still at rest, and moving only while the entry is under the pointer
@@ -465,11 +475,33 @@
      the chart moved under the reader's hand. Each ring now starts folded
      back near the box and opens to exactly where it is drawn, so the whole
      performance happens inside the space the decoration already occupies. */
+  /* EVERY echo is the same echo.
+   *
+   * Each ring used to expand from a little under its own size to its own
+   * size, and the three rings are drawn at three distances — so what left
+   * the entry was a small wave, then a middling one, then a large one, over
+   * and over. That is a decoration growing, not a signal going out: an echo
+   * is one thing repeated, and the size of the wave says nothing about how
+   * long ago it left.
+   *
+   * So each ring now covers the SAME ground — from just outside the entry's
+   * own border to where the outermost ring is drawn — which takes a
+   * different scale factor per ring, and a different one per axis, since a
+   * ring is a rectangle and the two sides are not in the same proportion to
+   * their margins. The four numbers are written on each ring by the
+   * renderer, which is the only place that knows the geometry.
+   *
+   * The weight and the strength come from the keyframes rather than from
+   * the ring, for the same reason: at rest the rings are a graded stack and
+   * should stay one, but three waves of three different weights are three
+   * different waves. */
   @keyframes hub-echo-out{
-    0%   { transform:scale(0.55); opacity:0; }
-    22%  { opacity:0.55; }
-    72%  { opacity:0.2; }
-    100% { transform:scale(1); opacity:0; }
+    0%   { transform:scale(var(--echo-sx0, 0.55), var(--echo-sy0, 0.55));
+           stroke-width:1.3; opacity:0; }
+    16%  { opacity:0.5; }
+    70%  { opacity:0.22; }
+    100% { transform:scale(var(--echo-sx1, 1), var(--echo-sy1, 1));
+           stroke-width:1.3; opacity:0; }
   }
   .node-aura.tag-lively .hub-echo{
     transform-box:fill-box;transform-origin:center;
@@ -504,10 +536,21 @@
      decoration already occupies. Travelling only to its own place gave the
      far sheet twice the speed of the near one, and the procession came out
      as two sheets and then a wait. */
+  /* The next sheet is there before the last one has gone.
+   *
+   * Two sheets are in flight at a time, half a turn apart, so there was
+   * never a moment with nothing on screen — but a sheet took nearly a
+   * quarter of its journey to fade UP, and by then the one in front was
+   * three quarters of the way out and nearly gone. What the eye saw was one
+   * sheet at a time, handing over in a gap. A stack of worlds streaming away
+   * has to look like a supply, so a new sheet is at full strength a moment
+   * after it leaves, and holds most of it until it is well out — the overlap
+   * is the whole point of drawing more than one. */
   @keyframes local-sheet-away{
     0%   { transform:translate(calc(var(--sheet-off, 11px) * -1), var(--sheet-off, 11px)); opacity:0; }
-    22%  { opacity:0.6; }
-    70%  { opacity:0.26; }
+    8%   { opacity:0.62; }
+    60%  { opacity:0.34; }
+    92%  { opacity:0.07; }
     100% { transform:translate(calc(var(--sheet-far, 11px) - var(--sheet-off, 11px)),
                                calc(var(--sheet-off, 11px) - var(--sheet-far, 11px))); opacity:0; }
   }
@@ -515,15 +558,18 @@
     transform-box:fill-box;
     animation:local-sheet-away 1.7s linear infinite;
   }
-  .node-aura.tag-lively .local-sheet:nth-of-type(1){animation-delay:0s;}
-  .node-aura.tag-lively .local-sheet:nth-of-type(2){animation-delay:-0.85s;}
+  /* Which sheet a piece belongs to, not where it happens to sit in the
+     group: a double border draws two rails at the same distance, and they
+     are one sheet and must travel as one. */
+  .node-aura.tag-lively .local-sheet[data-sheet="0"]{animation-delay:0s;}
+  .node-aura.tag-lively .local-sheet[data-sheet="1"]{animation-delay:-0.85s;}
 
   /* The light crossing a fan-fiction entry's weave. The band is a mask,
      not a wash of colour: what brightens is the lattice itself, and only
      where the light is. Two mask layers intersected — the same round fade
      the weave already wears, and the moving band — so the glint cannot
      show past the edge of the patch. */
-  .fanfic-glint{
+  .fanfic-glint, .unreleased-glint{
     opacity:0;
     -webkit-mask-image:radial-gradient(closest-side, #000 62%, transparent 100%),
                        linear-gradient(105deg, transparent 38%, #000 50%, transparent 62%);
@@ -560,12 +606,12 @@
      restarts on is a frame with nothing drawn on it. */
   @keyframes fanfic-sweep{
     0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
-    14%  { opacity:0.85; }
-    86%  { opacity:0.85; }
+    14%  { opacity:0.5; }
+    86%  { opacity:0.5; }
     100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
   }
-  .fanfic-glint.tag-lively{
-    opacity:0.85;
+  .fanfic-glint.tag-lively, .unreleased-glint.tag-lively{
+    opacity:0.5;
     animation:fanfic-sweep 3.4s linear infinite;
   }
 
@@ -573,8 +619,10 @@
   @media (prefers-reduced-motion: reduce){
     .node-aura.tag-lively .hub-echo,
     .node-aura.tag-lively .local-sheet,
-    .fanfic-glint.tag-lively{animation:none;}
-    .fanfic-glint.tag-lively{opacity:0;}
+    .fanfic-glint.tag-lively,
+    .unreleased-glint.tag-lively{animation:none;}
+    .fanfic-glint.tag-lively,
+    .unreleased-glint.tag-lively{opacity:0;}
   }
 
   /* The alignment grid. Fine lines faint, every fifth one stronger, both
@@ -635,6 +683,13 @@
   .node > circle.node-hover-pad,
   .node-bio > circle.node-hover-pad,
   .node-hover-pad{fill:none;stroke:transparent;pointer-events:stroke;}
+  /* A portrait's pad is the whole square, not a ring: the circle is drawn
+     inside a box whose sides carry the ports and whose corners carry the
+     grips, and the pointer has to be able to cross the space between the
+     picture and them without the entry deciding it has been left. */
+  .node > rect.node-hover-solid,
+  .node-bio > rect.node-hover-solid,
+  .node-hover-solid{fill:transparent;stroke:none;pointer-events:all;}
   /* And it is never lit. It is a catcher, not a border: given the
      selection's glow it drew a rounded rectangle — or, on a portrait, a
      ring — of light around a shape that is neither. */
@@ -1646,6 +1701,29 @@
     max-height:none;
     text-align:center;
   }
+  /* Broken where the THING IT IS STANDING ON breaks it, and nowhere else.
+   *
+   * Two of the four things this field opens on wrap their text and two do
+   * not, and the field has to do whatever the drawing under it does or what
+   * you type and what you get are different shapes.
+   *
+   * An entry's label is laid out on one line and allowed to run past the box
+   * when it is long — so at pre-wrap the field broke a long label at its own
+   * border while the drawing carried straight on. `pre` keeps the newlines
+   * that are in the text, invents none, and the box grows with the words
+   * exactly as the entry's own text does; the entry's width is the FLOOR,
+   * set as a min-width by positionNodeEditor.
+   *
+   * A portrait's card and a connector's plate DO wrap — both are laid out to
+   * a fixed width and run to as many lines as they need — so on those the
+   * field keeps wrapping at the width of the thing it covers. */
+  .node-editor[data-wrap="off"] .rich-surface{
+    white-space:pre;
+    word-break:normal;
+    overflow-wrap:normal;
+    overflow:visible;
+    width:max-content;
+  }
   .node-editor .rich-surface:focus{outline:none;}
   .node-editor textarea{display:none;}
   /* A callout's panel is the same card opened on a smaller thing: a
@@ -2342,6 +2420,13 @@
     vector-effect:non-scaling-stroke;
     pointer-events:none;
     opacity:0.85;
+  }
+  /* A guide that means a PLACE rather than a coordinate: the middle of a
+     merge's bar, which the chart does not otherwise mark. Solid, because a
+     dashed dot is a smudge. */
+  .align-guide-dot{
+    fill:var(--accent);stroke:var(--paper);stroke-width:1.2;
+    stroke-dasharray:none;opacity:0.95;
   }
 
   /* The version line and the history at the foot of the About panel. */
