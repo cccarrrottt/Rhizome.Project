@@ -297,7 +297,7 @@ function importChartFromText(text){
     throw new Error('that file has no Rhizome Project chart in it.');
   }
   const stylesIn = readRegionArray(text, 'EDGESTYLES') || [];
-  const stickersIn = readRegionArray(text, 'STICKERS') || [];
+  const stickersIn = sanitizeStickers(readRegionArray(text, 'STICKERS') || []);
   const mediaIn = sanitizeMedia(readRegionArray(text, 'MEDIA') || []);
   const commentsIn = readRegionArray(text, 'COMMENTS') || [];
   /* Older exports predate categories and simply have no such region. That
@@ -445,6 +445,22 @@ function markReadOnly(sticky){
   try{ closeEditForm(); }catch(e){}
   try{ closeEdgePopover(); }catch(e){}
 }
+/* @@SHARE:READONLY@@ */
+/* The line above is where build.py makes the share copy.
+ *
+ * That copy is published with no write capability at all, so it is a reader
+ * by construction and can say so on the first frame instead of finding out
+ * when somebody presses Save. The build says so by putting a call to
+ * markReadOnly in at this point.
+ *
+ * It used to find the place by searching for `function isReadOnlyError(e){`
+ * and inserting before it — which meant renaming a function, or moving it,
+ * silently became a change to how the share copy is built. The build did
+ * check that it found exactly one, so it would have stopped rather than
+ * produced a wrong page; but it would have stopped for a reason with no
+ * connection to what the person had actually done. A marker that exists FOR
+ * the build cannot be broken by accident, because there is nothing else it
+ * could be for. */
 function isReadOnlyError(e){
   const code = e && e.code;
   return code === 'not_writer' || code === 'not_granted' ||

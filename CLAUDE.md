@@ -102,7 +102,17 @@ node tools/shards.js src                  the same against the sources
 ```
 
 `--only` that matches nothing exits 2 rather than 0: a mistyped name used to
-read exactly like a run that passed. Each run names its three slowest
+read exactly like a run that passed.
+
+The suite answers both webfont hosts with an empty stylesheet rather than
+letting the request out. It used to leave them to the network and filter the
+resulting console error by matching the message against the host name —
+which does not work, because Chromium reports a blocked stylesheet as
+"Failed to load resource: net::ERR_…" without the URL in it. Every run on a
+machine with no route to Google Fonts therefore came out red on a check
+called "no uncaught page errors". A suite that goes red because a third
+party is unreachable is testing the network; now every machine runs the same
+test, and that test is the case README promises works. Each run names its three slowest
 scenarios, so which ones are worth a quick set is answered by the suite
 rather than guessed. A scenario that throws is caught and counted instead of
 ending the run — one broken scenario used to take the sixty after it with it.
@@ -177,6 +187,42 @@ Two things follow:
   synchronous layout per entry, taken while the SVG was being appended to.
   Whatever is proposed next should come with a measurement like the one
   above, not with an argument about the shape of the function.
+
+### Where a rebuild goes now, and what is NOT worth optimising
+
+Same synthetic chain, 600 entries, 277 ms a rebuild:
+
+| | | |
+| --- | ---: | ---: |
+| `redrawEdges` | 168.9 ms | 61% |
+| …of which `routeEdge` | 152.2 ms | 55% |
+| `renderNodes` | 96.9 ms | 35% |
+| `applyVisibility` | 5.5 ms | 2% |
+| `buildModel` | 4.1 ms | 1% |
+| `edgeStyleFor`, 1198 calls | 0.8 ms | 0% |
+| `latticeRoute` | never called | — |
+
+Three things that look worth doing and are not, so they need not be argued
+again:
+
+- **`edgeStyleFor`'s linear `find` and its fresh object per call.** 1198
+  calls come to 0.8 ms. A Map would be tidier and would save nothing.
+- **The A\* lattice's obstacle fill.** It is `pointInsideAny` over every
+  cell for every edge, which is genuinely quadratic — and `latticeRoute` is
+  not called at all on an ordinary chart, because the stock orthogonal
+  shapes solve it. Optimising it needs a chart that actually reaches it.
+- **`applyVisibility` running as a second pass over freshly drawn DOM.** It
+  is redundant in principle — `renderNodes` already knows what is hidden —
+  and it is 2%.
+
+**The ceiling is `routeEdge`, and it is quadratic twice over.** `scorePath`
+(`07-router-ortho.js`) walks every obstacle and every already-routed segment
+for each candidate path, and `routedSegments` grows as the chart is drawn.
+At 200 entries that is 19.6 ms and at 600 it is 152 ms. The cure is a
+spatial index on both, and the bar for attempting it is high: routing is
+order-sensitive by design, so the score has to come out identical or every
+connector on the chart moves. Nobody should start it without a chart big
+enough to need it and an equivalence check over the drawn routes.
 - **A two-phase render — measure everything, then build the DOM — was the
   other half of this and is not worth doing.** Its whole gain was collapsing
   those forced layouts into one, and measurement is now 1–2% of a rebuild.
