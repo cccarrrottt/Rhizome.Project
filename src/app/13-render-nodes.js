@@ -1042,18 +1042,22 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     if(isCallout){
       selectNode(n.id, {quiet:true});
       paintMultiSelection();
-      /* The card that used to hold a copy of the words now holds only the
-         Delete, so it is no longer a form appearing over the drawing and
-         can come up on a single click again — which is what puts a
-         callout's one remaining control back within reach, now that a
-         double click is how its words are opened. */
-      openCalloutPopover(n.id, ev, {focus:false});
+      /* No card on a click. All it held was a Delete, which the Delete key
+         does to anything selected — so a click that only means "this one"
+         put a menu over the drawing every time for a control that was
+         already there. */
       return;
     }
     selectNode(n.id);
     paintMultiSelection();
     clearTimeout(nodeClickTimer);
-    const wantsBio = isBio, wantsFree = isFree, evForMenu = ev;
+    /* A caption is not given its Text card on a click either. Its face,
+       size and colour are on the toolbar of the field its words open in,
+       it turns by its own corner grip, and Delete removes it: the card was
+       a second place for all of that, opened by a click that only meant
+       to pick the caption up. A picture keeps its card — the file it shows
+       is set nowhere else. */
+    const wantsBio = isBio, wantsFree = isFree && isImage, evForMenu = ev;
     nodeClickTimer = setTimeout(()=>{
       nodeClickTimer = null;
       if(wantsBio) openBioCard(n.id, true); else closeBioCard();

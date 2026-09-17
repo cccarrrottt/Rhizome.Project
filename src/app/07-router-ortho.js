@@ -183,7 +183,7 @@ function sinkEnds(pts, p1, p2){
        that no phase of the ripple can leave it short of contact, and well
        inside the border's own stroke, which is drawn over it. */
     const off = port.wavy
-      ? (port.head ? (port.drop || 0)
+      ? (port.head ? (typeof port.headDrop === 'number' ? port.headDrop : (port.drop || 0))
          : ((port.ring || 0) > 0
             ? (port.drop || 0) - POCKET_UNDERLAP
             : -(POCKET_DEEP + POCKET_BITE)))

@@ -66,7 +66,11 @@ const EDGE_NOTE_OFFSET = 11;
    piece of the same chart, and giving it a monospace of its own made it
    read as a different kind of object — a code comment on a diagram rather
    than a remark about the connector. */
-const EDGE_NOTE_FS = 8.5, EDGE_NOTE_FAMILY = "'IBM Plex Sans',sans-serif";
+/* …which is the chart's DEFAULT face, whatever that is — not a face named
+   here. This said Plex while the entries, and the callouts that are
+   entries, had moved to the default Arial; a note and a callout on the
+   same connector came out in two different faces. */
+const EDGE_NOTE_FS = 8.5, EDGE_NOTE_FAMILY = FONT_OPTIONS[0].family;
 const EDGE_NOTE_MAXW = 150, EDGE_NOTE_LINE_H = 11;
 /* The leader line of a callout.
  *
@@ -231,28 +235,27 @@ function drawCalloutLeaders(from, to, pts, paint){
   const list = calloutsByEdge.get(calloutEdgeKey(from, to));
   if(!list || !list.length || !pts || pts.length < 2) return;
   const routeKey = calloutEdgeKey(from, to);
-  const shift = routeShift(leaderRoutes.get(routeKey), pts);
   leaderRoutes.set(routeKey, pts.map(q=> ({x:q.x, y:q.y})));
   list.forEach(n=>{
-    let m;
     const held = leaderAnchors.get(n.id);
-    /* Unless somebody else has set the fraction since — an undo, a paste,
-       the reader's own drag of the dot — in which case the fraction is
-       the newer of the two and the point is rebuilt from it. */
-    const mine = held && Math.abs(held.at - n.leader.at) < 1e-6;
-    if(mine && !calloutBeingMoved(n.id)){
-      const wx = held.x + (shift ? shift.dx : 0);
-      const wy = held.y + (shift ? shift.dy : 0);
-      const f = fractionNearest(pts, wx, wy);
-      if(Math.abs(f - n.leader.at) > 1e-4){
-        n.leader.at = f;
-        persistLeaderAt(n.id, f);
-      }
-      m = pointAtFraction(pts, f);
-    } else {
-      m = pointAtFraction(pts, n.leader.at);
+    /* Kept on its leg, or on the middle it was snapped to — see
+       settleAnchor. Unless somebody else has set the fraction since — an
+       undo, a paste, the reader's own drag of the dot — in which case the
+       fraction is the newer of the two and is taken as it stands. */
+    const busyDot = !!(anchorDrag && anchorDrag.id === n.id);
+    const f0 = n.leader.at;
+    /* Only a callout PUT on the middle keeps to it. A callout is aimed by
+       hand, and landing on exactly one half along the way is not a
+       statement about the middle; a note that has never been moved is. */
+    const snap = n.leader.snap || null;
+    const f = busyDot ? f0 : settleAnchor(pts, f0, snap,
+                                          calloutBeingMoved(n.id) ? null : held, false);
+    if(Math.abs(f - n.leader.at) > 1e-4){
+      n.leader.at = f;
+      persistLeaderAt(n.id, f);
     }
-    leaderAnchors.set(n.id, {x: m.x, y: m.y, at: n.leader.at});
+    const m = pointAtFraction(pts, n.leader.at);
+    leaderAnchors.set(n.id, heldAnchor(pts, n.leader.at));
     /* While the reader has hold of either the card or the dot, what the
        offset should be is exactly what they are setting — so it is read
        rather than applied. Every other frame it is applied. */
@@ -380,7 +383,12 @@ function beginAnchorDrag(ev, id, pts){
 function anchorFractionAt(ev, st){
   const p = clientToWorld(ev.clientX, ev.clientY);
   let f = fractionNearest(st.pts, p.x, p.y);
-  if(ev.shiftKey) return nearestConnectorSnap(st.pts, f);
+  if(ev.shiftKey){
+    const sn = nearestSnapRecord(st.pts, f);
+    st.snap = snapNameFor(st.pts, sn);
+    return sn ? sn.f : f;
+  }
+  st.snap = null;
   if(ev.ctrlKey || ev.metaKey) return f;
   /* A plain drag steps. The step is the ruled grid's, measured along the
      line, so a point placed by hand lands on the same rhythm everything
@@ -410,6 +418,7 @@ window.addEventListener('mousemove', ev=>{
   st.at = anchorFractionAt(ev, st);
   const at = pointAtFraction(st.pts, st.at);
   n.leader.at = st.at;
+  if(st.snap) n.leader.snap = st.snap; else delete n.leader.snap;
   /* `pos` as well as x/y. The renderer reads a hand-placed entry's y back
      out of `pos` on every pass — that is what keeps a box that has grown
      centred on where it was put — so setting only x and y moved the card
@@ -446,6 +455,8 @@ window.addEventListener('mouseup', ()=>{
     if(!found) return;
     const opts = entryOpts(found.entry);
     opts.leader = Object.assign({}, opts.leader, {at: +st.at.toFixed(4)});
+    // The kind of place it was put on, or none: see settleAnchor.
+    if(st.snap) opts.leader.snap = st.snap; else delete opts.leader.snap;
     /* Two decimals, not whole pixels. The card is not being placed by
        hand here — it is being carried by the dot, keeping an offset the
        reader aimed once — so rounding it to the grid on release moved it
@@ -523,7 +534,7 @@ window.addEventListener('mousemove', ev=>{
   /* Live on the drawn style, without a step of undo per frame — the drop
      below is what writes it down. The same shape the bend drag uses. */
   const kept = edgeStyleFor(st.from, st.to);
-  setEdgeStyleOverride(st.from, st.to, Object.assign({}, kept, {noteAt: st.at}));
+  setEdgeStyleOverride(st.from, st.to, Object.assign({}, kept, {noteAt: st.at, noteSnap: st.snap || null}));
   document.body.classList.toggle('leader-snapping', !!ev.shiftKey);
   while(leaderPickLayer.firstChild) leaderPickLayer.removeChild(leaderPickLayer.firstChild);
   // A note says which place it has taken; see paintConnectorSnaps.
@@ -546,7 +557,7 @@ window.addEventListener('mouseup', ()=>{
   applyEdit(()=>{
     const kept = edgeStyleFor(st.from, st.to);
     setEdgeStyleOverride(st.from, st.to,
-      Object.assign({}, kept, {noteAt: +st.at.toFixed(4)}));
+      Object.assign({}, kept, {noteAt: +st.at.toFixed(4), noteSnap: st.snap || null}));
   }, st.before);
   refreshSaveUI();
 });
@@ -587,38 +598,28 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
      connector crossing a crowded chart the middle is often the one stretch
      with no room for it. Dragged along the plate itself; see noteDrag. */
   const stored = (typeof at === 'number' && at >= 0 && at <= 1) ? at : 0.5;
-  /* …and where it rides is a POINT, as a callout's anchor is.
-   *
-   * The fraction is how the place is written down, and a fraction of a
-   * route slides whenever the route changes length: moving either entry,
-   * a bend, a callout card the router steers round — anything that
-   * re-routed this connector carried the note along it, round a corner
-   * onto a leg of the other orientation, and from "above" to "left". So
-   * the point last drawn is kept and the note stays on the part of the new
-   * route nearest it; a route that merely moved takes the note with it.
-   * The fraction is rewritten to match, so a saved chart opens where it
-   * closed. A fraction set by somebody since — the reader's own drag, an
-   * undo — is the newer word, and the point is rebuilt from it. */
+  /* …and where it rides is kept as a PLACE ON A LEG — see settleAnchor.
+   * A note put on the middle of the connector, or on the middle of one of
+   * its legs, keeps to that middle however the line changes; one put
+   * anywhere else keeps its share of the leg it is on. The fraction is
+   * rewritten to match, so a saved chart opens where it closed. A fraction
+   * set by somebody since — the reader's own drag, an undo — is the newer
+   * word and is taken as it stands. */
   const key = calloutEdgeKey(from, to);
   const held = noteAnchors.get(key);
   let sliding = false;
   try{ sliding = !!(noteDrag && noteDrag.from === from && noteDrag.to === to); }catch(e){}
-  let f = stored;
-  /* Except at the MIDDLE. A note put on the middle of its connector is
-     about the connector as a whole, and it stays on the middle however the
-     connector's length changes — which the fraction does by itself. */
-  const onMiddle = Math.abs(stored - 0.5) < 1e-9;
-  if(held && !sliding && !onMiddle && Math.abs(held.at - stored) < 1e-6 && pts.length > 1){
-    const shift = routeShift(held.pts, pts);
-    f = fractionNearest(pts, held.x + (shift ? shift.dx : 0), held.y + (shift ? shift.dy : 0));
-    if(Math.abs(f - stored) > 1e-4){
-      f = +f.toFixed(4);
-      const kept = edgeStyleFor(from, to);
-      setEdgeStyleOverride(from, to, Object.assign({}, kept, {noteAt: f}));
-    }
+  const styleNow = edgeStyleFor(from, to);
+  /* A note that has never been moved stands on the middle, and belongs
+     there in the same way as one put there with Shift. */
+  const snap = styleNow.noteSnap || (Math.abs(stored - 0.5) < 1e-9 ? 'mid' : null);
+  let f = sliding ? stored : settleAnchor(pts, stored, snap, held, false);
+  if(Math.abs(f - stored) > 1e-4){
+    f = +f.toFixed(4);
+    setEdgeStyleOverride(from, to, Object.assign({}, styleNow, {noteAt: f}));
   }
   const m = pointAtFraction(pts, f);
-  noteAnchors.set(key, {x: m.x, y: m.y, at: f, pts: pts.map(q=> ({x:q.x, y:q.y}))});
+  noteAnchors.set(key, heldAnchor(pts, f));
   // The perpendicular, flipped so it always points away from the viewer's
   // idea of "under" the line — up for a horizontal run, left for a
   // vertical one — and then flipped again if the note belongs below.

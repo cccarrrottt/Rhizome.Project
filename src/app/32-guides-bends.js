@@ -241,12 +241,23 @@ window.addEventListener('mouseup', ()=>{
  * let go, an entry let go — each affected connector is routed once without
  * its bends, and if that is the line already drawn, the bends go. Then the
  * ones the drawn route simply passes straight through go as well. */
-function samePolyline(a, b){
+/* "The same line", as a reader judges it rather than to the pixel.
+ *
+ * A bend dragged back to where the connector used to turn lands on the
+ * ruled grid, and the corner it came from did not: the two routes have the
+ * same shape and every corner within a step of the other, and that was
+ * enough for them to count as different — so the bends stayed, and the
+ * next move of either entry dragged the line through them. Same number of
+ * corners, turning the same ways, each within BEND_SAME_TOL of its
+ * counterpart, is the same line. */
+const BEND_SAME_TOL = GRID + 2;
+function samePolyline(a, b, tol){
+  const t = (typeof tol === 'number') ? tol : 0.6;
   const norm = (pts)=> tidyPoints((pts || []).map(q=> ({x:q.x, y:q.y})));
   const p = norm(a), q = norm(b);
   if(p.length !== q.length) return false;
   for(let i = 0; i < p.length; i++){
-    if(Math.abs(p[i].x - q[i].x) > 0.6 || Math.abs(p[i].y - q[i].y) > 0.6) return false;
+    if(Math.abs(p[i].x - q[i].x) > t || Math.abs(p[i].y - q[i].y) > t) return false;
   }
   return true;
 }
@@ -267,8 +278,16 @@ function pruneHandBends(pairs){
     const a = nodes.get(pr.from), b = nodes.get(pr.to);
     if(!rec || !e || !a || !b) return;
     const bare = Object.assign({}, edgeStyleFor(pr.from, pr.to), {bends: undefined});
+    /* Routed against the OTHER connectors only. The record of what has
+       been drawn still holds this connector's own bent route, and the
+       router steers away from overlapping what is there — so the trial
+       dodged its own ghost and came out a different shape from the one it
+       would really take. */
+    const key = calloutEdgeKey(pr.from, pr.to);
+    resetRoutedSegments();
+    drawnRoutes.forEach((r, k)=>{ if(k !== key && r && r.pts) registerRoutedSegments(r.pts); });
     const auto = routeEdge(a, b, bare, ports.get(e));
-    if(auto && samePolyline(auto.pts, rec.pts)){
+    if(auto && samePolyline(auto.pts, rec.pts, BEND_SAME_TOL)){
       setBendList(pr.from, pr.to, []);
       changed = true;
       return;
@@ -610,7 +629,11 @@ function paintLeaderGhost(f){
 function leaderFractionAt(ev){
   const p = clientToWorld(ev.clientX, ev.clientY);
   let f = fractionNearest(leaderPick.pts, p.x, p.y);
-  if(ev.shiftKey) f = nearestConnectorSnap(leaderPick.pts, f);
+  if(ev.shiftKey){
+    const sn = nearestSnapRecord(leaderPick.pts, f);
+    if(sn) f = sn.f;
+    leaderPick.snapName = snapNameFor(leaderPick.pts, sn);
+  } else leaderPick.snapName = null;
   return f;
 }
 

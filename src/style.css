@@ -494,8 +494,15 @@
   /* The glare: see the lit pattern in 10-decor. A paler ruling and a thin
      wash, so the band lightens the ground a little rather than bleaching
      it — on a white page a full white-out read as a hole in the chart. */
-  .unreleased-line-lit{stroke:#aab4c1;stroke-width:4.6;}
-  .unreleased-sheen{fill:#eef2f7;opacity:0.35;}
+  /* A steel sheen rather than a white-out: bluer and stronger than the grey
+     ruling it crosses, so the band reads on white paper without punching a
+     hole in it. */
+  .unreleased-line-lit{stroke:#7d92ad;stroke-width:4.6;}
+  .unreleased-sheen{fill:#eef2f7;opacity:0.2;}
+  /* On the dark page the drawing is turned over, so a light is drawn DARK
+     here to come out bright — the same trick for both grounds. */
+  :root[data-theme="dark"] .unreleased-line-lit{stroke:#3a4a60;}
+  :root[data-theme="dark"] .fanfic-line-lit{stroke:#8a5a00;}
 
   /* ---- what a special tag does, performed ---------------------------
      Still at rest, and moving only while the entry is under the pointer
@@ -536,13 +543,20 @@
    * the ring, for the same reason: at rest the rings are a graded stack and
    * should stay one, but three waves of three different weights are three
    * different waves. */
+  /* …on the local multiverse's rhythm: the next wave sets off when the one
+     before it is half-way out. The three rings leave a third of a turn
+     apart, so each one's journey takes two thirds of the turn and it
+     rests, unseen, for the last third — two waves in flight at every
+     moment, the younger always half the distance of the older. */
   @keyframes hub-echo-out{
-    0%   { transform:scale(var(--echo-sx0, 0.55), var(--echo-sy0, 0.55));
-           stroke-width:1.3; opacity:0; }
-    16%  { opacity:0.5; }
-    70%  { opacity:0.22; }
-    100% { transform:scale(var(--echo-sx1, 1), var(--echo-sy1, 1));
-           stroke-width:1.3; opacity:0; }
+    0%     { transform:scale(var(--echo-sx0, 0.55), var(--echo-sy0, 0.55));
+             stroke-width:1.3; opacity:0; }
+    10%    { opacity:0.5; }
+    47%    { opacity:0.22; }
+    66.66% { transform:scale(var(--echo-sx1, 1), var(--echo-sy1, 1));
+             stroke-width:1.3; opacity:0; }
+    100%   { transform:scale(var(--echo-sx1, 1), var(--echo-sy1, 1));
+             stroke-width:1.3; opacity:0; }
   }
   .node-aura.tag-lively .hub-echo{
     transform-box:fill-box;transform-origin:center;
@@ -645,29 +659,25 @@
      the band clear of the patch altogether, and the glint is faded out at
      both ends besides: whatever the exact geometry, the frame the loop
      restarts on is a frame with nothing drawn on it. */
+  /* How strong the light gets is the ground's to say, and the page's:
+     --glint-peak is set per ground below, and again for the dark page. */
   @keyframes fanfic-sweep{
     0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
-    14%  { opacity:0.5; }
-    86%  { opacity:0.5; }
+    14%  { opacity:var(--glint-peak, 0.5); }
+    86%  { opacity:var(--glint-peak, 0.5); }
     100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
   }
   .fanfic-glint.tag-lively, .unreleased-glint.tag-lively{
     opacity:0.5;
     animation:fanfic-sweep 3.4s linear infinite;
   }
-  /* The same sweep, a little stronger than the weave's: a pale band over a
-     pale ruling needs more than half strength to be seen at all, and less
-     than full to stay a reflection rather than a blank. */
-  @keyframes unreleased-sweep{
-    0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
-    14%  { opacity:0.6; }
-    86%  { opacity:0.6; }
-    100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
-  }
-  .unreleased-glint.tag-lively{
-    opacity:0.6;
-    animation-name:unreleased-sweep;
-  }
+  /* A pale band over a pale ruling needs more than half strength to be
+     seen at all, and less than full to stay a reflection. */
+  .fanfic-glint{--glint-peak:0.5;}
+  .unreleased-glint{--glint-peak:0.75;}
+  .unreleased-glint.tag-lively{opacity:0.75;}
+  :root[data-theme="dark"] .fanfic-glint{--glint-peak:0.9;}
+  :root[data-theme="dark"] .unreleased-glint{--glint-peak:0.9;}
 
   /* Anybody who has asked for less movement gets the pictures, still. */
   @media (prefers-reduced-motion: reduce){
@@ -901,7 +911,7 @@
      canvas, so it stays readable where it crosses the grid or another line. */
   .edge-note-plate{fill:var(--paper);stroke:var(--ink);stroke-width:0.8;}
   .edge-note-text{
-    font-family:'IBM Plex Sans',sans-serif,'Noto Color Emoji';font-weight:500;font-size:8.5px;
+    font-family:Arial, Helvetica, sans-serif,'Noto Color Emoji';font-weight:500;font-size:8.5px;
     fill:var(--ink);text-anchor:middle;dominant-baseline:middle;
     pointer-events:none;
   }
@@ -2495,6 +2505,7 @@
   .bar-place{opacity:0.6;}
   .bar-place-mid{fill:var(--paper);stroke:var(--accent);stroke-width:1.8;opacity:1;}
   .bar-place-lineage{fill:#2f6f9f;}
+  .bar-place-slot{fill:var(--accent);}
   .bar-place-taken{fill:none;stroke:var(--accent);stroke-width:1.4;}
 
   /* Two parents of a merge, selected together, can change places. */

@@ -285,7 +285,18 @@ function alignFacingPorts(result){
     if(!off || Math.abs(off) > PORT_ALIGN_MAX) return;
     // Both give way, so neither is dragged the whole distance off centre.
     const moved = nudgePortAlong(p1, off/2);
-    nudgePortAlong(p2, -(off - moved));
+    const moved2 = nudgePortAlong(p2, -(off - moved));
+    /* …and when one of them cannot — a side shared out between several
+       connectors keeps its even spacing — the other takes the rest, as
+       far as its own slack still allows. It used to stop at half, and a
+       lone connector dropping onto a shared edge came down, stepped
+       sideways by the half it had not taken, and went on. */
+    const left = off - moved + moved2;
+    if(Math.abs(left) > 0.01){
+      const room = Math.max(0, portSlack(p1) - Math.abs(moved));
+      const more = Math.max(-room, Math.min(room, left));
+      if(Math.abs(more) > 0.01) movePortAlong(p1, more);
+    }
     // And whatever the two sides' slack could not close is closed anyway,
     // if it is small enough that a step would be a wobble. See PORT_SQUEEZE.
     const rest = p2[key] - p1[key];

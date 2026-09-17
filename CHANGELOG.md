@@ -6,6 +6,28 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.9.26 — "Remarks that ride their legs" — 2026-09-17
+
+- **Leg-relative anchors** (`settleAnchor`, `legPlace`, `routeLegs`): callouts
+  and notes keep their share of the leg they are on; snapped places are stored
+  as `noteSnap` / `leader.snap` (`'mid'`, `'leg:N'`) and followed live.
+  `noteAt` and `noteSnap` are now serialised (`noteAt` was lost on save).
+- **Arrowheads on rippled borders** (`wavyHeadDrop`): the head is lowered onto
+  the stroked wave so it touches and never crosses it.
+- **Waves**: half-wave 6, peak 1.6 (connectors) / lift 2.1 (pocket); runs and
+  sides are filled exactly (`pocketSideLayout`), no end or corner flats,
+  `WAVY_CORNER_R` 2.5.
+- **Merge bar**: end parents unleashed outward; `AMALGAM_PITCH` 15; places are
+  n even slots about the middle, plus the middle when n is even.
+- **Ports**: a lone port takes the full offset to meet a shared one.
+- **Text / clicks**: notes use the default face (Arial); no callout card or
+  caption Text card on a single click.
+- **Lights**: `--glint-peak` per ground and per theme; unreleased lit ruling is
+  steel; dark-page lit colours drawn dark to invert bright; hub echo on the
+  half-way rhythm.
+- **Bends**: pruned when the bare route matches within `BEND_SAME_TOL`, the
+  trial routed against the other connectors only.
+
 ## 0.9.25 — "Places to put things" — 2026-09-17
 
 - **Dark page.** A theme button in the top bar; panels get a dark palette, the

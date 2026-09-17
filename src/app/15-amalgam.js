@@ -1,4 +1,10 @@
-const AMALGAM_GAP = 24, AMALGAM_LEAD = 34, AMALGAM_PITCH = 30;
+/* AMALGAM_PITCH is the least room between two lineages' landings. It was
+   thirty, which is far more than the bar needs — the turn onto the bar is
+   a corner of EDGE_CORNER_R and each lineage owns half the gap either side
+   of it — and it showed as an invisible wall a whole box-width short of a
+   neighbour whenever a parent was slid along the bar. Two radii and a
+   little air is enough for both corners to keep their shape. */
+const AMALGAM_GAP = 24, AMALGAM_LEAD = 34, AMALGAM_PITCH = 2 * 6 + 3;
 // The furthest the shared bar may stand off its entry, and the furthest
 // along that bar a lineage may land.
 /* The span cap stops the bar growing across the chart — but it is also
@@ -764,19 +770,39 @@ function amalgamsFedBy(id){
   });
   return out;
 }
-function barPlacesFor(barRec, excludeFrom, withLandings){
-  const others = (barRec.landings || []).filter(l=> l.from !== excludeFrom)
-                                        .map(l=> l.at).sort((a, b)=> a - b);
-  if(!others.length) return [];
+/* The places are the bar divided evenly, from its middle outward.
+ *
+ * A merge of n lineages has n even slots across its bar — the positions
+ * the lineages would stand at if they were spaced out evenly — and they
+ * are laid out symmetrically about the middle, so the division is the
+ * same on both sides. With an odd number of lineages one slot IS the
+ * middle; with an even number the middle falls between two, and is
+ * offered as a place of its own. The amalgam, which stands under the bar
+ * rather than on it, is also offered each lineage where it actually lands.
+ *
+ * `span` fixes the ends the division is made between; a parent carried
+ * along its bar measures from where the bar was when it was picked up,
+ * since the bar grows and shrinks under it as it goes. */
+function barPlacesFor(barRec, _carried, withLandings, span){
+  const all = (barRec.landings || []).map(l=> l.at).sort((a, b)=> a - b);
+  const n = all.length;
+  if(n < 2) return [];
+  const lo = span ? span.lo : all[0], hi = span ? span.hi : all[n - 1];
+  const mid = (lo + hi) / 2, step = (hi - lo) / (n - 1);
   const places = [];
   const put = (at, kind)=>{
     const same = places.find(p=> Math.abs(p.at - at) < 1);
     if(same){ if(kind === 'mid') same.kind = 'mid'; return; }
     places.push({at, kind});
   };
-  put((others[0] + others[others.length - 1]) / 2, 'mid');
-  for(let i = 1; i < others.length; i++) put((others[i-1] + others[i]) / 2, 'between');
-  if(withLandings) others.forEach(at=> put(at, 'lineage'));
+  put(mid, 'mid');
+  for(let i = 0; i < n; i++){
+    const off = (i - (n - 1) / 2) * step;
+    put(mid + off, Math.abs(off) < 1e-6 ? 'mid' : 'slot');
+  }
+  if(withLandings) all.forEach(at=> put(at, 'lineage'));
+  // `_carried` names the parent in the hand. It is not left out: every
+  // slot, its own included, is somewhere it may be put.
   return places.sort((a, b)=> a.at - b.at);
 }
 /* What a single carried entry can line up with on a bar, if anything:
@@ -796,7 +822,7 @@ function barTargetsFor(st){
     const mine = (bar.landings || []).find(l=> l.from === m.id);
     if(!mine) return;
     const leash = st.barLeash && st.barLeash.find(l=> l.amalgam === b.id);
-    out.push({bar, places: barPlacesFor(bar, m.id, false),
+    out.push({bar, places: barPlacesFor(bar, m.id, false, leash ? leash.span : null),
               portOff: leash ? leash.portOff : 0});
   });
   return out;
@@ -804,10 +830,9 @@ function barTargetsFor(st){
 /* The parent's leash along its bar, taken when the drag starts.
  *
  * A parent carried along the bar stays between the lineages either side of
- * it and inside the bar's own length: past a neighbour the lineages would
- * cross and the colours the bar is divided into would change hands, and
- * past the end the bar would have to grow to follow — which is exactly the
- * construction being rearranged by accident rather than on purpose. Two
+ * it: past a neighbour the lineages would cross and the colours the bar is
+ * divided into would change hands. The two at the ends are free outward —
+ * they are what sets the bar's length. Two
  * parents that really are meant to change places are swapped with the
  * button that appears when both are selected (see the swap below). The
  * junction the merged arrow leaves from is not a neighbour; a lineage may
@@ -820,9 +845,13 @@ function barLeashFor(id, originCentre){
     const i = list.findIndex(l=> l.from === id);
     if(i < 0) return;
     const centre = bar.axis === 'x' ? originCentre.x : originCentre.y;
-    const lo = i > 0 ? list[i-1].at + AMALGAM_PITCH : bar.lo;
-    const hi = i < list.length - 1 ? list[i+1].at - AMALGAM_PITCH : bar.hi;
+    /* The lineages at the two ends are what the bar's length IS, so they
+       may go outward as far as they like; only a neighbour stops a
+       lineage, and only at the least room two landings need. */
+    const lo = i > 0 ? list[i-1].at + AMALGAM_PITCH : -Infinity;
+    const hi = i < list.length - 1 ? list[i+1].at - AMALGAM_PITCH : Infinity;
     out.push({amalgam: b.id, axis: bar.axis, portOff: list[i].port - centre,
+              span: {lo: bar.lo, hi: bar.hi},
               lo: Math.min(lo, list[i].at), hi: Math.max(hi, list[i].at)});
   });
   return out;

@@ -11,9 +11,19 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.9.25';
+const APP_VERSION = '0.9.26';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.9.26', date:'2026-09-17', title:'Remarks that ride their legs', notes:[
+'A remark belongs to a part of its connector. Callouts and notes are now kept as a share of the leg they stand on: a stretch that shrinks carries its remark with it in proportion, so a parent slid along its bar no longer shoves the callout on its neighbour’s stretch ahead of it. A remark put with Shift on the middle of the connector, or on the middle of one of its legs, keeps to that middle however the line changes. A note’s place is now actually saved — it was being dropped when the chart was written out.',
+'Arrowheads rest on a rippled border. The tip was put on the wave’s centre line at one point, so the neighbouring crests and the border’s own stroke pushed into the head; the head is now lowered onto the stroked border until it touches, at the tip or on a flank, and crosses it nowhere.',
+'The squiggle is softer and fills its lines: longer, shallower half-waves, stretched to fit each run and each side exactly, with no bare stretch at the ends or round the corners.',
+'On a merge, the lineages at the ends of the bar may go outward — they are what sets its length — and a parent stops only a corner’s width short of its neighbour instead of a box’s. Shift divides the bar evenly about its middle, with as many places as there are lineages and the middle offered separately only when it falls between two.',
+'A lone connector dropping onto a side shared by several now takes the whole of the offset itself, and comes down straight.',
+'Callouts and notes are set in the same face, the chart’s default one. A click on a callout or a caption only selects it; the Delete and Text cards that came up are gone — the Delete key, the in-place toolbar and the corner grip already do their work.',
+'The light on the unreleased ground is a steel sheen that reads on white, and both grounds shine brighter on the dark page. A hub’s echo goes out on the local multiverse’s rhythm: the next wave leaves when the last is half-way.',
+'Bends put back to within a grid step of where the connector turned on its own are removed; the trial route that decides this no longer steers around the connector’s own bent self.',
+  ]},
   {v:'0.9.25', date:'2026-09-17', title:'Places to put things', notes:[
 'The drawing can be dark. The moon in the top bar turns the page over: the panels take a dark palette, and the chart is drawn exactly as on paper and then inverted with its hues turned back, so a red lineage is still red and a portrait still looks like itself. The choice is remembered in the browser.',
 'Shift along a connector offers three kinds of place, drawn three ways: the twentieths, the middle of each straight leg, and the middle of the whole connector as a ring. The two ends are no longer offered. A note being slid shows which place it has taken, and a note on the middle stays on the middle however long the connector grows.',

@@ -110,13 +110,14 @@ svg.addEventListener('mousedown', ev=>{
     const f = leaderFractionAt(ev);
     leaderPick.phase = 'aim';
     leaderPick.at = f;
+    leaderPick.snap = leaderPick.snapName || null;
     leaderPick.anchor = pointAtFraction(leaderPick.pts, f);
     leaderPick.aim = null;
     setStyleStatus('ok', 'Now click where the note should stand — Shift snaps the angle, Ctrl comes off the grid, Escape cancels.');
     paintLeaderAim(leaderPick.anchor, {dir:-90, len:CALLOUT_GAP*2}, false);
     return;
   }
-  const {from, to, at, anchor} = leaderPick;
+  const {from, to, at, anchor, snap} = leaderPick;
   const aim = leaderPick.aim || leaderAimAt(ev, leaderPick.anchor);
   endCalloutPick();
   leaderJustPlaced = true;
@@ -130,20 +131,20 @@ svg.addEventListener('mousedown', ev=>{
   const a = aim.dir * Math.PI / 180;
   const cx = anchor.x + Math.cos(a) * aim.len;
   const cy = anchor.y + Math.sin(a) * aim.len;
-  addCalloutAt(from, to, at, cx, cy);
+  addCalloutAt(from, to, at, cx, cy, snap);
 }, true);
 /* A new callout, centred on a point, pointing at a place on a connector.
    Created empty with its text editor open: an empty card with the caret in
    it says what happens next, which is what made picking a point feel like
    it had done something. */
 const CALLOUT_DEFAULT_W = 96, CALLOUT_DEFAULT_H = 26;
-function addCalloutAt(from, to, at, cx, cy){
+function addCalloutAt(from, to, at, cx, cy, snap){
   if(readOnlyView) return null;
   const ids = new Set(workingNodes.map(it=> it[0]));
   const id = uniqueId('callout', ids);
   const opts = {pos: [Math.round(cx - CALLOUT_DEFAULT_W/2),
                       Math.round(cy - CALLOUT_DEFAULT_H/2)]};
-  if(from && to) opts.leader = {from, to, at};
+  if(from && to) opts.leader = validSnap(snap) ? {from, to, at, snap} : {from, to, at};
   applyEdit(()=> workingNodes.push([id, '', null, null, null, 'callout', opts]));
   /* A new callout has no words yet, and the field is where they come
      from — so it opens on the card itself, as it would on a double click. */
