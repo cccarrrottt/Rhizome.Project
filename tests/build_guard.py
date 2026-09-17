@@ -37,7 +37,7 @@ def check(name, ok, detail=''):
 def sandbox():
     """A copy of the project with a live page to pull from."""
     tmp = Path(tempfile.mkdtemp(prefix='rhizome-build-'))
-    for part in ('src', 'dist'):
+    for part in ('src', 'dist', 'tools'):
         if (ROOT / part).exists():
             shutil.copytree(ROOT / part, tmp / part)
     shutil.copy(ROOT / 'build.py', tmp / 'build.py')
@@ -55,6 +55,29 @@ def parts_of(tmp):
 def run(tmp, *args):
     return subprocess.run([sys.executable, 'build.py', *args],
                           cwd=tmp, capture_output=True, text=True)
+
+
+def run_check(tmp):
+    return subprocess.run([sys.executable, 'tools/data_check.py'],
+                          cwd=tmp, capture_output=True, text=True)
+
+
+def edit_one_label(text):
+    """A page whose chart has been edited, with the same number of entries.
+
+    The hard case for a staleness check, and the ordinary one in life:
+    somebody renamed something. A check that compares how many items a
+    region holds sees nothing at all here, which is why the real one
+    compares the text.
+    """
+    m = re.search(r'(/\* @@EDIT:NODES:START@@ \*/)(.*?)(/\* @@EDIT:NODES:END@@ \*/)',
+                  text, re.S)
+    assert m, 'fixture: no NODES region in the built page'
+    body, n = re.subn(r"(\[\s*'[^']*',\s*')([^']*)(')",
+                      lambda g: g.group(1) + g.group(2) + ' EDITED' + g.group(3),
+                      m.group(2), count=1)
+    assert n == 1, 'fixture: found no entry label to rename'
+    return text[:m.start(2)] + body + text[m.end(2):]
 
 
 def strip_region(text, name):
@@ -220,6 +243,77 @@ def main():
     built = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
     check('and the built page contains the parts concatenated verbatim',
           joined in built, f'{len(joined)} chars of parts, {len(built)} of page')
+
+    # 11. The chart lives in two places and only one of them is committed.
+    #     dist/ is generated and ignored, so a clean checkout has no live page
+    #     at all and builds from src/data.js — which means CI, and the site CI
+    #     publishes, are built from the sources' copy however stale it is.
+    #     Neither half of that may happen in silence.
+    tmp = sandbox()
+    shutil.rmtree(tmp / 'dist')
+    r = run(tmp)
+    check('a build with no live page to carry from still succeeds',
+          r.returncode == 0, r.stdout + r.stderr)
+    check('and says that it used src/data.js and nothing else',
+          'src/data.js' in r.stdout and 'NOTE' in r.stdout, r.stdout)
+    r = run_check(tmp)
+    check('the data check calls a missing dist/ a fresh clone, not a failure',
+          r.returncode == 0, r.stdout + r.stderr)
+
+    # A live page that is ahead of the sources is the state this exists for,
+    # and the entry count is deliberately left alone: renaming something is
+    # what staleness usually looks like.
+    tmp = sandbox()
+    live_page = tmp / 'dist' / 'nexus.html'
+    live_page.write_text(edit_one_label(live_page.read_text(encoding='utf-8')),
+                         encoding='utf-8')
+    r = run_check(tmp)
+    check('the data check fails when the sources are behind the live page',
+          r.returncode == 1, r.stdout + r.stderr)
+    check('and names the region, though the entry count is unchanged',
+          'NODES' in r.stdout and 'DIFFERS' in r.stdout, r.stdout)
+    r = run(tmp)
+    check('a build says so too, rather than carrying it across in silence',
+          r.returncode == 0 and 'NOTE' in r.stdout and 'NODES' in r.stdout,
+          r.stdout)
+
+    # And the cure it prescribes has to be the cure. A message naming a
+    # command that does not settle the thing it is named for is worse than
+    # no message, because it is followed.
+    r = run(tmp, '--pull', 'dist/nexus.html')
+    check('the remedy the message gives runs', r.returncode == 0,
+          r.stdout + r.stderr)
+    r = run_check(tmp)
+    check('and leaves the sources current', r.returncode == 0,
+          r.stdout + r.stderr)
+
+    # A page built before a region existed cannot be compared against a
+    # source that has it. That is neither "current" nor "behind", and the
+    # answer must not round down to an all-clear: a tool that says the
+    # sources are fine on evidence it does not have is worse than no tool.
+    tmp = sandbox()
+    live_page = tmp / 'dist' / 'nexus.html'
+    live_page.write_text(
+        re.sub(r'/\* @@EDIT:REFS:START@@ \*/.*?/\* @@EDIT:REFS:END@@ \*/',
+               'const REFS = [];', live_page.read_text(encoding='utf-8'),
+               count=1, flags=re.S),
+        encoding='utf-8')
+    r = run_check(tmp)
+    check('a region missing from the built page is not reported as current',
+          r.returncode == 2 and 'current' not in r.stdout.split('REFS')[-1],
+          r.stdout + r.stderr)
+    check('and the reason names the region and what to do',
+          'REFS' in r.stdout and 'rebuild' in r.stdout, r.stdout)
+
+    # The other way round matters as much: a check that cries wolf on a
+    # checkout that is already current gets switched off within a week.
+    r = run_check(sandbox())
+    check('a checkout that is current is reported as current',
+          r.returncode == 0 and 'DIFFERS' not in r.stdout, r.stdout)
+    tmp = sandbox()
+    r = run(tmp)
+    check('and its build says nothing about staleness',
+          r.returncode == 0 and 'NOTE' not in r.stdout, r.stdout)
 
     print(f'\n{PASS} passed, {FAIL} failed\n')
     return 1 if FAIL else 0

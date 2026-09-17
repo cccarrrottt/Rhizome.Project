@@ -25,13 +25,22 @@ build.py       welds src/ into the single file the artifact host needs
 eslint.config.mjs  three rules, all three about bindings that are not what
                    they look like; see the file for why there are only three
 tools/lint.py  lints the ASSEMBLED program and reports per part
+tools/data_check.py
+               is the chart in the repository the chart that is live? see
+               "Where the chart's contents actually live" below
+tools/shards.js
+               the browser suite in parallel shards — see "Tests" below
+tools/bench.js what a rebuild costs, and how much of it is text measurement;
+               the numbers in CLAUDE.md come from here, so they can be
+               re-run rather than believed
 tests/
   regression.js   the browser suite, run against dist and against src
   build_guard.py  checks the built page against what src/ says it should be
-package.json   npm run build / test / test:src / test:build / lint
+package.json   npm run build / test / test:src / test:fast / test:list /
+               test:build / lint / check:data / bench
 .github/workflows/ci.yml
-               build, guard, lint, both suites; publishes the standalone
-               copy to Pages from main
+               data check, build, guard, lint, both suites in four shards
+               each; publishes the standalone copy to Pages from main
 .backups/      the last three copies of src/data.js and dist/nexus.html,
                written before either is overwritten; not part of the sources
 dist/          GENERATED — not in the repository, see "The repository" below
@@ -120,11 +129,15 @@ npm install          # eslint and playwright; there is no lockfile yet
 python3 build.py     # writes dist/
 ```
 
-CI runs on every push and pull request: the build, the build guard, the lint,
+CI runs on every push and pull request: the data check (before the build, so
+it sees the checkout's own chart rather than one made from it a step
+earlier), the build, the build guard, the lint,
 and the regression suite twice — once against `dist`, once against `src`,
 because they load the program by different paths and a green run on one says
-nothing about the other. The built files are attached to each run as an
-artifact, so a copy is always downloadable without building.
+nothing about the other. Each of those two runs is split across four shards
+that run at the same time, so a regression job is about a minute and a half
+rather than six. The built files are attached to each run as an artifact, so
+a copy is always downloadable without building.
 
 On `main`, and only after everything above is green, `dist/nexus-standalone.html`
 is published to GitHub Pages as `index.html`. That is the copy with its own
@@ -156,6 +169,37 @@ So the live artifact, not the repository, holds the current chart. A plain
 sources. If you have edited the chart in the browser since the last build,
 save that page and pass it with `--pull` so your edits come back into the
 sources first — otherwise the next publish would overwrite them.
+
+### The half of that which is easy to miss
+
+The plain build carries those regions **in memory**. It writes them into the
+page it is building and leaves `src/data.js` alone; only `--pull` writes back.
+And `dist/` is generated and not committed, so a clean checkout has no live
+page at all — which means CI builds from `src/data.js` and nothing else, and
+the site CI publishes is the sources' copy however far behind it has drifted.
+
+Both copies can therefore disagree for months while every local build looks
+perfectly correct, because every local build carries the chart across. The
+first visible symptom would be a published page that has lost work nobody
+deleted.
+
+```bash
+python3 tools/data_check.py     # npm run check:data
+```
+
+reads both and says so. It exits non-zero when `src/data.js` is behind
+`dist/nexus.html`, names the regions, and gives the one command that fixes
+it — `python3 build.py --pull dist/nexus.html`. A missing `dist/` is reported
+as a fresh clone rather than as a failure, because that is what CI is, and a
+check that cried wolf there would be switched off within a week; it prints
+the chart's inventory instead, so every CI run's log records what that run
+publishes. Regions are compared as text rather than by how many entries they
+hold: renaming something changes no count, and that is what most staleness
+looks like.
+
+The build now says the same two things itself — that it had nothing to carry
+from, or that what it carried differs from the sources — so neither case is
+silent.
 
 ## The two published copies
 
@@ -369,18 +413,32 @@ Both cost real bugs in this codebase, and both look fine in the source:
 
 ## Tests
 
+    python3 tools/data_check.py       # is the repository's chart the live one
     python3 tests/build_guard.py      # the built page against what src/ says
     python3 tools/lint.py             # the assembled program, reported per part
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The two regression runs take about six minutes each and both want port 8830,
-so run them one after the other — or set `RHIZOME_TEST_PORT` to move one of
-them. They pick up Playwright from `node_modules` and let it choose its own
+The browser suite is 67 named scenarios, and they are independent of one
+another — checked rather than assumed, by running it in shards and confirming
+the shards print exactly the checks one whole run prints. So it need not be
+waited through:
+
+    node tests/regression.js --list           what there is to run
+    node tests/regression.js --only=callout   just those — about 20 seconds
+    node tools/shards.js                      all of it, four ways, about 90s
+    node tools/shards.js src                  the same against the sources
+
+An `--only` that matches nothing exits 2, not 0: a mistyped scenario name
+used to look exactly like a run that passed.
+
+A plain run takes about six minutes and wants port 8830; `tools/shards.js`
+gives each shard a port of its own, so nothing collides. They pick up Playwright from `node_modules` and let it choose its own
 browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
 instead, which is what CI and the original sandbox each do.
 
-111 scenarios (105 against `src`, where reading its own source does not apply), driven through a real browser against the real built page: boot, undo/redo, all
+67 scenarios and 526 checks — 517 against `src`, where reading its own source
+does not apply — driven through a real browser against the real built page: boot, undo/redo, all
 nine archetypes, card layout, connector clearance on a dense chart, every panel, tag filtering,
 search, the grid, export/import round-tripping, a full unhosted save-reload-restore cycle with
 the host runtime deleted, the semicircle geometry, tag categories, connector-note formatting,

@@ -52,6 +52,14 @@ jobs:
       - name: Install eslint
         run: npm install --no-audit --no-fund
 
+      # Before the build, deliberately. A checkout has no dist/, so this is
+      # the one moment the chart in the REPOSITORY can be seen on its own —
+      # and the repository's copy is what this run publishes. Build first and
+      # the comparison becomes a tautology, because dist/ would then have
+      # been made from src/ a step earlier.
+      - name: What chart this checkout carries
+        run: python3 tools/data_check.py
+
       - name: Build
         run: python3 build.py
 
@@ -68,14 +76,19 @@ jobs:
           path: dist/
           retention-days: 14
 
+  # The suite is 67 named scenarios and they do not depend on one another —
+  # which is checked rather than assumed: four shards print exactly the checks
+  # one whole run prints, by name. So they run as shards, and a regression job
+  # is about a minute and a half instead of six.
   test:
-    name: Regression (${{ matrix.target }})
+    name: Regression (${{ matrix.target }} ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     needs: build
     strategy:
       fail-fast: false
       matrix:
         target: [dist, src]
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -98,7 +111,7 @@ jobs:
         run: python3 build.py
 
       - name: Run the suite
-        run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }}
+        run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }} --shard=${{ matrix.shard }}/4
 
   pages:
     name: Publish to Pages

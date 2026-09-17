@@ -10,7 +10,11 @@
     "test": "node tests/regression.js",
     "test:src": "node tests/regression.js src",
     "lint": "python3 tools/lint.py",
-    "test:build": "python3 tests/build_guard.py"
+    "test:build": "python3 tests/build_guard.py",
+    "check:data": "python3 tools/data_check.py",
+    "bench": "node tools/bench.js",
+    "test:list": "node tests/regression.js --list",
+    "test:fast": "node tools/shards.js"
   },
   "devDependencies": {
     "eslint": "^9.0.0",

@@ -71,7 +71,7 @@ def run_eslint(targets):
 
 def main():
     starts = assemble()
-    targets = [str(ASSEMBLED), 'src/data.js', 'tests']
+    targets = [str(ASSEMBLED), 'src/data.js', 'tests', 'tools']
     r = run_eslint(targets)
     if r is None:
         sys.stderr.write('eslint not found. Run: npm ci\n')
