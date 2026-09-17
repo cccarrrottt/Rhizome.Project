@@ -159,6 +159,11 @@ function measureText(text, {bold, italic, fontSize, family}={}){
 if(document.fonts && document.fonts.ready){
   document.fonts.ready.then(()=>{
     measureCache.clear();
+    /* And the block cache with it. It is declared further down — the two
+       are emptied for one reason and must be emptied together, so this
+       reaches forward rather than growing a second fonts.ready handler
+       that could be registered, or removed, independently of this one. */
+    blockCache.clear();
     if(typeof rebuildChart === 'function' && nodes && nodes.size) rebuildChart();
   }).catch(()=>{});
 }
@@ -367,6 +372,57 @@ function autoNodeWidth(texts, fontSize, family, maxLines, maxWidth){
   }
   return cap;
 }
+/* Measured BLOCKS, remembered.
+ *
+ * measureText above remembers the width of a STRING; this remembers the ink
+ * box of a whole laid-out block, and it is the expensive one. Each call
+ * builds the text off-canvas and asks getBBox for the result — a forced,
+ * synchronous layout, taken while renderNodes is appending to the very same
+ * SVG. Measured on a synthetic chain: it is 54–63% of everything a rebuild
+ * costs, at exactly two calls per entry.
+ *
+ * Two calls per entry is not an estimate either. renderNodes measures every
+ * text an entry can show in order to size the box, and then measures the
+ * ACTIVE one again to centre it — with the same maxChars and the same fit,
+ * both computed above and unchanged in between. So half of every render's
+ * measurements were already answered during that same render, before any
+ * question of remembering them across renders arises.
+ *
+ * WHAT THE ANSWER DEPENDS ON, which is what the key has to carry:
+ *
+ * The arguments, and one thing that is not among them. A citation draws as
+ * the number the reference has IN REFS — refMarkText reads its position —
+ * so reordering the list changes `[9]` to `[10]` and with it the width of
+ * every text that cites it. That is the whole of the hidden state: a
+ * sticker's box is stickerBox(fontSize), a function of the size alone, so
+ * neither the picture nor the library it comes from can move anything.
+ *
+ * So a text carrying no citation is keyed by its arguments, and one that
+ * does also carries the order of the reference keys. Nothing here is a
+ * counter that a future write site can forget to bump; the key is derived
+ * from the state it depends on, every time.
+ *
+ * Fonts are the other way answers go stale — every width changes at once
+ * when a webfont lands — and that is handled where measureCache handles it,
+ * by emptying both and redrawing. */
+const blockCache = new Map();
+const BLOCK_CACHE_MAX = 4000;
+function refOrderKey(){
+  let s = '';
+  for(let i = 0; i < REFS.length; i++) s += (REFS[i] && REFS[i].key) + '';
+  return s;
+}
+function blockCacheKey(text, maxChars, lineH, fontScale, fontOpts, fit){
+  const t = String(text == null ? '' : text);
+  return t + ' ' + maxChars + ' ' + lineH + ' ' + fontScale +
+    ' ' + ((fontOpts && fontOpts.fontSize) || '') +
+    ' ' + ((fontOpts && fontOpts.family) || '') +
+    ' ' + ((fit && fit.maxWidth) || '') +
+    ' ' + ((fit && fit.fontSize) || '') +
+    ' ' + ((fit && fit.family) || '') +
+    ' ' + (fit && fit.noWrap ? 1 : 0) +
+    ' ' + (t.indexOf('{{r:') < 0 ? '' : refOrderKey());
+}
 /* How much room a block of text actually takes, measured rather than
    estimated.
  *
@@ -383,6 +439,12 @@ function autoNodeWidth(texts, fontSize, family, maxLines, maxWidth){
  * outside it. Make a character bigger or give it a descender and the box
  * follows, because the thing being measured has changed. */
 function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
+  const key = blockCacheKey(text, maxChars, lineH, fontScale, fontOpts, fit);
+  const hit = blockCache.get(key);
+  // A fresh object every time. Nothing currently writes to what this hands
+  // back, and a shared one would make the first thing that did so rewrite
+  // the remembered answer for every entry that shares it.
+  if(hit) return {width: hit.width, height: hit.height, mid: hit.mid};
   while(measureBlockG.firstChild !== measureBlockText && measureBlockG.firstChild){
     measureBlockG.removeChild(measureBlockG.firstChild);
   }
@@ -406,6 +468,9 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
   if(!bb || !Number.isFinite(bb.width) || !Number.isFinite(bb.height)){
     // No layout available (a detached document, a test harness): fall back
     // to the arithmetic this replaced, so nothing collapses to nothing.
+    // Deliberately NOT remembered: this is what the page says when it
+    // cannot measure, not what the text measures, and caching it would
+    // keep answering with it after layout became available again.
     const m = wrapAndMeasure(text, maxChars, lineH, fontScale, fit);
     return {width: 0, height: m.totalH, mid: 0};
   }
@@ -415,7 +480,13 @@ function measureTextBlock(text, maxChars, lineH, fontScale, fontOpts, fit){
      further off. Handing this back lets the drawing centre the INK on the
      box rather than the line grid, which is what stops a word with a
      descender sitting high in its border. */
-  return {width: bb.width, height: bb.height, mid: bb.y + bb.height/2};
+  const out = {width: bb.width, height: bb.height, mid: bb.y + bb.height/2};
+  // Dropped wholesale past a sane size rather than evicted one at a time,
+  // for the reason measureCache is: the only way an entry here goes stale
+  // is the webfonts landing, which invalidates every one of them at once.
+  if(blockCache.size >= BLOCK_CACHE_MAX) blockCache.clear();
+  blockCache.set(key, out);
+  return {width: out.width, height: out.height, mid: out.mid};
 }
 function textForActive(n, activeIdx){
   if(activeIdx===null || activeIdx===undefined || !n.langTabs) return n.label;

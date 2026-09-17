@@ -92,11 +92,12 @@ export default [
     rules: {'no-redeclare': 'error', 'no-undef': 'error'}
   },
   {
-    /* The test runner is Node, but most of its body is callbacks handed to
-       Playwright's page.evaluate — source that is compiled in the BROWSER,
-       against the chart's own scope, which nothing here can see. no-undef
-       would report every one of those as an error and mean nothing by it. */
-    files: ['tests/**/*.js'],
+    /* The test runner and the benchmark are Node, but most of their bodies
+       are callbacks handed to Playwright's page.evaluate — source that is
+       compiled in the BROWSER, against the chart's own scope, which nothing
+       here can see. no-undef would report every one of those as an error and
+       mean nothing by it. */
+    files: ['tests/**/*.js', 'tools/**/*.js'],
     languageOptions: {
       ecmaVersion: 2022, sourceType: 'script',
       globals: {require: 'readonly', module: 'writable', process: 'readonly',

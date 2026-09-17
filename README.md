@@ -28,6 +28,9 @@ tools/lint.py  lints the ASSEMBLED program and reports per part
 tools/data_check.py
                is the chart in the repository the chart that is live? see
                "Where the chart's contents actually live" below
+tools/bench.js what a rebuild costs, and how much of it is text measurement;
+               the numbers in CLAUDE.md come from here, so they can be
+               re-run rather than believed
 tests/
   regression.js   the browser suite, run against dist and against src
   build_guard.py  checks the built page against what src/ says it should be

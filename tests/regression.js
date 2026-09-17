@@ -8699,7 +8699,83 @@ async function main(){
         r45.amalgamHexHidden && r45.plainHexBack,
         JSON.stringify({merge:r45.amalgamHexHidden, plain:r45.plainHexBack}));
 
-  /* ---- 28. nothing threw along the way ---- */
+  /* ---- 28. the measured block cache is invisible ----
+   *
+   * More than half of what a rebuild cost was measureTextBlock, at exactly
+   * two calls per entry — the box is sized from every text the entry can
+   * show, then the active one is measured again to centre it, with the same
+   * maxChars and the same fit. Remembering the answers took a rebuild of
+   * 600 entries from 772 ms to 288 ms.
+   *
+   * A cache is only allowed to exist here if nothing can tell. The one
+   * piece of state its arguments do not carry is the order of REFS: a
+   * citation draws as the number its reference has in the list, so moving
+   * one changes [1] to [11] and with it the width of every text that cites
+   * it. These check both halves — that a remembered answer equals a
+   * computed one, and that the answer still moves when that order does. */
+  const rCache = await page.evaluate(() => {
+    const out = {};
+    const opts = {fontSize: NODE_FS, family: fontFamilyFor(null)};
+    const fit = {maxWidth: 164, fontSize: NODE_FS, family: fontFamilyFor(null)};
+    const call = t => measureTextBlock(t, 30, LINE_H, 1, opts, fit);
+    const same = (a, b) => a.width === b.width && a.height === b.height && a.mid === b.mid;
+
+    const texts = ['', 'x', 'a label long enough that it has to wrap somewhere',
+                   'two\nlines', '{{s:images}}', 'a [[base|anno]] reading',
+                   '{{#cc2222|coloured}} and {{u:solid|ruled}}'];
+    out.hitEqualsFresh = texts.every(t => {
+      blockCache.clear();
+      return same(call(t), call(t));
+    });
+
+    // The mark's width has to actually change, so the reference is moved
+    // past ten others: [1] and [11] are not the same number of glyphs.
+    const kept = REFS.slice();
+    const key = kept.length ? kept[0].key : null;
+    if (key) {
+      const cited = 'cites {{r:' + key + '}} here';
+      const pad = () => { for (let i = 0; i < 10; i++) REFS.push({key: '__p' + i, title: 'p'}); };
+      blockCache.clear();
+      REFS.length = 0; kept.forEach(x => REFS.push(x)); pad();
+      const front = call(cited);
+      REFS.length = 0; pad(); kept.forEach(x => REFS.push(x));
+      const back = call(cited);
+      REFS.length = 0; kept.forEach(x => REFS.push(x)); pad();
+      const backAgain = call(cited);
+      REFS.length = 0; kept.forEach(x => REFS.push(x));
+      out.refsMatter = front.width !== back.width;
+      out.refsRestore = same(front, backAgain);
+    } else {
+      out.refsMatter = out.refsRestore = null;   // no reference to move
+    }
+
+    // And a whole chart has to come out identical drawn cold and drawn warm.
+    const before = workingNodes;
+    const list = [];
+    for (let i = 0; i < 40; i++) {
+      list.push(['mc' + i, 'Entry ' + i + (i % 3 ? '' : '\nsecond line'),
+                 i ? 'mc' + (i - 1) : null, null, null, null, {}]);
+    }
+    workingNodes = list;
+    const geom = () => JSON.stringify([...nodes.values()].map(n => [n.id, n.x, n.y, n.w, n.h]));
+    blockCache.clear();
+    rebuildChart();
+    const cold = geom();
+    rebuildChart();
+    out.geometrySame = cold === geom();
+    workingNodes = before;
+    rebuildChart();
+    return out;
+  });
+  check('a remembered measurement equals a computed one', rCache.hitEqualsFresh);
+  check('moving a reference still changes what a citing text measures',
+        rCache.refsMatter !== false, String(rCache.refsMatter));
+  check('and restoring its place restores the measurement',
+        rCache.refsRestore !== false, String(rCache.refsRestore));
+  check('a chart lays out identically with the cache cold and warm',
+        rCache.geometrySame);
+
+  /* ---- 29. nothing threw along the way ---- */
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
   await browser.close(); srv.close();

@@ -125,16 +125,52 @@ Chromium at 1500×950, a synthetic chain of tagged entries:
 | built page | 2.46 MB, 1.35 MB gzipped |
 | `src/data.js` | 1.30 MB, of which ~1.26 MB is two base64 blobs |
 
-Two conclusions follow, and both have survived several attempts to find a
-cheaper answer:
-
-- **The only real ceiling is `renderNodes`**, which is 1114 lines and rebuilds
-  everything on every edit. Incremental rendering is the one optimisation
-  worth doing, and only with an equivalence check proving the incremental path
-  produces what the full path produces.
 - **Weight is media, not code.** Cutting program out of the page saves
   kilobytes against a megabyte of embedded pictures. Moving media to separate
   files is the size win, and it needs a host that serves more than one file.
+
+### What `rebuildChart` was actually spending its time on
+
+This file used to say the ceiling was `renderNodes` being long, and that
+incremental rendering was the one optimisation worth doing. Measurement said
+otherwise, and `tools/bench.js` is the measurement, so it can be re-run
+rather than believed. A synthetic chain, this machine, median of five:
+
+| entries | rebuild before | of that, `measureTextBlock` | rebuild after |
+| ---: | ---: | --- | ---: |
+| 50 | 53.6 ms | 100 calls, 33.7 ms — **63%** | **19.1 ms** |
+| 200 | 196.2 ms | 400 calls, 115 ms — **59%** | **64.7 ms** |
+| 600 | 772.1 ms | 1200 calls, 420 ms — **54%** | **288.2 ms** |
+
+Over half of a rebuild was measuring text, at exactly two calls per entry —
+`renderNodes` sizes the box from every text an entry can show, then measures
+the active one AGAIN to centre it, with the same `maxChars` and the same
+`fit`, both computed above and unchanged in between. Half of every render's
+measurements were answers it had already worked out during that same render.
+
+Remembering them (see `blockCache` in `05-render-text.js`) takes measurement
+from 54–63% of a rebuild to 1–2%, and the whole rebuild to about a third of
+what it was. Even with the cache cold, half the calls are served, because the
+duplicate pair lands in the same render: a cold 600-entry rebuild is 651 ms.
+
+Two things follow:
+
+- **Incremental rendering is no longer the obvious next move.** What made
+  rebuilds expensive was not that `renderNodes` is long; it was a forced
+  synchronous layout per entry, taken while the SVG was being appended to.
+  Whatever is proposed next should come with a measurement like the one
+  above, not with an argument about the shape of the function.
+- **A two-phase render — measure everything, then build the DOM — was the
+  other half of this and is not worth doing.** Its whole gain was collapsing
+  those forced layouts into one, and measurement is now 1–2% of a rebuild.
+  It would be invasive surgery on 1123 lines for something already spent.
+
+The cache is only allowed to exist because nothing can tell it is there, and
+that is checked rather than asserted: see the named checks in
+`tests/regression.js`. The one piece of state its arguments do not carry is
+the order of `REFS` — a citation draws as the number its reference has in the
+list, so moving one changes `[1]` to `[11]` and the width of every text that
+cites it. The key carries that order, and only for texts that cite anything.
 
 ## Directions already rejected, with the reason
 
