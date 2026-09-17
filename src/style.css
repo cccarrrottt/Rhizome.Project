@@ -452,9 +452,12 @@
      the light crossing it has something to brighten — at #7d8794 and a
      third of the opacity, the sweep was happening to a ruling nobody could
      see it happen to. */
-  .unreleased-line{stroke:#525c6b;stroke-width:1.5;fill:none;}
-  .unreleased-rule{opacity:0.5;}
-  .unreleased-line-lit{stroke:#c6d0dd;stroke-width:1.9;}
+  .unreleased-line{stroke:#525c6b;stroke-width:2;fill:none;}
+  .unreleased-rule{opacity:0.42;}
+  /* The glare: see the lit pattern in 10-decor. Near-white ruling on a
+     near-white wash, so the band lightens the ground instead of tinting it. */
+  .unreleased-line-lit{stroke:#fbfdff;stroke-width:2.8;}
+  .unreleased-sheen{fill:#f4f8fd;opacity:0.78;}
 
   /* ---- what a special tag does, performed ---------------------------
      Still at rest, and moving only while the entry is under the pointer
@@ -613,6 +616,18 @@
   .fanfic-glint.tag-lively, .unreleased-glint.tag-lively{
     opacity:0.5;
     animation:fanfic-sweep 3.4s linear infinite;
+  }
+  /* The same sweep, at the strength a glare needs: at half strength a
+     near-white band over a pale grey ruling was barely a change at all. */
+  @keyframes unreleased-sweep{
+    0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
+    14%  { opacity:0.95; }
+    86%  { opacity:0.95; }
+    100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
+  }
+  .unreleased-glint.tag-lively{
+    opacity:0.95;
+    animation-name:unreleased-sweep;
   }
 
   /* Anybody who has asked for less movement gets the pictures, still. */
@@ -2157,7 +2172,7 @@
   /* Under the pointer, and while it is being carried. The handle that
      catches the pointer is four times the dot across, so the dot has to
      say when it is the thing about to move. */
-  .leader-dot.lifted, body.leader-reaiming .leader-dot{
+  .leader-dot.lifted{
     r:5.5;
     transition:r 90ms ease-out;
   }

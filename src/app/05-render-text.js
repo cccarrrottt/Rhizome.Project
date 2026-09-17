@@ -206,13 +206,15 @@ function layoutLine(textEl, words, centerX, baselineY, fontOpts){
           x: cursorX, y: baselineY - box*0.8, width: box, height: box,
           class: 'sticker-glyph', preserveAspectRatio: 'xMidYMid meet'
         }, holder);
+        shareTextClip(textEl, img);
         img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', src);
         img.setAttribute('href', src);
       } else if(holder){
         // A sticker whose picture is gone leaves a quiet placeholder
         // rather than a hole in the sentence.
-        el('rect', {x:cursorX, y:baselineY - box*0.8, width:box, height:box,
-                    rx:3, class:'sticker-missing'}, holder);
+        shareTextClip(textEl,
+          el('rect', {x:cursorX, y:baselineY - box*0.8, width:box, height:box,
+                      rx:3, class:'sticker-missing'}, holder));
       }
     } else if(w.type==='ref'){
       /* The mark, and ONLY the mark, is clickable.
@@ -566,6 +568,7 @@ function paintUnderlines(txtEl){
         Object.assign({class:'text-underline', stroke:ink,
                        style:`fill:none;stroke-width:${w.toFixed(2)};`}, attrs), host);
       e.dataset.forText = key;
+      shareTextClip(txtEl, e);
       return e;
     };
     if(kind === 'wavy'){
@@ -592,4 +595,17 @@ function paintUnderlines(txtEl){
   });
 }
 let underlineSeq = 0;
+/* What is drawn BESIDE a text is cut where the text is cut.
+ *
+ * A label too long for its box is clipped at the border (see clipText in
+ * renderNodes) — but the clip is on the <text>, and an underline or an
+ * inline sticker cannot live inside a <text>, so they are its siblings and
+ * the clip never reached them. The words stopped at the border and their
+ * underline ran on across the chart. Whatever window the text is seen
+ * through, the things drawn alongside it are seen through the same one. */
+function shareTextClip(txtEl, elm){
+  if(!txtEl || !elm) return;
+  const clip = txtEl.getAttribute('clip-path');
+  if(clip) elm.setAttribute('clip-path', clip);
+}
 

@@ -187,18 +187,45 @@ function refreshSaveUI(){
 
 // The single wrapper every edit goes through: snapshot for undo, mutate,
 // redraw, update the Save button.
-function applyEdit(mutate){
+/* `before`, when given, is the state the edit started from, taken by the
+   caller. A drag that shows itself live — a bend, a note sliding along its
+   line, the bends a group carries — has already changed the data by the
+   time it is dropped, so a snapshot taken at the drop is a snapshot of the
+   result, and undoing to it undid nothing. Those gestures take their
+   snapshot on the first frame that moves and hand it in here. */
+function applyEdit(mutate, before){
   if(readOnlyView) return;
-  pushUndo();
+  pushUndo(before);
   mutate();
   rebuildChart();
   refreshSaveUI();
 }
 // Every edit records where it started, and abandons any forward history.
-function pushUndo(){
-  undoStack.push(takeSnapshot());
-  while(undoStack.length > LOCAL_UNDO_LIMIT) undoStack.shift();
+/* A step that would put back exactly what is already there is not a step.
+ *
+ * Several edits say "one undo for this session" with a pushUndo of their
+ * own and then go through applyEdit, which pushes again — two identical
+ * snapshots, so the first Ctrl+Z restored the state the chart was already
+ * in and looked like it had done nothing. Rather than chase every caller,
+ * the stack refuses a duplicate of its own top. */
+function pushUndo(before){
+  const snap = before || takeSnapshot();
+  const top = undoStack[undoStack.length - 1];
   redoStack.length = 0;
+  if(top && snapshotsEqual(top, snap)) return;
+  undoStack.push(snap);
+  while(undoStack.length > LOCAL_UNDO_LIMIT) undoStack.shift();
+}
+// Compared as snapshots, without reading either back: the text, and the
+// lifted strings by identity, exactly as regionDiffers does.
+function snapshotsEqual(a, b){
+  for(const r of SAVED_REGIONS){
+    const x = a[r.k], y = b[r.k];
+    if(!x || !y) return false;
+    if(x.json !== y.json || x.blobs.length !== y.blobs.length) return false;
+    for(let i = 0; i < x.blobs.length; i++) if(x.blobs[i] !== y.blobs[i]) return false;
+  }
+  return true;
 }
 // A short message in the top bar, then back to whatever the save state is.
 function flashStatus(msg){

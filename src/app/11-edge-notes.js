@@ -308,7 +308,14 @@ function drawCalloutLeaders(from, to, pts, paint){
                        'data-from':from, 'data-to':to}, edgeLayer);
     el('line', {class:'leader-line', x1:m.x.toFixed(2), y1:m.y.toFixed(2),
                 x2:edge.x.toFixed(2), y2:edge.y.toFixed(2), stroke:ink}, g);
-    el('circle', {class:'leader-dot', cx:m.x.toFixed(2), cy:m.y.toFixed(2),
+    /* Only the dot actually being carried is drawn lifted. The drag used
+       to say so with a class on <body>, which every dot on the chart
+       matched — so sliding one anchor swelled all of them, and nothing
+       said which was in the hand. The leaders are redrawn every frame of
+       that drag, so the mark is put back here, on the one that moves. */
+    const carried = !!(anchorDrag && anchorDrag.moved && anchorDrag.id === n.id);
+    el('circle', {class: carried ? 'leader-dot lifted' : 'leader-dot',
+                  cx:m.x.toFixed(2), cy:m.y.toFixed(2),
                   r:LEADER_DOT_R, fill:ink}, g);
     /* The dot is a handle. Where a callout ATTACHES is as much a decision
        as where it stands, and until now it could only be set once, in the
@@ -355,7 +362,10 @@ function drawCalloutLeaders(from, to, pts, paint){
    where it attaches is not an invitation to re-aim it, so the offset from
    the anchor to the card is what is held constant.
    ------------------------------------------------------------------ */
-let anchorDrag = null;
+// `var`, not `let`: the leaders are drawn by a function above that reads
+// this to know which dot is in the hand, and a `let` would be unreachable
+// if anything drew them before this line had run.
+var anchorDrag = null;
 function beginAnchorDrag(ev, id, pts){
   if(ev.button !== 0 || readOnlyView) return;
   ev.stopPropagation(); ev.preventDefault();
@@ -440,7 +450,6 @@ window.addEventListener('mouseup', ()=>{
   setTimeout(()=>{ leaderJustPlaced = false; }, 0);
   const n = nodes.get(st.id);
   if(!n) return;
-  pushUndo();
   applyEdit(()=>{
     const found = workingEntry(st.id);
     if(!found) return;
@@ -516,6 +525,7 @@ window.addEventListener('mousemove', ev=>{
   if(!st.moved){
     if(Math.hypot(ev.clientX - st.startX, ev.clientY - st.startY) < DRAG_THRESHOLD) return;
     st.moved = true;
+    st.before = takeSnapshot();
     document.body.classList.add('leader-reaiming');
   }
   st.at = anchorFractionAt(ev, st);
@@ -546,12 +556,11 @@ window.addEventListener('mouseup', ()=>{
      it and re-open the panel on top of what was just done. */
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
-  pushUndo();
   applyEdit(()=>{
     const kept = edgeStyleFor(st.from, st.to);
     setEdgeStyleOverride(st.from, st.to,
       Object.assign({}, kept, {noteAt: +st.at.toFixed(4)}));
-  });
+  }, st.before);
   refreshSaveUI();
 });
 /* A connector's note is a PLATE: a few words laid on, above or below the
@@ -590,8 +599,35 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
      remark belongs where the thing it remarks on is, and on a long
      connector crossing a crowded chart the middle is often the one stretch
      with no room for it. Dragged along the plate itself; see noteDrag. */
-  const f = (typeof at === 'number' && at >= 0 && at <= 1) ? at : 0.5;
+  const stored = (typeof at === 'number' && at >= 0 && at <= 1) ? at : 0.5;
+  /* …and where it rides is a POINT, as a callout's anchor is.
+   *
+   * The fraction is how the place is written down, and a fraction of a
+   * route slides whenever the route changes length: moving either entry,
+   * a bend, a callout card the router steers round — anything that
+   * re-routed this connector carried the note along it, round a corner
+   * onto a leg of the other orientation, and from "above" to "left". So
+   * the point last drawn is kept and the note stays on the part of the new
+   * route nearest it; a route that merely moved takes the note with it.
+   * The fraction is rewritten to match, so a saved chart opens where it
+   * closed. A fraction set by somebody since — the reader's own drag, an
+   * undo — is the newer word, and the point is rebuilt from it. */
+  const key = calloutEdgeKey(from, to);
+  const held = noteAnchors.get(key);
+  let sliding = false;
+  try{ sliding = !!(noteDrag && noteDrag.from === from && noteDrag.to === to); }catch(e){}
+  let f = stored;
+  if(held && !sliding && Math.abs(held.at - stored) < 1e-6 && pts.length > 1){
+    const shift = routeShift(held.pts, pts);
+    f = fractionNearest(pts, held.x + (shift ? shift.dx : 0), held.y + (shift ? shift.dy : 0));
+    if(Math.abs(f - stored) > 1e-4){
+      f = +f.toFixed(4);
+      const kept = edgeStyleFor(from, to);
+      setEdgeStyleOverride(from, to, Object.assign({}, kept, {noteAt: f}));
+    }
+  }
   const m = pointAtFraction(pts, f);
+  noteAnchors.set(key, {x: m.x, y: m.y, at: f, pts: pts.map(q=> ({x:q.x, y:q.y}))});
   // The perpendicular, flipped so it always points away from the viewer's
   // idea of "under" the line — up for a horizontal run, left for a
   // vertical one — and then flipped again if the note belongs below.
@@ -600,35 +636,20 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   // Zero offset puts the plate squarely on the line, which is the point of
   // the "on" setting: the note interrupts its own connector, so there is
   // no doubt which line it belongs to.
-  let off = pos === 'on' ? 0 : (pos === 'below' ? -EDGE_NOTE_OFFSET : EDGE_NOTE_OFFSET);
-  let x = m.x + px * off;
-  let y = m.y + py * off;
-  /* A note that lands on an entry is unreadable and hides the entry too.
-     "on" is a deliberate choice to sit across the connector, so it is left
-     alone; the other two are only asking for a side, and either side will
-     do. Try further out, then the other side, and keep the first placement
-     that is clear — if nothing is, it stays where it was asked to go
-     rather than wandering somewhere that no longer reads as belonging to
-     this connector. */
-  if(pos !== 'on'){
-    const half = EDGE_NOTE_MAXW/2, tall = EDGE_NOTE_LINE_H;
-    // Corners, not width and height, so a rounded plate cannot leave a gap.
-    const clear = (cx, cy)=> !obstacleAll().some(r=>
-      cx + half > r.x0 && cx - half < r.x1 && cy + tall > r.y0 && cy - tall < r.y1);
-    if(!clear(x, y)){
-      const tries = [];
-      for(const dir of [1, -1]){
-        for(const dist of [EDGE_NOTE_OFFSET, EDGE_NOTE_OFFSET*2.2, EDGE_NOTE_OFFSET*3.4]){
-          tries.push(Math.sign(off || 1) * dir * dist);
-        }
-      }
-      for(const t of tries){
-        const nx2 = m.x + px * t, ny2 = m.y + py * t;
-        if(clear(nx2, ny2)){ x = nx2; y = ny2; break; }
-      }
-    }
-  }
-
+  const off = pos === 'on' ? 0 : (pos === 'below' ? -EDGE_NOTE_OFFSET : EDGE_NOTE_OFFSET);
+  const x = m.x + px * off;
+  const y = m.y + py * off;
+  /* The side it was asked for, and nothing else.
+   *
+   * A note that would have landed on an entry used to be tried further out
+   * and then on the other side. The test was made with the widest plate a
+   * note can ever have — a hundred and fifty units — whatever the note
+   * actually said, so a three-letter remark stepped away from boxes it was
+   * nowhere near, and flipped from above its line to below it whenever an
+   * edit anywhere on the chart moved something into that imaginary width.
+   * Where a note stands is the reader's decision now, made by the side
+   * setting and by sliding the plate along its line; the chart does not
+   * second-guess it. */
   const g = el('g', {class:'edge-note', 'data-from':from, 'data-to':to}, arrowLayer);
   /* The note is written ON the note. Double-click the plate and the field
      opens over it, in the note's own face and size — the same gesture, and

@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.9.23** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.9.24** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -437,7 +437,7 @@ gives each shard a port of its own, so nothing collides. They pick up Playwright
 browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
 instead, which is what CI and the original sandbox each do.
 
-69 scenarios and 544 checks — 535 against `src`, where reading its own source
+70 scenarios and 561 checks — 552 against `src`, where reading its own source
 does not apply — driven through a real browser against the real built page. The
 two webfont hosts are answered with an empty stylesheet rather than reached, so
 every machine runs the same test and it is the one the section above promises

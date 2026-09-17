@@ -16,6 +16,35 @@ function handBends(style){
                 Number.isFinite(b[0]) && Number.isFinite(b[1]))
     .map(b=> ({x: b[0], y: b[1]}));
 }
+/* How far off a neighbour's line a bend may be and still be put ON it.
+ *
+ * A bend is stored where it was dropped, on the ruled grid; the port it
+ * leads to is not on that grid, and moves whenever its side gains or loses
+ * a connector or its entry is resized. So a bend that was dead in line with
+ * the run out of its port when it was placed is, a little later, three
+ * units to one side of it — and the route goes out, steps three units
+ * across, and goes on: a knee that does not meet. Less than one grid step
+ * is never a statement anybody made with a bend, so the route squares it
+ * away when it is drawn, every time, rather than once when it is dropped. */
+const BEND_ABSORB = GRID - 0.5;
+function absorbBendOffsets(s1, bends, s2){
+  const out = bends.map(b=> ({x:b.x, y:b.y}));
+  const near = (u, v)=> Math.abs(u - v) > 0.01 && Math.abs(u - v) <= BEND_ABSORB;
+  // Forward from the source's run-out, each point against the one before…
+  let prev = s1;
+  out.forEach(b=>{
+    if(near(b.x, prev.x)) b.x = prev.x;
+    if(near(b.y, prev.y)) b.y = prev.y;
+    prev = b;
+  });
+  // …and the last against the target's, which it has to arrive in line with.
+  const last = out[out.length - 1];
+  if(last){
+    if(near(last.x, s2.x)) last.x = s2.x;
+    if(near(last.y, s2.y)) last.y = s2.y;
+  }
+  return out;
+}
 /* The polyline through those points, turned into right angles.
  *
  * Each leg between two consecutive points becomes an L, and which way
@@ -24,9 +53,10 @@ function handBends(style){
  * target's, and every leg in between starts on whichever axis the leg
  * before it finished on — so the run reads as one line turning corners
  * rather than as a chain of separate elbows. */
-function bentRoute(p1, p2, bends){
-  const s1 = stubPoint(p1, bends[0]);
-  const s2 = stubPoint(p2, bends[bends.length - 1]);
+function bentRoute(p1, p2, handBendsList){
+  const s1 = stubPoint(p1, handBendsList[0]);
+  const s2 = stubPoint(p2, handBendsList[handBendsList.length - 1]);
+  const bends = absorbBendOffsets(s1, handBendsList, s2);
   const chain = [s1, ...bends, s2];
   const out = [p1, s1];
   // Which axis the previous leg arrived on: 'x' means it was horizontal.
