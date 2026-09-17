@@ -61,6 +61,49 @@ function mediaSrcOk(src){
   }
   return !!safeUrl(src) && /^https?:/i.test(safeUrl(src));
 }
+/* The same question about a picture that is not a figure.
+ *
+ * A sticker and an entry's portrait are drawn the same way a figure is, out
+ * of bytes that can have come from somebody else's file — and they were not
+ * asked it. Import sanitized MEDIA, TAGCATS and REFS and passed STICKERS
+ * straight through, while a portrait went in as whatever `opts.image` said;
+ * nothing about that ran anyone's code, because an <img> and an SVG <image>
+ * do not execute a `javascript:` source, but "it happens not to be an <a>"
+ * is not a rule anybody wrote down. A src on a foreign chart could still
+ * name a host, and opening the chart would call on it.
+ *
+ * So the rule the figures already keep is the rule for every picture:
+ * carried in the file, or fetched over http(s), and nothing else. Videos
+ * are a figure's business alone — a sticker stands in a line of text. */
+function pictureSrcOk(src){
+  if(!mediaSrcOk(src)) return false;
+  const at = src.indexOf(';base64,');
+  if(at > 5 && src.slice(0, 5).toLowerCase() === 'data:'){
+    return /^image\//i.test(src.slice(5, at));
+  }
+  return true;
+}
+/* A sticker library from somewhere else, admitted on the same terms the
+   figures are: a key the markup could actually name, and a source that is
+   a picture. An item failing either is dropped rather than refused, so a
+   chart with one bad sticker in it still opens — which is what sanitizeMedia
+   does, and for the same reason. */
+function sanitizeStickers(list){
+  const seen = new Set(), out = [];
+  (Array.isArray(list) ? list : []).forEach(s=>{
+    if(!s || typeof s !== 'object') return;
+    const key = typeof s.key === 'string' ? s.key.trim() : '';
+    // The same shape the markup's {{s:key}} token will accept. A key outside
+    // it could never be written down in a text, so it is not a sticker at
+    // all — it is a record nothing can reach.
+    if(!key || !/^[A-Za-z0-9_-]+$/.test(key) || seen.has(key)) return;
+    const src = typeof s.src === 'string' ? s.src.trim() : '';
+    if(!pictureSrcOk(src)) return;
+    seen.add(key);
+    out.push({key, name: typeof s.name === 'string' ? s.name : key, src});
+  });
+  return out;
+}
 const mediaMap = new Map();
 function rebuildMediaMap(){
   mediaMap.clear();

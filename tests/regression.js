@@ -135,12 +135,35 @@ async function main(){
 
   const errors = [];
   const ctx = await browser.newContext({viewport:{width:1500, height:950}});
+
+  /* The webfonts are answered here, with nothing, on purpose.
+   *
+   * They used to be left to the network and the resulting console error
+   * filtered out by matching the message text against the host name. That
+   * does not work: Chromium reports a blocked stylesheet as "Failed to load
+   * resource: net::ERR_…" and does not put the URL in the message, so the
+   * filter matched nothing and every run on a machine without a route to
+   * Google Fonts came out red — this one included, for a whole day, on a
+   * check whose name says "no uncaught page errors".
+   *
+   * A suite that goes red because a third party is unreachable is testing
+   * the network. So the request never leaves: both hosts are answered with
+   * an empty stylesheet, which is exactly the case README promises works —
+   * the page falls back to system faces and is otherwise unchanged. Every
+   * machine now runs the same test, and the check can go back to meaning
+   * what it says.
+   */
+  let fontsAsked = 0;
+  const noFonts = r => { fontsAsked++; return r.fulfill({status: 200, contentType: 'text/css', body: ''}); };
+  await ctx.route('https://fonts.googleapis.com/**', noFonts);
+  await ctx.route('https://fonts.gstatic.com/**', noFonts);
+
   const page = await ctx.newPage();
   page.on('pageerror', e => errors.push(e.message));
-  /* The sandbox has no route to the font CDN and serves no favicon. Neither
-     says anything about this page, so they are filtered rather than left to
-     turn every run red. Anything else still counts. */
-  const NOISE = /favicon|fonts\.(googleapis|gstatic)\.com|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED/i;
+  /* The server answers /favicon.ico with a 204, so nothing here is about
+     it any more; what is left is filtered because a machine may still have
+     its own opinions about name resolution. */
+  const NOISE = /favicon|ERR_TUNNEL_CONNECTION_FAILED|ERR_NAME_NOT_RESOLVED/i;
   page.on('console', m => { if(m.type() === 'error' && !NOISE.test(m.text())) errors.push('console: ' + m.text()); });
   page.on('requestfailed', () => {});
 
@@ -157,11 +180,21 @@ async function main(){
     edges: document.querySelectorAll('#edgeLayer path').length,
     layers: ['bgLayer','backLayer','edgeLayer','nodeLayer','arrowLayer','frontLayer','bioCardLayer']
               .filter(id => document.getElementById(id)).length,
-    dirty: isDirty()
+    dirty: isDirty(),
+    measuredWidth: measureText('Measured', {})
   }));
   check('boots with nodes rendered', boot.rendered > 0, `${boot.rendered} nodes`);
   eq('all seven layers present', boot.layers, 7);
   eq('clean on load', boot.dirty, false);
+  /* The suite answers both font hosts with an empty stylesheet, so this whole
+     run IS the case README promises works: the page asks for its webfonts,
+     is given nothing, falls back to system faces and is otherwise unchanged.
+     Worth a check of its own, because otherwise it is a condition the suite
+     quietly imposes on itself and nobody would know it was being tested. */
+  check('asks for its webfonts, is given none, and draws anyway',
+        fontsAsked > 0 && boot.rendered > 0 && boot.measuredWidth > 0,
+        JSON.stringify({asked: fontsAsked, drew: boot.rendered,
+                        measured: boot.measuredWidth}));
 
   });
   /* ---- 2. undo / redo ---- */
@@ -9055,6 +9088,70 @@ async function main(){
   check('a chart that has not changed is not dirty', rSnap.cleanAtRest);
   check('changing only a portrait is still noticed', rSnap.dirtyAfterPortraitEdit);
   check('and putting it back is clean again', rSnap.cleanAgainWhenPutBack);
+  });
+
+  /* ---- 31. a picture from somebody else's file ----
+   *
+   * Import sanitized MEDIA, TAGCATS and REFS and passed STICKERS straight
+   * through; a portrait went in as whatever opts.image said. Nothing about
+   * that ran anyone's code — an <img> and an SVG <image> do not execute a
+   * javascript: source — but a src on a foreign chart could still name a
+   * host, and opening the chart would call on it. Every picture is asked the
+   * same question the figures were always asked. */
+  await scenario("a picture from somebody else's file", async () => {
+  const rPic = await page.evaluate(() => {
+    const out = {};
+    const good = 'data:image/png;base64,iVBORw0KGgo=';
+
+    out.admits = pictureSrcOk(good) && pictureSrcOk('https://example.com/a.png');
+    out.refusesScript = !pictureSrcOk('javascript:alert(1)');
+    out.refusesBlob = !pictureSrcOk('blob:https://example.com/x');
+    out.refusesFile = !pictureSrcOk('file:///etc/passwd');
+    /* A bare path is NOT refused, and should not be: it resolves against
+       the page, so `images/a.png` beside a chart on a web server is an
+       ordinary picture. What comes out is an http(s) URL like any other. */
+    out.resolvesRelative = pictureSrcOk('images/a.png');
+    out.refusesHtmlPayload = !pictureSrcOk('data:text/html;base64,PHNjcmlwdD4=');
+    // A sticker is a picture in a line of text; a clip is a figure's business.
+    out.refusesVideo = !pictureSrcOk('data:video/mp4;base64,AAAA');
+
+    const kept = sanitizeStickers([
+      {key: 'ok_one', name: 'fine', src: good},
+      {key: 'bad_src', name: 'script', src: 'javascript:alert(1)'},
+      {key: 'has spaces', name: 'unreachable key', src: good},
+      {key: 'ok_one', name: 'duplicate', src: good},
+      {key: 'phones_home', name: 'http', src: 'http://example.com/x.png'},
+      null, 'not an object'
+    ]);
+    out.keptKeys = kept.map(s => s.key).join(',');
+
+    // And a portrait that is not a picture simply does not draw, whatever
+    // path it arrived by.
+    const before = workingNodes;
+    workingNodes = [
+      ['pgood', 'Good', null, null, null, 'ellipse', {image: good}],
+      ['pbad', 'Bad', null, null, null, 'ellipse', {image: 'javascript:alert(1)'}]
+    ];
+    buildModel();
+    out.goodPortraitDraws = nodes.get('pgood').image === good;
+    out.badPortraitDropped = nodes.get('pbad').image === null;
+    workingNodes = before;
+    rebuildChart();
+    return out;
+  });
+  check('an embedded picture and an http one are both admitted', rPic.admits);
+  check('a javascript:, a blob: and a file: are not',
+        rPic.refusesScript && rPic.refusesBlob && rPic.refusesFile,
+        JSON.stringify({script: rPic.refusesScript, blob: rPic.refusesBlob,
+                        file: rPic.refusesFile}));
+  check('but a path beside the page is an ordinary picture', rPic.resolvesRelative);
+  check('nor is a data: URI that is not a picture at all',
+        rPic.refusesHtmlPayload && rPic.refusesVideo,
+        JSON.stringify({html: rPic.refusesHtmlPayload, video: rPic.refusesVideo}));
+  check('an imported library keeps what the markup could name and drops the rest',
+        rPic.keptKeys === 'ok_one,phones_home', rPic.keptKeys);
+  check('a portrait that is a picture still draws', rPic.goodPortraitDraws);
+  check('and one that is not simply does not', rPic.badPortraitDropped);
   });
 
   /* ---- 29. nothing threw along the way ---- */

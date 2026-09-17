@@ -244,6 +244,69 @@ def main():
     check('and the built page contains the parts concatenated verbatim',
           joined in built, f'{len(joined)} chars of parts, {len(built)} of page')
 
+    # 10b. The parts are joined with nothing between them, which is only safe
+    #      while each of them ends in a newline. One that does not would have
+    #      its last line joined to the next part's first — and a part ending
+    #      in a comment would comment that line out. Nothing about the page
+    #      would look wrong; something would simply not be there.
+    tmp = sandbox()
+    parts = parts_of(tmp)
+    victim = tmp / 'src' / 'app' / parts[2]
+    whole = victim.read_text(encoding='utf-8')
+    victim.write_text(whole.rstrip('\n') + '\n// a trailing comment, unterminated by a newline',
+                      encoding='utf-8')
+    r = run(tmp)
+    check('a part that does not end in a newline stops the build',
+          r.returncode != 0 and parts[2] in (r.stdout + r.stderr),
+          r.stdout + r.stderr)
+    victim.write_text(whole, encoding='utf-8')
+    r = run(tmp)
+    check('and putting the newline back lets it build again',
+          r.returncode == 0, r.stdout + r.stderr)
+
+    # 10c. The share copy is made by replacing a marker that exists for that
+    #      and nothing else. It used to be made by finding a function
+    #      declaration that happened to sit in the right place, so renaming
+    #      that function was a change to how the share copy is built.
+    tmp = sandbox()
+    r = run(tmp)
+    share = (tmp / 'dist' / 'nexus-share.html').read_text(encoding='utf-8')
+    editable = (tmp / 'dist' / 'nexus.html').read_text(encoding='utf-8')
+    check('the share copy declares itself read-only and the editable one does not',
+          share.count('markReadOnly(false);') == 1 and
+          'markReadOnly(false);' not in editable,
+          f'share {share.count("markReadOnly(false);")}, editable '
+          f'{editable.count("markReadOnly(false);")}')
+    # The marker is a comment in the sources, so the editable page keeps it,
+    # exactly as it keeps every other comment; the share copy is the one
+    # where it is spent. Both halves are worth pinning: a marker still
+    # present in the share copy would mean the replacement silently did not
+    # happen, and one missing from the editable page would mean the build
+    # was rewriting a page it has no business rewriting.
+    check('the marker is spent in the share copy and left alone in the editable one',
+          '@@SHARE:READONLY@@' not in share and '@@SHARE:READONLY@@' in editable)
+
+    part = next(p for p in parts_of(tmp)
+                if '@@SHARE:READONLY@@' in (tmp / 'src' / 'app' / p).read_text(encoding='utf-8'))
+    f = tmp / 'src' / 'app' / part
+    kept = f.read_text(encoding='utf-8')
+    # Renaming the function that used to be the anchor must now be nothing
+    # to do with the build.
+    f.write_text(kept.replace('function isReadOnlyError(e){',
+                              'function isRefusalAboutWriting(e){')
+                     .replace('isReadOnlyError(', 'isRefusalAboutWriting('),
+                 encoding='utf-8')
+    r = run(tmp)
+    check('renaming the function that used to be the anchor no longer matters',
+          r.returncode == 0, r.stdout + r.stderr)
+    # Losing the marker must stop the build, and say where it lived.
+    f.write_text(kept.replace('/* @@SHARE:READONLY@@ */', ''), encoding='utf-8')
+    r = run(tmp)
+    check('but losing the marker stops the build and names its file',
+          r.returncode != 0 and '22-file-comments.js' in (r.stdout + r.stderr),
+          r.stdout + r.stderr)
+    f.write_text(kept, encoding='utf-8')
+
     # 11. The chart lives in two places and only one of them is committed.
     #     dist/ is generated and ignored, so a clean checkout has no live page
     #     at all and builds from src/data.js — which means CI, and the site CI

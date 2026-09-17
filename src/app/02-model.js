@@ -461,7 +461,13 @@ workingNodes.forEach(item=>{
           typeof opts.pos[0]==='number' && typeof opts.pos[1]==='number') ? {x:opts.pos[0], y:opts.pos[1]} : null,
     // Portrait for a character bio: any URL the page may load, or an
     // embedded data: URI.
-    image: (opts && typeof opts.image==='string' && opts.image) ? opts.image : null,
+    /* A portrait, if it is a picture at all. Asked here rather than at
+       import, because this is the one place every path ends up — a chart
+       from a file, a chart out of browser storage, a chart edited by hand.
+       A source that is neither embedded nor an http(s) address simply does
+       not draw; see pictureSrcOk. */
+    image: (opts && typeof opts.image === 'string' && pictureSrcOk(opts.image))
+           ? opts.image : null,
     // Stacking order for free-standing images: 0 is the normal node layer,
     // -1 puts the element behind the connectors as a backdrop, +1 puts it
     // over everything else. Only images use it; nothing else needs to be

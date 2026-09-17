@@ -437,8 +437,11 @@ gives each shard a port of its own, so nothing collides. They pick up Playwright
 browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
 instead, which is what CI and the original sandbox each do.
 
-67 scenarios and 526 checks — 517 against `src`, where reading its own source
-does not apply — driven through a real browser against the real built page: boot, undo/redo, all
+69 scenarios and 544 checks — 535 against `src`, where reading its own source
+does not apply — driven through a real browser against the real built page. The
+two webfont hosts are answered with an empty stylesheet rather than reached, so
+every machine runs the same test and it is the one the section above promises
+works: the page asks, is given nothing, and draws on system faces. Covered: boot, undo/redo, all
 nine archetypes, card layout, connector clearance on a dense chart, every panel, tag filtering,
 search, the grid, export/import round-tripping, a full unhosted save-reload-restore cycle with
 the host runtime deleted, the semicircle geometry, tag categories, connector-note formatting,

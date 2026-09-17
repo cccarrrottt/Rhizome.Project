@@ -180,7 +180,26 @@ def read_app():
         # fails in the worst possible way — silently, as a function that is
         # simply not there — so it stops the build instead.
         sys.exit(f'build: src/app/ has {", ".join(stray)}, which APP_PARTS does not list')
-    return ''.join(read(SRC / 'app' / n) for n in APP_PARTS)
+
+    texts = [read(SRC / 'app' / n) for n in APP_PARTS]
+    # The parts are written out with NOTHING between them, here and in the
+    # loader in src/index.html, and that is only safe while every one of them
+    # ends in a newline. They all do. Nothing made them, and the day one does
+    # not, its last line and the next part's first line become one line: a
+    # part ending in a `// comment` would comment out the beginning of the
+    # part after it, and the program would be missing whatever that line
+    # declared — silently, which is the failure this whole file is arranged
+    # to prevent everywhere else.
+    #
+    # A separator would hide the problem rather than fix it, and would change
+    # the bytes of a page that is checked against itself. So the invariant is
+    # stated instead: end your part with a newline, as every editor does.
+    ragged = [n for n, t in zip(APP_PARTS, texts) if t and not t.endswith('\n')]
+    if ragged:
+        sys.exit(f'build: {", ".join(ragged)} does not end with a newline. The parts\n'
+                 '       are concatenated with nothing between them, so its last line\n'
+                 "       would be joined to the next part's first one.")
+    return ''.join(texts)
 
 
 def check_index_order(index):
@@ -410,13 +429,19 @@ def build():
         sys.exit('build: expected exactly one <title> to rename for the share copy')
     share = page.replace(title, '<title>Rhizome Project — read-only</title>')
 
-    anchor = 'function isReadOnlyError(e){'
+    # A marker that exists FOR this, rather than a line of the program that
+    # happens to sit in the right place. Searching for the declaration that
+    # follows it worked, and tied the share copy's build to a function's
+    # name: renaming it would have stopped the build for a reason with no
+    # connection to what the person had done. See the note beside the marker.
+    anchor = '/* @@SHARE:READONLY@@ */'
     if share.count(anchor) != 1:
-        sys.exit('build: could not find the read-only anchor for the share copy')
+        sys.exit(f'build: expected exactly one {anchor} to mark where the share copy\n'
+                 '       declares itself read-only; see src/app/22-file-comments.js')
     share = share.replace(anchor,
                           '// SHARE COPY: published with no write capability at all, so it\n'
                           '// is a reader by construction and can say so immediately.\n'
-                          'markReadOnly(false);\n' + anchor)
+                          'markReadOnly(false);')
     (DIST / 'nexus-share.html').write_text(share, encoding='utf-8')
     print(f'  dist/nexus-share.html  {len(share):>8,} chars')
 
