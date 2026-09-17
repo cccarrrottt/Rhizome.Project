@@ -4188,7 +4188,8 @@ async function main(){
       workingNodes.push(['w2','A fairly long single\nline of label text',
                          null,null,null,null,{pos:[67000,-1200]}]);
       workingNodes.push(['w3','An extremely long single line of label text that no box on this chart could ever be wide enough to hold in one piece',
-                         null,null,null,null,{pos:[67600,-1200]}]);
+                         null,null,null,null,{pos:[67600,-1200]}]);      workingNodes.push(['w4','{{u:solid|An extremely long underlined line that no box on this chart could hold}}',
+                         null,null,null,null,{pos:[67600,-900]}]);
     });
     rebuildChart();
     await wait(500);
@@ -4210,6 +4211,16 @@ async function main(){
     const longText = document.querySelector('[data-id="w3"] text');
     out.longIsClipped = !!longText && !!longText.getAttribute('clip-path');
     out.shortNotClipped = !document.querySelector('[data-id="w1"] text').getAttribute('clip-path');
+    /* …and what is drawn beside the text is cut in the same window. The
+       underline is a sibling of the <text>, so the text's clip never
+       reached it and it ran on past the border. */
+    {
+      const t4 = document.querySelector('[data-id="w4"] text');
+      const lines = [...document.querySelectorAll('[data-id="w4"] .text-underline')];
+      const want = t4 && t4.getAttribute('clip-path');
+      out.ruleClippedWithText = !!want && lines.length > 0 &&
+        lines.every(l=> l.getAttribute('clip-path') === want);
+    }
 
     /* Enter settles a text field and hands the keyboard back; Shift+Enter
        is the line break. */
@@ -4264,6 +4275,8 @@ async function main(){
         r22.cappedWidth && r22.longIsClipped && r22.shortNotClipped,
         JSON.stringify({w:r22.cappedWidth, clipped:r22.longIsClipped,
                         short:r22.shortNotClipped}));
+  check('and an underline under clipped words is cut at the same border',
+        r22.ruleClippedWithText);
   check('Enter settles a field and hands the keyboard back',
         r22.enterLeavesField && r22.enterSaved,
         JSON.stringify({left:r22.enterLeavesField, saved:r22.enterSaved}));
@@ -8609,7 +8622,19 @@ async function main(){
       const d = path ? path.getAttribute('d') : '';
       out.unreleasedStep = pat ? +pat.getAttribute('width') : null;
       out.unreleasedIsGrid = /H[\d.]+/.test(d) && /V[\d.]+/.test(d);
-      out.unreleasedDenser = out.unreleasedStep > 0 && out.unreleasedStep <= 8;
+      /* On the weave's own step: half of it closed into a grey tint at
+         ordinary zoom. And its light is a glare — a pale wash and a
+         near-white ruling — where the weave's is gold. */
+      const weave = document.getElementById('fanfic-weave');
+      out.unreleasedDenser = out.unreleasedStep > 0 && weave &&
+        out.unreleasedStep === +weave.getAttribute('width');
+      const litPat = document.getElementById('unreleased-rule-lit');
+      const litLine = litPat && litPat.querySelector('path');
+      const sheen = litPat && litPat.querySelector('.unreleased-sheen');
+      const lumOf = (c)=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
+        return m ? (+m[1]*0.299 + +m[2]*0.587 + +m[3]*0.114) : 0; };
+      out.glareIsLight = !!litLine && !!sheen &&
+        lumOf(getComputedStyle(litLine).stroke) > 235 && lumOf(getComputedStyle(sheen).fill) > 235;
       const cs = path ? getComputedStyle(path) : null;
       const rgb = cs ? cs.stroke : '';
       const lum = (()=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
@@ -8773,9 +8798,11 @@ async function main(){
     rebuildChart(); buildManagement(); await wait(400);
     return out;
   });
-  check('the unreleased ground is a close grid, not a comb of bars',
+  check('the unreleased ground is a grid on the weave\'s step, not a comb of bars',
         r44.unreleasedIsGrid && r44.unreleasedDenser,
         JSON.stringify({grid:r44.unreleasedIsGrid, step:r44.unreleasedStep}));
+  check('the light on the unreleased ground is a pale glare, not a colour',
+        r44.glareIsLight);
   check('and dark enough for the light crossing it to show',
         r44.unreleasedDark, r44.unreleasedInk);
   check('every echo a hub sends out covers the same ground',
@@ -9152,6 +9179,256 @@ async function main(){
         rPic.keptKeys === 'ok_one,phones_home', rPic.keptKeys);
   check('a portrait that is a picture still draws', rPic.goodPortraitDraws);
   check('and one that is not simply does not', rPic.badPortraitDropped);
+  });
+
+  /* ---- 32. what moves when something else is moved ----
+   *
+   * One round of behaviour that surprised its reader: things that were
+   * nowhere near the gesture reacting to it. */
+  await scenario("what moves when something else is moved", async () => {
+  const rMv = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const fire = (t, x, y, o, target)=> (target || window).dispatchEvent(new MouseEvent(t,
+      Object.assign({bubbles:true, cancelable:true, clientX:x, clientY:y, button:0}, o||{})));
+    const centreOf = (elm)=>{ const r = elm.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; };
+    const nodeEl = (id)=> document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    const dragEntry = async (id, dx, dy, keep)=>{
+      const c = centreOf(nodeEl(id));
+      fire('mousedown', c.x, c.y, {}, nodeEl(id));
+      for(let k = 1; k <= 6; k++){ fire('mousemove', c.x + dx*k/6, c.y + dy*k/6); await wait(30); }
+      if(keep) return;
+      fire('mouseup', c.x + dx, c.y + dy);
+      await wait(250);
+    };
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(420, 260);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+    if(edgePopover.classList.contains('open')) edgePopover.classList.remove('open');
+
+    /* The same state twice is one step of undo, not two. */
+    {
+      const n0 = undoStack.length;
+      pushUndo(); pushUndo();
+      out.undoDeduped = undoStack.length - n0 <= 1;
+    }
+
+    /* ---- a drag does not put up a grid the reader switched off ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['mvA','Alpha',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['mvB','Beta','mvA',null,null,null,{pos:[X + 320, Y + 180]}]);
+      workingNodes.push(['mvC','Gamma',null,null,null,null,{pos:[X, Y + 320]}]);
+      workingNodes.push(['mvD','Delta','mvC',null,null,null,{pos:[X + 320, Y + 320]}]);
+      workingNodes.push(['mvK1','one',null,null,null,'callout',{pos:[X + 120, Y + 80], leader:{from:'mvA', to:'mvB', at:0.3}}]);
+      workingNodes.push(['mvK2','two',null,null,null,'callout',{pos:[X + 260, Y + 250], leader:{from:'mvA', to:'mvB', at:0.8}}]);
+    });
+    await wait(700);
+    {
+      const wasOn = alignGridOn;
+      setAlignGrid(false);
+      const grid = document.getElementById('alignGrid');
+      const c = centreOf(nodeEl('mvC'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('mvC'));
+      for(let k = 1; k <= 5; k++){ fire('mousemove', c.x + k*6, c.y); await wait(30); }
+      out.gridStaysOff = getComputedStyle(grid).display === 'none';
+      fire('mouseup', c.x + 30, c.y);
+      await wait(250);
+      setAlignGrid(wasOn);
+      undoLastEdit();
+      await wait(250);
+    }
+
+    /* ---- only the dot in the hand is lifted ---- */
+    {
+      const hit = document.querySelector('.leader-dot-hit[data-id="mvK1"]');
+      const c = centreOf(hit);
+      fire('mousedown', c.x, c.y, {}, hit);
+      for(let k = 1; k <= 4; k++){ fire('mousemove', c.x + k*8, c.y + k*2); await wait(40); }
+      const lifted = [...document.querySelectorAll('.callout-leader .leader-dot.lifted')]
+        .map(d=> d.closest('.callout-leader').dataset.id);
+      out.liftedOnlyMine = lifted.length === 1 && lifted[0] === 'mvK1';
+      out.lifted = lifted.join(',');
+      fire('mouseup', c.x + 32, c.y + 8);
+      await wait(250);
+      undoLastEdit();
+      await wait(250);
+    }
+
+    /* ---- a dimmed connector does not open over a selection ---- */
+    {
+      selectNode('mvC');
+      paintSelectionHighlight('mvC');
+      await wait(100);
+      const far = document.querySelector('#edgeLayer path.edge-hit[data-from="mvA"][data-to="mvB"]');
+      far.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:600, clientY:300}));
+      await wait(100);
+      out.dimNotOpened = !edgePopover.classList.contains('open');
+      out.dimDeselects = selectedId === null;
+      selectNode('mvC');
+      paintSelectionHighlight('mvC');
+      await wait(100);
+      const mine = document.querySelector('#edgeLayer path.edge-hit[data-from="mvC"][data-to="mvD"]');
+      mine.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true, clientX:600, clientY:300}));
+      await wait(100);
+      out.litStillOpens = edgePopover.classList.contains('open');
+      edgePopover.classList.remove('open');
+      drawBendHandles();
+      deselect();
+    }
+
+    /* ---- a bend a few units off its run does not step ---- */
+    {
+      const rec0 = drawnRoutes.get(calloutEdgeKey('mvC','mvD'));
+      const p0 = rec0.pts[0];
+      const midX = (p0.x + rec0.pts[rec0.pts.length-1].x) / 2;
+      applyEdit(()=> setBendList('mvC','mvD', [[midX, p0.y + 4]]));
+      await wait(250);
+      const pts = drawnRoutes.get(calloutEdgeKey('mvC','mvD')).pts;
+      let jog = false;
+      for(let i = 1; i < pts.length; i++){
+        const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+        if(L > 0.3 && L < BEND_ABSORB + 0.1) jog = true;
+      }
+      out.noJog = !jog;
+      out.jogPts = pts.map(q=> Math.round(q.x) + ',' + Math.round(q.y)).join(' ');
+      /* …and a bend that bends nothing is taken out when it is let go. */
+      out.idleDropped = dropIdleBends('mvC','mvD', bendListOf('mvC','mvD')).length === 0;
+      applyEdit(()=> setBendList('mvC','mvD', []));
+      await wait(200);
+    }
+
+    /* ---- a group carries the bends of the connectors it holds whole ---- */
+    {
+      const bend = [[X + 160, Y + 400]];
+      applyEdit(()=> setBendList('mvC','mvD', bend));
+      await wait(250);
+      setSelection(['mvC','mvD'], 'mvC');
+      /* From an empty stack, so a full one (it is capped) cannot make the
+         count lie. */
+      undoStack.length = 0;
+      const u0 = 0;
+      await dragEntry('mvC', 50, 0);
+      const moved = bendListOf('mvC','mvD')[0] || [];
+      const dx = nodes.get('mvC').x - X;
+      out.bendCarried = Math.abs(moved[0] - (bend[0][0] + dx)) < 0.01 && Math.abs(moved[1] - bend[0][1]) < 0.01 && dx > 0;
+      out.bendCarriedAt = JSON.stringify({moved, dx});
+      undoLastEdit();
+      await wait(250);
+      const back = bendListOf('mvC','mvD')[0] || [];
+      out.undoPutsBendBack = back[0] === bend[0][0] && back[1] === bend[0][1] && nodes.get('mvC').x === X;
+      out.oneUndoStep = undoStack.length === u0;
+      deselect();
+      applyEdit(()=> setBendList('mvC','mvD', []));
+      await wait(200);
+    }
+
+    /* ---- a note keeps the side it was given and the place it was put ---- */
+    {
+      applyEdit(()=>{
+        const kept = edgeStyleFor('mvA','mvB');
+        setEdgeStyleOverride('mvA','mvB', Object.assign({}, kept, {note:'ab', notePos:'above', noteAt:0.5}));
+        /* An entry close enough to the plate's imaginary 150-unit width,
+           and nowhere near its real one. */
+        workingNodes.push(['mvN','Near',null,null,null,null,{pos:[X + 60, Y + 60]}]);
+      });
+      await wait(400);
+      const plate = ()=> document.querySelector('#arrowLayer .edge-note[data-from="mvA"][data-to="mvB"] .edge-note-plate');
+      const at = (el2)=>{ const r = el2.getBoundingClientRect(); return {x: r.x + r.width/2, y: r.y + r.height/2}; };
+      const anchor = ()=> {
+        const st = edgeStyleFor('mvA','mvB');
+        const m = pointAtFraction(drawnRoutes.get(calloutEdgeKey('mvA','mvB')).pts, st.noteAt);
+        return m;
+      };
+      {
+        const m = anchor();
+        const pb = plate().getBBox();
+        const g = plate().parentNode;
+        const tr = (g.getAttribute('transform') || '').match(/-?[\d.]+/g) || [0, 0];
+        const cy = pb.y + pb.height/2 + +tr[1], cx = pb.x + pb.width/2 + +tr[0];
+        const offAxis = Math.abs(m.dx) > Math.abs(m.dy) ? Math.abs(cy - m.y) : Math.abs(cx - m.x);
+        out.noPhantomDodge = Math.abs(offAxis - EDGE_NOTE_OFFSET) < 1;
+      }
+      const p0 = at(plate());
+      await dragEntry('mvK2', 30, 30);
+      const p1 = at(plate());
+      out.noteStillAfterOther = Math.hypot(p1.x - p0.x, p1.y - p0.y) < 1;
+      await dragEntry('mvB', 0, 40);
+      const p2 = at(plate());
+      out.noteHeldAfterOwn = Math.hypot(p2.x - p0.x, p2.y - p0.y) < 45;
+      out.noteMoves = JSON.stringify({p0, p1, p2});
+    }
+
+    /* ---- sliding one lineage leaves the others where they land ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['amP1','P1',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['amP2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
+      workingNodes.push(['amP3','P3',null,null,null,null,{pos:[X + 400, Y]}]);
+      workingNodes.push(['amM','Merge',['amP1','amP2','amP3'],null,null,'amalgam',{pos:[X + 200, Y + 200]}]);
+    });
+    await wait(700);
+    {
+      const drop = (id)=>{ const r = drawnRoutes.get(calloutEdgeKey(id, 'amM')); return r && r.pts[0].x; };
+      const lastX = (id)=>{ const r = drawnRoutes.get(calloutEdgeKey(id, 'amM')); return r && r.pts[1].x; };
+      const d1 = drop('amP1'), l1 = lastX('amP1');
+      await dragEntry('amP2', 170, 0, true);
+      await wait(80);
+      out.otherDropStays = drop('amP1') === d1 && lastX('amP1') === l1;
+      out.dropAt = JSON.stringify({d1, now: drop('amP1')});
+      const nearX = drop('amP3');
+      const c = centreOf(nodeEl('amP2'));
+      fire('mouseup', c.x, c.y);
+      await wait(250);
+      out.neighbourHeld = typeof nearX === 'number';
+      undoLastEdit();
+      await wait(250);
+      const w = [0, 3, 100];
+      const spread = spreadLandings(w, [true, false, true], 30);
+      out.carriedGivesWay = spread[0] === 0 && spread[2] === 100 && Math.abs(spread[1] - 30) < 1e-6;
+      out.farUntouched = spreadLandings([0, 10, 400], [true, true, true], 30)[2] === 400;
+    }
+
+    /* ---- the sheets of a stack are half a turn apart ---- */
+    {
+      const a = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      resumeAnimation(a, LIVELY_CYCLE.sheet, 0, -LIVELY_CYCLE.sheet / LOCAL_SHEETS);
+      out.sheetStagger = a.style.animationDelay;
+    }
+
+    applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
+    await wait(400);
+    return out;
+  });
+  check('the same state pushed twice is one step of undo', rMv.undoDeduped);
+  check('a drag does not show a grid that is switched off', rMv.gridStaysOff);
+  check('sliding a callout\'s anchor lifts that dot and no other',
+        rMv.liftedOnlyMine, rMv.lifted);
+  check('a dimmed connector does not open its panel over a selection',
+        rMv.dimNotOpened && rMv.dimDeselects,
+        JSON.stringify({opened: !rMv.dimNotOpened, deselected: rMv.dimDeselects}));
+  check('a connector belonging to the selection still opens', rMv.litStillOpens);
+  check('a bend a few units off its run draws no step', rMv.noJog, rMv.jogPts);
+  check('and a bend that bends nothing is dropped', rMv.idleDropped);
+  check('a group carries the bends of the connectors it holds whole',
+        rMv.bendCarried, rMv.bendCarriedAt);
+  check('and one undo puts entries and bends back together',
+        rMv.undoPutsBendBack && rMv.oneUndoStep,
+        JSON.stringify({back: rMv.undoPutsBendBack, oneStep: rMv.oneUndoStep}));
+  check('a note stands at its own offset, not dodging a box it does not touch',
+        rMv.noPhantomDodge);
+  check('a note stays put when something else on the chart is moved',
+        rMv.noteStillAfterOther, rMv.noteMoves);
+  check('and stays near its place when its own entry is moved',
+        rMv.noteHeldAfterOwn, rMv.noteMoves);
+  check('sliding one lineage leaves another\'s drop where it was',
+        rMv.otherDropStays, rMv.dropAt);
+  check('a carried lineage gives way to a still one, and only nearby',
+        rMv.carriedGivesWay && rMv.farUntouched && rMv.neighbourHeld);
+  check('a local multiverse\'s two sheets are half a turn apart',
+        Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
   });
 
   /* ---- 29. nothing threw along the way ---- */

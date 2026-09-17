@@ -98,6 +98,9 @@ const routeBars = new Map();     // edge key -> {axis:'x'|'y', v:number}
    like when it was put there. */
 const leaderAnchors = new Map();   // callout id -> {x, y, at}
 const leaderRoutes = new Map();    // edge key -> the route as last drawn  (same reason)
+// edge key -> {x, y, at, pts}: where a connector's note was last drawn, for
+// the same reason a callout's anchor is kept as a point — see drawEdgeNote.
+const noteAnchors = new Map();
 /* And every connector's route, for the drag that wants to line one up with
    another. Filled in as they are drawn; cleared with the rest. */
 const drawnRoutes = new Map();     // edge key -> the route as last drawn

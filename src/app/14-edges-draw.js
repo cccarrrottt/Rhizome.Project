@@ -30,8 +30,31 @@ function edgePath(attrs, style, layer){
 
 function edgeHit(d, from, to){
   const hit = el('path', {class:'edge-hit', d, 'data-from':from, 'data-to':to}, edgeLayer);
-  hit.addEventListener('click', ev=>{ ev.stopPropagation(); openEdgeStylePopover(from, to, ev); });
+  hit.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    /* A connector stepped back behind a selection is not something to
+       open. With an entry picked, everything unrelated to it is dimmed,
+       and a click on one of those faded lines opened its settings on top
+       of the selection — a panel for a thing the chart was saying was not
+       the subject. The click means what a click on empty canvas means:
+       let go of the selection. The connectors that stay lit belong to
+       what is selected, and those still open. */
+    if(edgeIsStepBack(from, to)){
+      if(typeof closeFreeMenu === 'function') closeFreeMenu();
+      if(typeof closeBioCard === 'function') closeBioCard();
+      deselect();
+      return;
+    }
+    openEdgeStylePopover(from, to, ev);
+  });
   return hit;
+}
+function edgeIsStepBack(from, to){
+  if(!selectedId && !multiSelection.size) return false;
+  const sel = `[data-from="${CSS.escape(from)}"][data-to="${CSS.escape(to)}"]`;
+  const parts = qEdges(`.edge${sel}`);
+  if(!parts.length) return false;
+  return parts.every(p=> p.classList.contains('dim'));
 }
 
 /* A connector is built from nothing on every redraw, so it is born at full

@@ -170,6 +170,8 @@ window.addEventListener('mousemove', ev=>{
   if(!st.moved){
     if(Math.hypot(ev.clientX - st.startX, ev.clientY - st.startY) < DRAG_THRESHOLD) return;
     st.moved = true;
+    // Before the first live change: see applyEdit's `before`.
+    st.before = takeSnapshot();
   }
   const p = clientToWorld(ev.clientX, ev.clientY);
   let x = p.x + st.grabDX, y = p.y + st.grabDY;
@@ -222,13 +224,37 @@ window.addEventListener('mouseup', ()=>{
      it and re-open the panel on top of what was just done. */
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
-  pushUndo();
   applyEdit(()=>{
-    const list = bendListOf(st.target.from, st.target.to);
+    const list = dropIdleBends(st.target.from, st.target.to, bendListOf(st.target.from, st.target.to));
     setBendList(st.target.from, st.target.to, list);
-  });
+  }, st.before);
   refreshSaveUI();
+  drawBendHandles();
 });
+/* A bend that bends nothing is taken out when it is let go.
+ *
+ * Dragging a hollow mark out of a run and dropping it back on that run
+ * left a point the route passes STRAIGHT through: nothing drawn changed,
+ * but the connector was now pinned there, stopped following its entries
+ * the way an unbent one does, and carried a handle to catch on. A point is
+ * kept only where the drawn route actually turns — within BEND_ABSORB of
+ * it, because the route squares a small offset away (see bentRoute) and
+ * the corner it turns at is then a few units from the stored point. */
+function dropIdleBends(from, to, list){
+  if(!list.length) return list;
+  const rec = drawnRoutes.get(calloutEdgeKey(from, to));
+  const pts = rec && rec.pts;
+  if(!pts || pts.length < 2) return list;
+  const turns = [];
+  for(let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], b = pts[i], c = pts[i+1];
+    const straight = (Math.abs(a.x - b.x) < 0.5 && Math.abs(c.x - b.x) < 0.5) ||
+                     (Math.abs(a.y - b.y) < 0.5 && Math.abs(c.y - b.y) < 0.5);
+    if(!straight) turns.push(b);
+  }
+  return list.filter(p=> turns.some(t=>
+    Math.abs(t.x - p[0]) <= BEND_ABSORB + 0.01 && Math.abs(t.y - p[1]) <= BEND_ABSORB + 0.01));
+}
 const guideLayer = el('g', {id:'guideLayer', style:'pointer-events:none;'}, viewport);
 function clearGuides(){
   while(guideLayer.firstChild) guideLayer.removeChild(guideLayer.firstChild);

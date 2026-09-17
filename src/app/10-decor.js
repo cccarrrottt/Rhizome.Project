@@ -113,17 +113,29 @@ const FANFIC_HALO = 38;
      read as bars with daylight between them rather than as a mesh, and
      was pale enough that the light crossing it had nothing to light: the
      sweep brightens the RULING, so a ruling you can barely see brightens
-     into something you still cannot. Half the step, both directions, and a
-     darker ink — the glint now has something to happen to. */
-  const UNRELEASED_STEP = 6.5;
+     into something you still cannot. Both directions and a darker ink gave
+     the glint something to happen to.
+
+     Half the weave's step was too fine a mesh: at the chart's usual zoom it
+     closed into a grey tint rather than reading as a grid. It is on the
+     weave's own thirteen now, so the two rulings are the same size and an
+     entry carrying both tags stands on one lattice drawn two ways. */
+  const UNRELEASED_STEP = 13;
   const up = el('pattern', {id:'unreleased-rule',
                             width:UNRELEASED_STEP, height:UNRELEASED_STEP,
                             patternUnits:'userSpaceOnUse'}, svgDefs);
   el('path', {d:`M0,0 H${UNRELEASED_STEP} M0,0 V${UNRELEASED_STEP}`,
               class:'unreleased-line'}, up);
+  /* The light on it is a GLARE, not a colour. Where fan-fiction's gold
+     lights up gold, the unreleased grey is washed out: a pale sheen over
+     the cell and the ruling itself gone almost white, so what crosses the
+     ground reads as a reflection on something cold and new rather than as
+     a second, brighter paint. The motion is the weave's, exactly. */
   const upLit = el('pattern', {id:'unreleased-rule-lit',
                                width:UNRELEASED_STEP, height:UNRELEASED_STEP,
                                patternUnits:'userSpaceOnUse'}, svgDefs);
+  el('rect', {x:0, y:0, width:UNRELEASED_STEP, height:UNRELEASED_STEP,
+              class:'unreleased-sheen'}, upLit);
   el('path', {d:`M0,0 H${UNRELEASED_STEP} M0,0 V${UNRELEASED_STEP}`,
               class:'unreleased-line unreleased-line-lit'}, upLit);
 })();
@@ -166,14 +178,17 @@ try{ alignGridOn = localStorage.getItem(ALIGN_GRID_KEY) === '1'; }catch(e){}
 // would be unreachable — not merely false — if anything ever moved the view
 // before this block ran.
 var alignGridReady = true;
-// Set while a drag is borrowing the grid; see showDragGrid.
-var dragGridShowing = false;
+/* A drag used to switch the ruling on for its own duration when the grid
+   was off. It is not a drag's to show: the button says the grid is off, and
+   a canvas that suddenly fills with lines under the hand reads as the
+   button having been pressed. The snap still happens; only the lines stay
+   where the reader put them. */
 
 // Called on every view change: keeps the ruling a hairline whatever the
 // zoom, and drops the fine lines once they would read as a solid wash.
 function syncAlignGrid(){
   if(!alignGridReady) return;
-  const showing = alignGridOn || dragGridShowing;
+  const showing = alignGridOn;
   alignGrid.style.display = showing ? '' : 'none';
   if(!showing) return;
   const s = (typeof vs === 'number' && vs > 0) ? vs : 1;

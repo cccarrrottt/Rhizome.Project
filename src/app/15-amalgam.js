@@ -155,6 +155,71 @@ function amalgamFromSide(a, geo, style){
   return normOf(pc.x, pc.y) >= 0 ? OPPOSITE_SIDE[side] : side;
 }
 
+/* Where the lineages land on the bar, given where each one wants to.
+ *
+ * Each lands straight under its own port; only lineages closer than a
+ * pitch to one another are spread, and only among THEMSELVES.
+ *
+ * This used to be one forward pass over the whole row followed by one
+ * shift of the whole row back onto its mean. The pass is right; the shift
+ * was not local. The moment any two lineages came within a pitch — which
+ * is what happens every time a parent is slid along the bar past another —
+ * every landing on the bar moved by the same few pixels, so every OTHER
+ * parent's line stepped sideways at the top, and a callout hanging off one
+ * of them went with it. Parents that nothing had touched appeared to dodge
+ * the one being carried.
+ *
+ * So the row is broken into clusters — runs of lineages that actually
+ * crowd one another — and each cluster is re-centred on its own. And
+ * within a cluster, the lineages whose entry is NOT in the hand (`pinned`)
+ * decide where it sits: the shift is the one that leaves them, on
+ * average, where they wanted to be, so a parent carried into a neighbour
+ * is the one that gives way. With nothing in the hand every member counts,
+ * which is the old centring, applied only where it is needed. A cluster
+ * pushed into its neighbour merges with it and the pair is placed again. */
+function spreadLandings(wanted, pinned, pitch){
+  const n = wanted.length;
+  if(n < 2) return wanted.slice();
+  const place = (s, t)=>{
+    const out = [wanted[s]];
+    for(let i = s + 1; i <= t; i++) out.push(Math.max(wanted[i], out[out.length-1] + pitch));
+    let sum = 0, cnt = 0;
+    for(let i = s; i <= t; i++){
+      if(!pinned[i]) continue;
+      sum += out[i - s] - wanted[i]; cnt++;
+    }
+    if(!cnt){
+      for(let i = s; i <= t; i++) sum += out[i - s] - wanted[i];
+      cnt = t - s + 1;
+    }
+    const shift = sum / cnt;
+    return out.map(v=> v - shift);
+  };
+  // First guess at the clusters: a lineage starts a new one when it is
+  // clear of where the previous one was pushed to.
+  let clusters = [];
+  let pushed = -Infinity;
+  for(let i = 0; i < n; i++){
+    if(!clusters.length || wanted[i] >= pushed + pitch) clusters.push({s:i, t:i});
+    else clusters[clusters.length-1].t = i;
+    pushed = Math.max(wanted[i], pushed + pitch);
+  }
+  let placed = clusters.map(c=> place(c.s, c.t));
+  for(let guard = 0; guard < n; guard++){
+    let merged = false;
+    for(let k = 1; k < clusters.length; k++){
+      const prevLast = placed[k-1][placed[k-1].length - 1];
+      if(placed[k][0] < prevLast + pitch - 1e-6){
+        clusters.splice(k - 1, 2, {s: clusters[k-1].s, t: clusters[k].t});
+        placed.splice(k - 1, 2, place(clusters[k-1].s, clusters[k-1].t));
+        merged = true;
+        break;
+      }
+    }
+    if(!merged) break;
+  }
+  return [].concat(...placed);
+}
 function drawAmalgam(list, ports){
   const geo = amalgamGeometry(list, ports);
   if(!geo) return;
@@ -294,30 +359,9 @@ function drawAmalgam(list, ports){
      * anybody's: an entry goes where it is put. */
     return c - base;
   };
-  const landings = members.map(alongOf);
-  const wanted = landings.slice();
-  // One forward pass gives every neighbour its minimum separation.
-  for(let i = 1; i < n; i++){
-    landings[i] = Math.max(landings[i], landings[i-1] + AMALGAM_PITCH);
-  }
-  /* Then the row is re-centred on where the lineages actually are.
-   *
-   * There used to be a backward pass here, said to "pull the row back
-   * inside the span if the forward one pushed its tail past the end" — but
-   * after the forward pass every neighbour is already at least a pitch
-   * apart, so `min(landings[i], landings[i+1] - PITCH)` is always
-   * `landings[i]` and the loop provably did nothing at all. Meanwhile the
-   * thing it was supposed to prevent was real: spacing out a tight cluster
-   * only ever pushes to the RIGHT, so five lineages five pixels apart grew
-   * a bar reaching a hundred and twenty pixels past the last of them.
-   *
-   * Shifting the whole row by the difference between where it wanted to
-   * sit and where it ended up spreads that growth evenly to both sides, so
-   * the bar stays centred on its lineages however tightly they are
-   * packed. */
-  const mean = (list)=> list.reduce((a,b)=> a+b, 0) / (list.length || 1);
-  const drift = mean(wanted) - mean(landings);
-  if(drift) for(let i = 0; i < n; i++) landings[i] += drift;
+  const wanted = members.map(alongOf);
+  const landings = spreadLandings(wanted,
+    members.map(e=> !entryBeingCarried(e.from)), AMALGAM_PITCH);
   /* The junction, where the bar hands over to the merged arrow: the
      MIDDLE of the ground the lineages cover.
    *

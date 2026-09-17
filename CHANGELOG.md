@@ -6,6 +6,34 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.9.24 — "Nothing moves that was not touched" — 2026-09-17
+
+- **Sliding one lineage of a merge leaves the others where they land.**
+  Crowded landings were spread and then the whole row was shifted back onto
+  its mean, so a carried parent coming near a neighbour made every drop on
+  the bar step sideways, callouts included. Only lineages that actually crowd
+  each other are spread now (`spreadLandings`), and the one in the hand gives
+  way.
+- **A connector's note stays where it was put.** It is kept as a point, as a
+  callout's anchor is, instead of a fraction that slid whenever the route
+  changed length. It no longer dodges entries: the test used the widest plate
+  a note can have, so short notes stepped away from boxes they did not touch
+  and flipped sides.
+- **A bend under a grid step off its port's run is drawn on that run**
+  (`BEND_ABSORB`), so a moved port no longer leaves a knee that does not
+  meet; a bend that bends nothing is dropped on release (`dropIdleBends`) —
+  0.9.22 claimed this and the code did not do it.
+- **A group carries the bends of connectors it holds whole.**
+- **Undo undoes a drag.** Bend, note and group drags change the chart live and
+  now snapshot on their first frame (`applyEdit(mutate, before)`); a duplicate
+  of the top of the undo stack is not pushed.
+- **Smaller things.** Only the callout dot being slid is lifted; a drag no
+  longer shows a switched-off grid; a dimmed connector's panel does not open
+  over a selection (the click deselects); a local multiverse's sheets are half
+  a turn apart (the stagger was milliseconds read as seconds); the unreleased
+  ground uses the weave's 13-unit step and a pale glare; underlines and inline
+  stickers share their label's clip.
+
 ## 0.9.23 — "One place to write" — 2026-09-15
 
 - **The Label box is gone from an entry's settings.** An entry's words are

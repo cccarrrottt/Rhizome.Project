@@ -77,11 +77,20 @@ function syncTagLiveliness(){
    step with the @keyframes durations in the stylesheet. */
 const LIVELY_CYCLE = {echo: 2700, sheet: 1700, glint: 3400};
 const livelyStart = new Map();     // entry id -> when its decorations woke
+/* `stagger` is in milliseconds, like everything else here.
+ *
+ * It used to be added straight to a figure in SECONDS, so a sheet that
+ * should have been half a turn behind its neighbour — 850 ms — was 850
+ * seconds behind it, which is exactly five hundred turns of a 1.7 s cycle:
+ * no offset at all. The two sheets of a local multiverse travelled on top
+ * of each other and read as one tab at a time. (The echo's rings came out
+ * right only because 900 s happens not to be a whole number of 2.7 s
+ * turns.) */
 function resumeAnimation(elm, period, since, stagger){
   if(!elm) return;
   if(!period){ elm.style.removeProperty('animation-delay'); return; }
   const into = ((since % period) + period) % period;
-  elm.style.animationDelay = (((stagger || 0) - into / 1000)).toFixed(3) + 's';
+  elm.style.animationDelay = (((stagger || 0) - into) / 1000).toFixed(3) + 's';
 }
 function applyVisibility(){
   syncTagLiveliness();
@@ -311,13 +320,18 @@ document.getElementById('zoomReset').onclick = ()=> fitToView();
    translate the whole time, which is what lets routeEdge() see the new
    position without knowing a drag is happening at all.
 
-   Position snaps to the GRID set up next to the layout engine; a faint
-   grid appears under the chart while dragging so the snap targets are
-   visible, and disappears on release rather than permanently changing how
-   the chart looks at rest. On release the new spot is written to the
+   Position snaps to the GRID set up next to the layout engine. The ruled
+   grid is shown only when the reader has switched it on; a drag does not
+   put it up by itself. On release the new spot is written to the
    node's saved entry as opts.pos, which this page re-reads on reload.
    ------------------------------------------------------------------ */
-let nodeDragState = null;
+// `var`: the merge's arithmetic asks which entries are in the hand (see
+// entryBeingCarried), and it runs on the first draw, before this line has.
+var nodeDragState = null;
+function entryBeingCarried(id){
+  const st = nodeDragState;
+  return !!(st && st.moved && st.members.some(m=> m.id === id));
+}
 let suppressNodeClick = false;
 /* How long a single click waits to see whether it is really half of a
    double one. Comfortably under the ~500ms a system double-click allows,
@@ -434,16 +448,6 @@ function amalgamBarClamp(st, offX, offY){
   });
   return out;
 }
-function showDragGrid(){
-  if(dragGridShowing || alignGridOn) return;
-  dragGridShowing = true;
-  syncAlignGrid();
-}
-function hideDragGrid(){
-  if(!dragGridShowing) return;
-  dragGridShowing = false;
-  syncAlignGrid();
-}
 
 /* Where a carried callout's leader is pinned, in chart coordinates.
  *
@@ -497,8 +501,28 @@ function beginNodeDrag(ev, n, g){
                          .map(sel=> `${sel}[data-id="${CSS.escape(id)}"]`).join(', '))],
                originX: m.x, originY: m.y };
     }),
+    /* The hand-set bends of every connector the group carries whole.
+     *
+     * A bend is stored in chart coordinates, not relative to anything, so
+     * when a lasso's worth of entries was moved the connectors between them
+     * were re-drawn out of their new ports and back through the OLD points —
+     * the one part of the arrangement that stayed behind, pulling each line
+     * into a new shape. A connector with both ends in the group belongs to
+     * the group and travels with it; one with a single end in it keeps its
+     * bends, because they are what the reader fixed and the other end has
+     * not moved. */
+    bendCarry: EDGE_STYLES
+      .filter(o=> Array.isArray(o.bends) && o.bends.length &&
+                  group.includes(o.from) && group.includes(o.to))
+      .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])})),
     moved: false
   };
+}
+function carryBends(st, offX, offY){
+  if(!st.bendCarry || !st.bendCarry.length) return;
+  st.bendCarry.forEach(c=>{
+    c.style.bends = c.bends.map(b=> [+(b[0] + offX).toFixed(2), +(b[1] + offY).toFixed(2)]);
+  });
 }
 
 window.addEventListener('mousemove', e=>{
@@ -509,7 +533,12 @@ window.addEventListener('mousemove', e=>{
   if(!st.moved){
     st.moved = true;
     st.g.classList.add('dragging');
-    if(!dragIsFree(e)) showDragGrid();
+    /* Before anything is touched: see applyEdit's `before`. The carried
+       bends change the data live, and so does every callout and note
+       re-anchored as the connectors re-route under the drag — a snapshot
+       taken at the drop already held all of that, and undoing the move
+       left it behind. */
+    st.before = takeSnapshot();
   }
   /* Screen pixels -> world units: undo the viewport scale (translation
      cancels out in a delta). The snap is applied to the DRAGGED node and
@@ -619,6 +648,7 @@ window.addEventListener('mousemove', e=>{
      outranks an offer. */
   const barHeld = amalgamBarClamp(st, offX, offY);
   if(barHeld){ offX = barHeld.x; offY = barHeld.y; clearGuides(); }
+  carryBends(st, offX, offY);
   st.members.forEach(m=>{
     m.node.x = m.originX + offX;
     m.node.y = m.originY + offY;
@@ -678,7 +708,6 @@ window.addEventListener('mouseup', ()=>{
     if(st.moved) redrawEdges();
   }
   st.g.classList.remove('dragging');
-  hideDragGrid();
   clearGuides();
   // The rays a swung callout was snapping to go with the gesture.
   document.body.classList.remove('leader-snapping');
@@ -691,15 +720,19 @@ window.addEventListener('mouseup', ()=>{
   // real click on any node.
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
-  if(st.node.x===st.originX && st.node.y===st.originY) return; // snapped back to where it started
-  saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})));
+  if(st.node.x===st.originX && st.node.y===st.originY){
+    // Snapped back to where it started — and the bends with it.
+    carryBends(st, 0, 0);
+    return;
+  }
+  saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
 
 // Writes the dropped position into the node's saved entry. Deliberately
 // quiet on success — the page reloads itself after a publish, and a node
 // snapping into place is its own confirmation; only failures speak up.
 // One undo step for the whole move, however many nodes it covered.
-function saveNodePositions(list){
+function saveNodePositions(list, before){
   applyEdit(()=>{
     list.forEach(({id, x, y})=>{
       const found = workingEntry(id);
@@ -716,7 +749,7 @@ function saveNodePositions(list){
       opts.pos = [+(+x).toFixed(2), +(y + ((n && n.growShift) || 0)).toFixed(2)];
       putEntry(found.index, found.entry, opts);
     });
-  });
+  }, before);
 }
 
 /* ---------------------------------------------------------------------

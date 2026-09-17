@@ -11,9 +11,20 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.9.23';
+const APP_VERSION = '0.9.24';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.9.24', date:'2026-09-17', title:'Nothing moves that was not touched', notes:[
+'Nothing moves because something else was moved. That is the whole of this release, found nine ways.',
+'Sliding one lineage of a merge along its bar leaves the others where they land. Two lineages closer than a pitch were spread apart and the whole row was then shifted back onto its mean — so the moment a carried parent came near a neighbour, every drop on the bar stepped sideways and the callouts hanging off them went too. Only the lineages that actually crowd each other are spread now, and among them the one in the hand is the one that gives way.',
+'A connector’s note stays where it was put. It rode a fraction of its route, and a fraction slides whenever the route changes length, so an edit anywhere that re-routed the line carried the note along it and round corners. It is kept as a point now, as a callout’s anchor already was. And it no longer dodges: the test for an entry in its way used the widest plate a note can ever have, so a three-letter remark stepped away from boxes it was nowhere near and flipped from above its line to below it.',
+'A bend a few units off the run out of its port is drawn on that run. Ports move when their side gains a connector or their entry is resized, and a bend stored on the ruled grid then sat three units to one side — out, across, and on: a knee that did not meet. Anything under a grid step is squared away every time the route is drawn. A bend that bends nothing is taken out when it is let go; 0.9.22 said this and the program did not do it.',
+'A group carries the bends of the connectors it holds whole. Moving a lasso’s worth of entries re-drew the lines between them out of their new ports and back through their old points.',
+'Undo undoes a drag. A bend, a note sliding along its line, and a carried group all change the chart live, so the snapshot taken when they were dropped was a snapshot of the result. They take it on the first frame now. And the same state pushed twice is one step, not two, so the first Ctrl+Z after an edit no longer looks as if it did nothing.',
+'Sliding a callout’s anchor lifts that dot and no other; the mark was a class on the page, which every dot matched. A drag no longer puts up the ruled grid when it is switched off. A dimmed connector does not open its panel over a selection — the click lets go of the selection, as a click on the canvas does; the lit ones still open.',
+'A local multiverse’s two sheets are half a turn apart. The stagger was written in milliseconds and read in seconds, which made it 500 whole turns: the sheets travelled on top of each other and read as one tab at a time.',
+'The unreleased ground is ruled on the weave’s own step instead of half of it, and the light that crosses it is a pale glare rather than a colour. An underline or a sticker under a label too long for its box is cut at the same border as the words.',
+  ]},
   {v:'0.9.23', date:'2026-09-15', title:'One place to write', notes:[
 'The Label box is gone from an entry’s settings. Its words are written ON the entry — double-click it and the field opens where the text is drawn, in the entry’s own face, size and ink — and keeping a second copy of them in a drawer at the other side of the screen meant two places to type one sentence, joined by a live preview whose only job was to connect them. Everything an entry has that is NOT its words is still in the drawer, unchanged.',
 'Nothing was lost with it. The floating toolbar over the field is not a smaller version of the box’s: it is the same one. Every formatting toolbar on this page is fitted out by a single pass — face, size, the rule and the strike with their kind between them, the sticker and the citation — and the field on the entry has always been on that list. Twelve controls, the same twelve.',
