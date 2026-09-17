@@ -449,7 +449,7 @@ async function main(){
   }
 
   });
-  /* ---- 12. waves are one-sided semicircles ---- */
+  /* ---- 12. waves are squiggles: half-sines that alternate ---- */
   await scenario("waves are one-sided semicircles", async () => {
   const waves = await page.evaluate(()=>{
     // 6 arcs over a 60-unit run: every control point should sit directly
@@ -463,8 +463,12 @@ async function main(){
       arcs.push({c1x:nums[i], c1y:nums[i+1], c2x:nums[i+2], c2y:nums[i+3], ex:nums[i+4], ey:nums[i+5]});
     }
     const step = 10;
+    /* Controls stand in from each end by 4/(3π) of the arc, which is what
+       makes each arc a half-SINE — it leaves the baseline at the sine's
+       slope rather than straight up, as the half-ellipses did. */
+    const k = 4 / (3 * Math.PI);
     const verticalTangents = arcs.every((a,i)=>
-      Math.abs(a.c1x - i*step) < 0.02 && Math.abs(a.c2x - (i+1)*step) < 0.02);
+      Math.abs(a.c1x - (i + k)*step) < 0.02 && Math.abs(a.c2x - (i + 1 - k)*step) < 0.02);
     /* Every second arc turns over. Within one arc both controls sit on the
        same side (that is what makes it a half-ellipse); between arcs the
        side flips, which is what makes the run a wave rather than a coil.
@@ -477,13 +481,13 @@ async function main(){
     // semicircle that must equal half the step.
     const peak = 0.75 * Math.abs(arcs[0].c1y);
     return {count: arcs.length, verticalTangents, alternates, backToBaseline,
-            peak: +peak.toFixed(3), wanted: step/2};
+            peak: +peak.toFixed(3), wanted: EDGE_WAVE_PEAK};
   });
   eq('a run is divided into the requested number of arcs', waves.count, 6);
-  check('each arc leaves the baseline vertically (a half-ellipse, not a sine)', waves.verticalTangents);
+  check('each arc is a half-sine — a squiggle, not a row of scallops', waves.verticalTangents);
   check('every second arc turns over — a wave, not a coil', waves.alternates);
   check('each arc returns to the baseline', waves.backToBaseline);
-  check('arc height is half its width — a true semicircle',
+  check('and it swings exactly as far as the wave is meant to',
         Math.abs(waves.peak - waves.wanted) < 0.02, JSON.stringify(waves));
 
   });
@@ -751,10 +755,10 @@ async function main(){
         JSON.stringify({e:leader.isEntry, h:leader.handles}));
   check('each anchor follows the fraction it was given', leader.tracks === true);
   check('a connector can be drawn to a callout', leader.connected === true);
-  check('the snap points run the whole line in twentieths',
-        await page.evaluate(()=> LEADER_SNAPS.length === 21 &&
-          LEADER_SNAPS[0] === 0 && LEADER_SNAPS[20] === 1 &&
-          Math.abs(LEADER_SNAPS[5] - 0.25) < 1e-6));
+  check('the snap points run the line in twentieths, and not onto its ends',
+        await page.evaluate(()=> LEADER_SNAPS.length === 19 &&
+          LEADER_SNAPS[0] === 0.05 && LEADER_SNAPS[18] === 0.95 &&
+          Math.abs(LEADER_SNAPS[4] - 0.25) < 1e-6));
 
   });
   /* ---- 22. references ---- */
@@ -1431,7 +1435,7 @@ async function main(){
   check('a bio card wears every ring its portrait does', r9.bioCardRings === 2, String(r9.bioCardRings));
   check('a leader note takes the width its text needs',
         r9.longCardW > r9.shortCardW, `${r9.shortCardW} -> ${r9.longCardW}`);
-  check('and is set in the same face the entries are', /IBM Plex Sans/.test(r9.noteFamily), r9.noteFamily);
+  check('and is set in the same face the entries are', /^Arial/.test(r9.noteFamily), r9.noteFamily);
   check('a tag row carries its own eye and its own cross',
         r9.rowEye && r9.rowDel, JSON.stringify(r9));
   check('and is carried onto a category rather than choosing one from a list',
@@ -1568,15 +1572,19 @@ async function main(){
       {pos:[13600,-600], colors:['#111111','#c23b22']}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 420));
     const ringPaths = [...document.querySelectorAll('[data-id="pkph"] > path[stroke]')];
-    out.ringPhases = ringPaths.map(pth=>{
-      const m = /C\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/.exec(pth.getAttribute('d'));
+    /* The arcs fill each side from its own corner, so every ring starts on
+       the same foot: its first arc begins right past its corner and bulges
+       outward, like the ring inside it. */
+    const pk = nodes.get('pkph');
+    out.ringPhases = ringPaths.map((pth, i)=>{
+      const m = /M\s*(-?[\d.]+)[ ,]+(-?[\d.]+)[^C]*C\s*(-?[\d.]+)[ ,]+(-?[\d.]+)/.exec(pth.getAttribute('d'));
       if(!m) return null;
-      const x = +m[1], up = +m[2];
-      return {mod: +(((x % POCKET_WAVELEN) + POCKET_WAVELEN) % POCKET_WAVELEN).toFixed(2), up};
+      const grow = i * ringStepFor(pk);
+      return {startsAtCorner: Math.abs(+m[1] - (pk.x - grow + POCKET_CORNER_R)) < 0.05,
+              outward: +m[4] < pk.y - grow};
     });
     out.ringsInPhase = out.ringPhases.length === 2 && out.ringPhases.every(Boolean) &&
-      Math.abs(out.ringPhases[0].mod - out.ringPhases[1].mod) < 0.02 &&
-      Math.sign(out.ringPhases[0].up - 0) === Math.sign(out.ringPhases[1].up - 0);
+      out.ringPhases.every(p=> p.startsAtCorner && p.outward);
 
     // The connector popover survives a click in any other menu.
     const hit = document.querySelector('#edgeLayer path.edge-hit');
@@ -1609,6 +1617,14 @@ async function main(){
     refill(EDGE_STYLES, [{from:'dr', to:'dt', note:'xs', notePos:'above'}]);
     rebuildChart(); await new Promise(r=> setTimeout(r, 380));
     out.plateFS = getComputedStyle(document.querySelector('.edge-note-text')).fontSize;
+    {
+      // …and in the same face, the chart's default one.
+      const face = (el)=> { const t = el && (el.querySelector('tspan') || el); return t ? getComputedStyle(t).fontFamily : ''; };
+      const first = (f)=> f.split(',')[0].trim();
+      out.sameFace = first(face(document.querySelector('.node-callout text'))) ===
+                     first(face(document.querySelector('.edge-note-text')));
+      out.faces = face(document.querySelector('.node-callout text')) + ' / ' + face(document.querySelector('.edge-note-text'));
+    }
     out.plateStroke = getComputedStyle(document.querySelector('.edge-note-plate')).stroke;
     refill(EDGE_STYLES, []);
 
@@ -1650,7 +1666,7 @@ async function main(){
      different perimeters would otherwise drift out of phase and touch. */
   check('a pocket reality’s rings nest at the ordinary spacing',
         r10.pocketStep === r10.ringStep, 'step ' + r10.pocketStep);
-  check('and share one phase grid, so they never drift into each other',
+  check('and every ring starts its ripple on the same foot, at its corner',
         r10.ringsInPhase, JSON.stringify(r10.ringPhases));
   check('the connector popover survives a click in another menu',
         r10.popoverOpen && r10.popoverAfterMenu, JSON.stringify(r10.popoverAfterMenu));
@@ -1658,8 +1674,8 @@ async function main(){
   /* A callout and a connector's plate are two forms of the same remark, so
      they are the same size — and both smaller than an entry's own label. */
   check('a callout is set at the plate’s size, not an entry’s',
-        r10.leaderFS === r10.plateFS && r10.leaderFS !== r10.entryFS,
-        `callout ${r10.leaderFS}, plate ${r10.plateFS}, entry ${r10.entryFS}`);
+        r10.leaderFS === r10.plateFS && r10.leaderFS !== r10.entryFS && r10.sameFace,
+        `callout ${r10.leaderFS}, plate ${r10.plateFS}, entry ${r10.entryFS}, faces ${r10.faces}`);
   check('and sized from its own text', r10.bigCardW > r10.tinyCardW,
         `${r10.tinyCardW} -> ${r10.bigCardW}`);
   check('a plate note is bordered in ink', r10.plateStroke !== 'none', r10.plateStroke);
@@ -1889,7 +1905,7 @@ async function main(){
      grid, so they run parallel. That is checked where the phases are read;
      what matters here is that the ripple has real depth again. */
   check('a pocket reality’s ripple has depth without pushing the rings apart',
-        r11.pocketLiftNow > 2.5 && r11.pocketStep === r11.ringStepHere,
+        r11.pocketLiftNow >= 2 && r11.pocketStep === r11.ringStepHere,
         'lift ' + r11.pocketLiftNow + ', step ' + r11.pocketStep);
   check('a callout is a box of its own, not the plate it replaced',
         r11.cardH > r11.plateH, `${r11.cardH} vs ${r11.plateH}`);
@@ -2002,7 +2018,8 @@ async function main(){
     // A pocket's grab strip is as deep as its ripple, not a hairline on the
     // baseline; and the ripple runs into the corners rather than stopping short.
     out.pocketLift = +POCKET_LIFT.toFixed(2);
-    out.pocketCornerFlat = POCKET_CORNER_FLAT;
+    // No bare stretch at a corner: a side's arcs begin at its corner.
+    out.pocketCornerFlat = (pocketSideLayout(100, POCKET_CORNER_R) || {}).start;
     applyEdit(()=>{ workingNodes.push(['pkh','P',null,null,null,'pocket',{pos:[12800,620]}]); });
     rebuildChart(); await new Promise(r=> setTimeout(r, 400));
     const hit = document.querySelector('[data-id="pkh"] .node-handle[data-side="top"] .node-handle-hit');
@@ -5029,7 +5046,11 @@ async function main(){
         const n = (cap.getAttribute('d').match(/-?[\d.]+/g)||[]).map(Number);
         // The cap starts on the border and runs outward — never from a
         // point buried inside the entry.
-        out.capStartsOutside = n[1] <= p.y + 0.6;
+        /* On the border AT THAT POINT: the ripple dips below the baseline
+           in its troughs, and a cap meeting a trough starts there. */
+        const f = wavyDropAt(p, 'top', 0);
+        const drop = f ? f(n[0], p.y) : 0;
+        out.capStartsOutside = n[1] <= p.y - drop + 0.6;
       } else out.capStartsOutside = true;
       const head = document.querySelector('.edge-arrow[data-to="ccP"]');
       out.headClipped = !!head && /^url\(#outside-/.test(head.getAttribute('clip-path') || '');
@@ -5211,7 +5232,11 @@ async function main(){
               const f = wavyDropAt(n, sd, ring);
               const drop = f ? f(vert ? base : q.x, vert ? q.y : base) : 0;
               const trim = head ? (ARROW_LEN - 1.2) : 0;
-              const want = (head ? drop
+              /* A head rests ON the stroked ripple — see wavyHeadDrop — so
+                 its line ends where the head's tip stands, not on the
+                 wave's centre line at that one point. */
+              const tip = (head && f) ? wavyHeadDrop(f, sd, vert ? base : q.x, vert ? q.y : base) : drop;
+              const want = (head ? tip
                             : (ring > 0 ? drop - 0.7 : -(POCKET_DEEP + POCKET_BITE))) + trim;
               seen++;
               if(Math.abs(signed - want) > 0.35) bad++;
@@ -5361,8 +5386,9 @@ async function main(){
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('click', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
     await wait(350);
+    // …and puts nothing over the drawing: Delete is the key's job.
     out.oneClickSelects = selectedId === 'coC' &&
-                          document.getElementById('calloutPopover').classList.contains('open');
+                          !document.getElementById('calloutPopover').classList.contains('open');
     document.querySelector('.node[data-id="coC"]').dispatchEvent(
       new MouseEvent('dblclick', {bubbles:true, cancelable:true, clientX:420, clientY:420}));
     await wait(400);
@@ -5426,7 +5452,10 @@ async function main(){
       const dot2 = document.querySelector('#edgeLayer .callout-leader[data-id="coC"] .leader-dot');
       const at = (nodes.get('coC').leader || {}).at;
       out.anchorMoved = !!dot2 && Math.abs(+dot2.getAttribute('cx') - before.x) > 20;
-      out.anchorSnapped = LEADER_SNAPS.some(v=> Math.abs(v - at) < 0.001);
+      {
+        const rec = drawnRoutes.get(calloutEdgeKey(nodes.get('coC').leader.from, nodes.get('coC').leader.to));
+        out.anchorSnapped = connectorSnaps(rec && rec.pts).some(v=> Math.abs(v.f - at) < 0.002);
+      }
       out.cardFollowed = Math.abs(nodes.get('coC').x - cardBefore.x) > 20;
     }
 
@@ -5517,7 +5546,7 @@ async function main(){
     return out;
   });
   check('a callout is not an archetype anybody can choose', r30.notAnArchetype);
-  check('one click picks a callout up, two open its card',
+  check('one click picks a callout up without a card, two open its words',
         r30.oneClickSelects && r30.ownPanel && r30.noDrawer && r30.panelHasWords,
         JSON.stringify({one:r30.oneClickSelects, panel:r30.ownPanel,
                         drawer:r30.noDrawer, words:r30.panelHasWords}));
@@ -5528,8 +5557,8 @@ async function main(){
   check('the anchor is a handle that slides along the connector',
         r30.anchorHandle && r30.anchorMoved && r30.cardFollowed,
         JSON.stringify({handle:r30.anchorHandle, moved:r30.anchorMoved, card:r30.cardFollowed}));
-  check('with Shift offering a place every twentieth of the line',
-        r30.snapBeads === 21 && r30.anchorSnapped,
+  check('with Shift offering a place every twentieth of the line, and each leg\'s middle',
+        r30.snapBeads >= 19 && r30.anchorSnapped,
         JSON.stringify({beads:r30.snapBeads, snapped:r30.anchorSnapped}));
   check('a callout lights with the connector it is about, and it with the callout',
         r30.litWithEnd && r30.litItsLine,
@@ -8633,8 +8662,18 @@ async function main(){
       const sheen = litPat && litPat.querySelector('.unreleased-sheen');
       const lumOf = (c)=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
         return m ? (+m[1]*0.299 + +m[2]*0.587 + +m[3]*0.114) : 0; };
+      /* Lighter than the ruling it lights, still grey rather than a
+         colour, and not a white-out. And drawn with the weave's pen. */
+      const restLine = path;
+      const cs2 = litLine && getComputedStyle(litLine);
+      const rgb2 = cs2 ? (/(\d+),\s*(\d+),\s*(\d+)/.exec(cs2.stroke) || []) : [];
+      const spread = rgb2.length ? Math.max(+rgb2[1], +rgb2[2], +rgb2[3]) - Math.min(+rgb2[1], +rgb2[2], +rgb2[3]) : 99;
       out.glareIsLight = !!litLine && !!sheen &&
-        lumOf(getComputedStyle(litLine).stroke) > 235 && lumOf(getComputedStyle(sheen).fill) > 235;
+        lumOf(cs2.stroke) > lumOf(getComputedStyle(restLine).stroke) + 40 &&
+        lumOf(cs2.stroke) < 235 && spread < 60 &&
+        lumOf(getComputedStyle(sheen).fill) > 230 && +getComputedStyle(sheen).opacity < 0.6;
+      const fanLine = weave && weave.querySelector('path');
+      out.samePen = !!fanLine && getComputedStyle(fanLine).strokeWidth === getComputedStyle(restLine).strokeWidth;
       const cs = path ? getComputedStyle(path) : null;
       const rgb = cs ? cs.stroke : '';
       const lum = (()=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
@@ -8801,8 +8840,9 @@ async function main(){
   check('the unreleased ground is a grid on the weave\'s step, not a comb of bars',
         r44.unreleasedIsGrid && r44.unreleasedDenser,
         JSON.stringify({grid:r44.unreleasedIsGrid, step:r44.unreleasedStep}));
-  check('the light on the unreleased ground is a pale glare, not a colour',
+  check('the light on the unreleased ground is a steel sheen, lighter than its ruling',
         r44.glareIsLight);
+  check('and its ruling is drawn with the weave\'s pen', r44.samePen);
   check('and dark enough for the light crossing it to show',
         r44.unreleasedDark, r44.unreleasedInk);
   check('every echo a hub sends out covers the same ground',
@@ -9429,6 +9469,482 @@ async function main(){
         rMv.carriedGivesWay && rMv.farUntouched && rMv.neighbourHeld);
   check('a local multiverse\'s two sheets are half a turn apart',
         Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
+  });
+
+  /* ---- 32. the copy the public site is ----
+   *
+   * There are two independent questions about a build — may it be edited,
+   * and is it a whole document — and for a while only three of the four
+   * answers had a file. GitHub Pages needs a document, so it got the
+   * editable one: anybody who opened the published site got the full
+   * editor, and since a page with no host to publish to saves into the
+   * reader's own browser, their edit survived a reload. Nothing they did
+   * could reach anyone else, but nothing told them so either.
+   *
+   * Driven against the built file itself rather than against a claim in a
+   * workflow, because the workflow copies whatever it is pointed at. */
+  await scenario("the copy the public site is", async () => {
+  if(MODE === 'src'){
+    check('the published copy is built, so there is nothing to check from src', true);
+    return;
+  }
+  const site = await ctx.newPage();
+  await site.goto(`http://127.0.0.1:${PORT}/nexus-share-standalone.html`, {waitUntil:'load'});
+  await site.waitForFunction(() => typeof rebuildChart === 'function');
+  const r = await site.evaluate(async () => {
+    const out = {
+      wholeDocument: document.doctype !== null && document.documentElement.tagName === 'HTML',
+      readOnly: readOnlyView,
+      bodySaysSo: document.body.classList.contains('read-only'),
+      drew: document.querySelectorAll('#nodeLayer .node').length,
+      saveHidden: getComputedStyle(document.getElementById('saveBtn')).display === 'none',
+      // Read-only stops writing to THIS chart; taking a copy away is not
+      // writing, and a reader who wants to build on it should be able to.
+      exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(id => {
+        const b = document.getElementById(id);
+        return !!b && getComputedStyle(b).display !== 'none';
+      }),
+      // …and importing INTO it is writing, so that one is refused.
+      importRefused: getComputedStyle(document.getElementById('fileImport')).display === 'none' ||
+                     readOnlyView
+    };
+    const was = workingNodes[0][1];
+    applyEdit(() => { workingNodes[0][1] = 'A VISITOR WROTE THIS'; });
+    out.editRefused = workingNodes[0][1] === was;
+    out.stillClean = !isDirty();
+    return out;
+  });
+  await site.close();
+  check('what Pages serves is a whole document', r.wholeDocument);
+  check('and it knows it is read-only on the first frame',
+        r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
+  check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
+  check('it offers no Save', r.saveHidden);
+  check('an edit made in it does nothing', r.editRefused && r.stillClean,
+        JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
+  check('but a reader may still take a copy away', r.exportOffered);
+  check('and may not write one back in', r.importRefused);
+  });
+
+  /* ---- 33. guides, grounds, a swap and a dark page ---- */
+  await scenario("guides, grounds, a swap and a dark page", async () => {
+  const rG = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const fire = (t, x, y, o, target)=> (target || window).dispatchEvent(new MouseEvent(t,
+      Object.assign({bubbles:true, cancelable:true, clientX:x, clientY:y, button:0}, o||{})));
+    const centreOf = (elm)=>{ const r = elm.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; };
+    const nodeEl = (id)=> document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(420, 300);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+
+    /* ---- a route out of a half-unit port has no slant in it ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['lgT','Beast Wars: Uprising',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['lgS','Beast Wars: Uprising','lgT',null,null,null,{pos:[X - 300, Y - 120]}]);
+      EDGE_STYLES.push({from:'lgT', to:'lgS', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'});
+    });
+    await wait(400);
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('lgT','lgS')).pts;
+      out.noSlant = pts.every((q, i)=> i === 0 ||
+        Math.abs(q.x - pts[i-1].x) < 0.05 || Math.abs(q.y - pts[i-1].y) < 0.05);
+      out.slantPts = pts.map(q=> q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ');
+      out.levelled = levelSlivers([{x:0,y:0},{x:10,y:0},{x:200,y:0.5},{x:200,y:80}])
+        .every((q, i, a)=> i === 0 || Math.abs(q.x - a[i-1].x) < 0.01 || Math.abs(q.y - a[i-1].y) < 0.01);
+    }
+
+    /* ---- a bend that the route no longer needs goes with the drop ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['pbA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['pbB','B','pbA',null,null,null,{pos:[X + 300, Y]}]);
+      EDGE_STYLES.push({from:'pbA', to:'pbB', routing:'orthogonal', dash:'solid', arrow:true});
+    });
+    await wait(300);
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('pbA','pbB')).pts;
+      const midX = (pts[0].x + pts[pts.length-1].x) / 2;
+      applyEdit(()=> setBendList('pbA','pbB', [[midX, pts[0].y]]));
+      await wait(250);
+      const c = centreOf(nodeEl('pbB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('pbB'));
+      for(let k = 1; k <= 4; k++){ fire('mousemove', c.x + k*8, c.y); await wait(30); }
+      fire('mouseup', c.x + 32, c.y); await wait(300);
+      out.pruned = bendListOf('pbA','pbB').length === 0;
+    }
+
+    /* ---- centring one entry on another is on offer with Shift ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['gdA','A tall one\nwith two lines',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['gdB','Short',null,null,null,null,{pos:[X + 300, Y + 60]}]);
+    });
+    await wait(400);
+    {
+      const a = nodes.get('gdA'), b = nodes.get('gdB');
+      const want = (a.y + a.h/2) - (b.y + b.h/2);         // world units to move b by
+      const c = centreOf(nodeEl('gdB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('gdB'));
+      fire('mousemove', c.x + 4, c.y, {shiftKey:true}); await wait(40);
+      fire('mousemove', c.x + 4, c.y + want*vs + 2*vs, {shiftKey:true}); await wait(60);
+      const nb = nodes.get('gdB');
+      out.midReached = Math.abs((nb.y + nb.h/2) - (a.y + a.h/2)) < 0.01;
+      out.midAt = JSON.stringify({a: a.y + a.h/2, b: nb.y + nb.h/2});
+      fire('mouseup', c.x + 4, c.y + want*vs); await wait(250);
+    }
+
+    /* ---- a parent keeps to its stretch of the bar; two can swap ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['sw1','P1',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['sw2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
+      workingNodes.push(['sw3','P3',null,null,null,null,{pos:[X + 400, Y]}]);
+      workingNodes.push(['swM','Merge',['sw1','sw2','sw3'],null,null,'amalgam',{pos:[X + 200, Y + 200]}]);
+    });
+    await wait(600);
+    {
+      const bar = amalgamBars.get('swM');
+      out.barKnowsLandings = !!bar && Array.isArray(bar.landings) && bar.landings.length === 3;
+      const c = centreOf(nodeEl('sw2'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('sw2'));
+      for(let k = 1; k <= 8; k++){ fire('mousemove', c.x + k*40*vs, c.y); await wait(30); }
+      const port = bar.landings.find(l=> l.from === 'sw2');
+      const p3 = bar.landings.find(l=> l.from === 'sw3').at;
+      const n2 = nodes.get('sw2');
+      const portNow = n2.x + n2.w/2 + (port.port - (X + 200 + n2.w/2));
+      out.heldShort = portNow <= p3 - AMALGAM_PITCH + 0.5;
+      out.leashAt = JSON.stringify({portNow, p3});
+      fire('mousemove', c.x + 20*vs, c.y, {shiftKey:true}); await wait(60);
+      out.barPlacesShown = document.querySelectorAll('#guideLayer .bar-place').length >= 1 &&
+        !!document.querySelector('#guideLayer .bar-place-mid');
+      fire('mouseup', c.x, c.y); await wait(250);
+      undoLastEdit(); await wait(250);
+      out.places = barPlacesFor(amalgamBars.get('swM'), 'sw2', false).map(p=> p.kind).join(',');
+      // More lineages, more places: the amalgam itself is offered each one.
+      out.morePlaces = barPlacesFor(amalgamBars.get('swM'), null, true).length >=
+                       barPlacesFor(amalgamBars.get('swM'), 'sw2', false).length;
+      /* Three lineages: three even slots, the middle one of them the
+         middle of the bar, and no extra place for the middle. Four: four
+         slots and the middle between them. */
+      {
+        const fake = (xs)=> ({landings: xs.map((at, i)=> ({from: 'f' + i, at, port: at}))});
+        const three = barPlacesFor(fake([0, 30, 200]), null, false);
+        const four = barPlacesFor(fake([0, 10, 20, 300]), null, false);
+        out.evenSlots = three.length === 3 && three[1].kind === 'mid' && three[1].at === 100 &&
+          four.length === 5 && four.map(p=> p.at).join() === '0,100,150,200,300';
+      }
+
+      setSelection(['sw1','sw3'], 'sw1');
+      await wait(80);
+      const btn = document.querySelector('.swap-parents-btn');
+      out.swapOffered = !!btn && !btn.hidden;
+      const x1 = nodes.get('sw1').x, x3 = nodes.get('sw3').x;
+      btn.click(); await wait(300);
+      out.swapped = Math.abs(nodes.get('sw1').x - x3) < 0.01 && Math.abs(nodes.get('sw3').x - x1) < 0.01;
+      setSelection(['sw1','swM'], 'sw1');
+      await wait(80);
+      out.swapOnlyForParents = btn.hidden;
+      deselect();
+    }
+
+    /* ---- a note on the middle keeps to the middle ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['nmA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['nmB','B','nmA',null,null,null,{pos:[X + 300, Y]}]);
+      EDGE_STYLES.push({from:'nmA', to:'nmB', routing:'orthogonal', dash:'solid', arrow:true, note:'mid', noteAt:0.5});
+    });
+    await wait(300);
+    {
+      const plateX = ()=>{ const g = document.querySelector('#arrowLayer .edge-note[data-from="nmA"] .edge-note-plate');
+        const b = g.getBBox(); const tr = (g.parentNode.getAttribute('transform') || '').match(/-?[\d.]+/g) || [0,0];
+        return b.x + b.width/2 + +tr[0]; };
+      const c = centreOf(nodeEl('nmB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('nmB'));
+      for(let k = 1; k <= 5; k++){ fire('mousemove', c.x + k*20*vs, c.y); await wait(40); }
+      fire('mouseup', c.x + 100*vs, c.y); await wait(300);
+      const pts = drawnRoutes.get(calloutEdgeKey('nmA','nmB')).pts;
+      out.noteOnMiddle = Math.abs(plateX() - pointAtFraction(pts, 0.5).x) < 1;
+      const snaps = connectorSnaps(pts);
+      out.snapsNoEnds = snaps.every(sn=> sn.f > 0 && sn.f < 1) && snaps.some(sn=> sn.kind === 'mid');
+    }
+
+    /* ---- a running performance is not sought again ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['anF','Fan',null,null,null,null,{pos:[X, Y], tags:['fan-fiction','unreleased']}]);
+    });
+    await wait(300);
+    {
+      hoverLivelyId = 'anF'; syncTagLiveliness();
+      const g = document.querySelector('.fanfic-glint[data-id="anF"]');
+      const d0 = g.style.animationDelay;
+      await wait(120);
+      syncTagLiveliness();
+      out.notReseeked = g.style.animationDelay === d0;
+      out.groundAnchored = !!g.parentNode && g.parentNode.classList.contains('ground-anchor') &&
+        +g.getAttribute('x') < 0;
+      hoverLivelyId = null; syncTagLiveliness();
+    }
+
+    /* ---- a picker press does not close the field it is filling ---- */
+    {
+      openNodeEditor('anF'); await wait(300);
+      const pick = document.getElementById('refPicker');
+      pick.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
+      out.fieldSurvivesPicker = !!nodeEditorTarget;
+      closeNodeEditor(false);
+    }
+
+    /* ---- the dark page ---- */
+    {
+      const was = themeIsDark();
+      document.getElementById('themeToggle').click();
+      const on = themeIsDark();
+      const filt = getComputedStyle(document.getElementById('canvas')).filter;
+      const bg = getComputedStyle(document.body).backgroundColor;
+      document.getElementById('themeToggle').click();
+      out.darkToggles = on !== was && themeIsDark() === was;
+      out.darkInverts = /invert/.test(filt);
+      out.darkPanels = /rgb\((\d+)/.test(bg) && +/rgb\((\d+)/.exec(bg)[1] < 80;
+    }
+
+    applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
+    await wait(400);
+    return out;
+  });
+  check('a route out of a port on a half unit has no slant in it', rG.noSlant, rG.slantPts);
+  check('and a run a fraction out of true is levelled, not stepped', rG.levelled);
+  check('a bend the route no longer needs goes when an entry is dropped', rG.pruned);
+  check('Shift offers to centre one entry on another', rG.midReached, rG.midAt);
+  check('the bar knows where each lineage lands', rG.barKnowsLandings);
+  check('a parent carried along its bar stops short of its neighbour',
+        rG.heldShort, rG.leashAt);
+  check('and Shift marks the places on the bar', rG.barPlacesShown && rG.morePlaces, rG.places);
+  check('the places divide the bar evenly about its middle', rG.evenSlots);
+  check('two parents selected together are offered a swap, and it swaps them',
+        rG.swapOffered && rG.swapped,
+        JSON.stringify({offered: rG.swapOffered, swapped: rG.swapped}));
+  check('but a selection that is not two parents is not', rG.swapOnlyForParents);
+  check('a note on the middle of its connector stays on the middle', rG.noteOnMiddle);
+  check('the places along a connector never include its ends', rG.snapsNoEnds);
+  check('a performance already running is not sent back', rG.notReseeked);
+  check('a ground is drawn in its entry\'s own coordinates', rG.groundAnchored);
+  check('pressing in a picker leaves the field it fills open', rG.fieldSurvivesPicker);
+  check('the dark page toggles both ways, turns the drawing over, darkens the panels',
+        rG.darkToggles && rG.darkInverts && rG.darkPanels,
+        JSON.stringify({t: rG.darkToggles, i: rG.darkInverts, p: rG.darkPanels}));
+  });
+
+  /* ---- 34. remarks that ride their legs, heads that rest on ripples ---- */
+  await scenario("remarks that ride their legs, heads that rest on ripples", async () => {
+  const rR = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const fire = (t, x, y, o, target)=> (target || window).dispatchEvent(new MouseEvent(t,
+      Object.assign({bubbles:true, cancelable:true, clientX:x, clientY:y, button:0}, o||{})));
+    const centreOf = (elm)=>{ const r = elm.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; };
+    const nodeEl = (id)=> document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(420, 300);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+
+    /* ---- a note's place survives a save ---- */
+    out.noteAtSaved = /noteAt:0\.25/.test(serializeEdgeStyles([{from:'a', to:'b', routing:'orthogonal',
+      dash:'solid', arrow:true, note:'n', noteAt:0.25, noteSnap:'leg:1'}])) &&
+      /noteSnap:'leg:1'/.test(serializeEdgeStyles([{from:'a', to:'b', routing:'orthogonal',
+      dash:'solid', arrow:true, note:'n', noteAt:0.25, noteSnap:'leg:1'}]));
+
+    /* ---- a remark on a leg moves with that leg ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['rlA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['rlB','B','rlA',null,null,null,{pos:[X + 300, Y + 200]}]);
+      EDGE_STYLES.push({from:'rlA', to:'rlB', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'right', toSide:'top',
+                        note:'leg', noteAt:0.5});
+    });
+    await wait(300);
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('rlA','rlB')).pts;
+      const {legs} = routeLegs(pts);
+      // Put the note on the middle of the first leg, as Shift would.
+      const f = fractionForSnap(pts, 'leg:0');
+      applyEdit(()=> setEdgeStyleOverride('rlA','rlB',
+        Object.assign({}, edgeStyleFor('rlA','rlB'), {noteAt: f, noteSnap: 'leg:0'})));
+      await wait(200);
+      const c = centreOf(nodeEl('rlB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('rlB'));
+      for(let k = 1; k <= 5; k++){ fire('mousemove', c.x + k*20*vs, c.y); await wait(40); }
+      fire('mouseup', c.x + 100*vs, c.y); await wait(300);
+      const now = drawnRoutes.get(calloutEdgeKey('rlA','rlB')).pts;
+      const st = edgeStyleFor('rlA','rlB');
+      out.legKept = st.noteSnap === 'leg:0' && Math.abs(st.noteAt - fractionForSnap(now, 'leg:0')) < 1e-3;
+      out.legWas = JSON.stringify({legs: legs.length, at: st.noteAt, want: fractionForSnap(now, 'leg:0')});
+      out.snapName = snapNameFor(now, {kind:'leg', f: fractionForSnap(now, 'leg:0')}) === 'leg:0';
+      /* And an unsnapped place keeps its share of its leg. */
+      const pl = legPlace(now, 0.3);
+      const back = settleAnchor(now, 0.3, null, heldAnchor(now, 0.3), false);
+      out.legShareStable = Math.abs(back - 0.3) < 1e-6 && pl.legs === routeLegs(now).legs.length;
+    }
+
+    /* ---- a callout on a stretch of bar shrinks with it ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['cb1','P1',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['cb2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
+      workingNodes.push(['cbM','Merge',['cb1','cb2'],null,null,'amalgam',{pos:[X + 260, Y + 200]}]);
+    });
+    await wait(500);
+    {
+      const pts0 = drawnRoutes.get(calloutEdgeKey('cb1','cbM')).pts;
+      const {legs, total} = routeLegs(pts0);
+      const last = legs[legs.length - 1];
+      const f = (last.start + last.len * 0.5) / total;
+      applyEdit(()=> workingNodes.push(['cbK','note',null,null,null,'callout',
+        {pos:[X + 100, Y + 140], leader:{from:'cb1', to:'cbM', at: +f.toFixed(4)}}]));
+      await wait(400);
+      const dot = ()=> +document.querySelector('.callout-leader[data-id="cbK"] .leader-dot').getAttribute('cx');
+      const x0 = dot();
+      const c = centreOf(nodeEl('cb2'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('cb2'));
+      for(let k = 1; k <= 4; k++){ fire('mousemove', c.x - k*20*vs, c.y); await wait(40); }
+      const pts1 = drawnRoutes.get(calloutEdgeKey('cb1','cbM')).pts;
+      const L1 = routeLegs(pts1).legs;
+      const a = L1[L1.length - 1];
+      const startX = pts1[pts1.length - 1].x - (pts1[pts1.length - 1].x - pts1[0].x > 0 ? a.len : -a.len);
+      const want = startX + (pts1[pts1.length - 1].x - startX) * 0.5;
+      out.rodeTheStretch = Math.abs(dot() - want) < 1 && Math.abs(dot() - x0) > 5;
+      out.rode = JSON.stringify({x0, now: dot(), want});
+      /* …and an end parent may go outward: it is what the bar's length is. */
+      fire('mousemove', c.x + 150*vs, c.y); await wait(60);
+      out.endFree = nodes.get('cb2').x > X + 200 + 100;
+      fire('mouseup', c.x, c.y); await wait(250);
+    }
+
+    /* ---- an arrowhead rests on a rippled border ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['ahP','Pocket',null,null,null,'pocket',{pos:[X, Y + 200], size:[160, 60]}]);
+    });
+    await wait(300);
+    {
+      const n = nodes.get('ahP');
+      const f = wavyDropAt(n, 'top', 0);
+      let ok = true, touches = false;
+      for(let x = n.x + 20; x < n.x + n.w - 20; x += 0.7){
+        const tip = wavyHeadDrop(f, 'top', x, n.y);
+        for(let u = -ARROW_HALF; u <= ARROW_HALF; u += 0.1){
+          const side = tip + Math.abs(u) * ARROW_LEN / ARROW_HALF;
+          const border = f(x + u, n.y) + BORDER_HALF_W;
+          if(side < border - 0.05) ok = false;
+          if(Math.abs(side - border) < 0.25) touches = true;
+        }
+      }
+      out.headRests = ok && touches;
+    }
+
+    /* ---- a wavy run is waved to its ends ---- */
+    {
+      out.noBareEnds = EDGE_WAVE_END_FLAT === 0 && EDGE_WAVE_CORNER_FLAT === 0 &&
+        (pocketSideLayout(100, POCKET_CORNER_R) || {}).start === 0;
+      const d = wavyPath([{x:0,y:0},{x:61,y:0}]);
+      const firstC = /C\s*(-?[\d.]+)/.exec(d);
+      out.waveFromStart = !!firstC && +firstC[1] < EDGE_WAVE_LEN;
+    }
+
+    /* ---- a lone port lines itself up with a shared one ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['lpT','Target',null,null,null,null,{pos:[X + 100, Y + 200]}]);
+      workingNodes.push(['lpA','Target',null,null,null,null,{pos:[X + 140, Y]}]);
+      workingNodes.push(['lpB','B',null,null,null,null,{pos:[X - 200, Y]}]);
+      EDGE_STYLES.push({from:'lpA', to:'lpT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'});
+      EDGE_STYLES.push({from:'lpB', to:'lpT', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'});
+    });
+    await wait(50);
+    applyEdit(()=>{ const f = (id)=> workingNodes.find(x=> x[0] === id); f('lpT')[2] = ['lpA','lpB']; });
+    await wait(300);
+    /* A's middle a few units off the second of T's two top ports: T's side
+       is shared out and cannot give, so A has to take all of it. */
+    {
+      const t = nodes.get('lpT'), a = nodes.get('lpA');
+      const want = t.x + t.w * 2/3 + 5 - a.w/2;
+      applyEdit(()=>{ workingNodes.find(x=> x[0] === 'lpA')[6].pos = [+want.toFixed(2), Y]; });
+      await wait(300);
+    }
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('lpA','lpT')).pts;
+      out.lonePortStraight = pts.length === 2 || pts.every(q=> Math.abs(q.x - pts[0].x) < 0.01);
+      out.lonePts = pts.map(q=> q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ');
+    }
+
+    /* ---- a bend returned to within a step of the old corner goes ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['brA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['brB','B','brA',null,null,null,{pos:[X + 260, Y + 180]}]);
+      EDGE_STYLES.push({from:'brA', to:'brB', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'right', toSide:'top'});
+    });
+    await wait(300);
+    {
+      const pts = tidyPoints(drawnRoutes.get(calloutEdgeKey('brA','brB')).pts);
+      const corner = pts.find((q, i)=> i > 0 && i < pts.length - 1 &&
+        Math.abs(q.x - pts[i-1].x) > 0.5 !== Math.abs(q.x - pts[i+1].x) > 0.5) || pts[1];
+      applyEdit(()=> setBendList('brA','brB', [[corner.x + 7, corner.y - 6]]));
+      await wait(250);
+      pruneHandBends([{from:'brA', to:'brB'}]);
+      out.returnedGoes = bendListOf('brA','brB').length === 0;
+    }
+
+    /* ---- no card on a click for a caption ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['tbx','A caption',null,null,null,'textbox',{pos:[X, Y]}]);
+    });
+    await wait(300);
+    {
+      const g = nodeEl('tbx');
+      g.dispatchEvent(new MouseEvent('click', {bubbles:true, cancelable:true}));
+      await wait(DOUBLE_CLICK_GRACE + 150);
+      out.captionNoCard = !document.getElementById('freeMenu').classList.contains('open') && selectedId === 'tbx';
+      deselect();
+    }
+
+    /* ---- the lights: set per ground, stronger on the dark page ---- */
+    {
+      const gl = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      gl.setAttribute('class', 'fanfic-glint'); fanLayer.appendChild(gl);
+      const light = parseFloat(getComputedStyle(gl).getPropertyValue('--glint-peak'));
+      setTheme(true);
+      const dark = parseFloat(getComputedStyle(gl).getPropertyValue('--glint-peak'));
+      setTheme(false);
+      gl.remove();
+      out.glintStronger = dark > light;
+    }
+
+    applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
+    await wait(400);
+    return out;
+  });
+  check('a note\'s place and the kind of place it is are saved', rR.noteAtSaved);
+  check('a note on the middle of a leg stays on the middle of that leg', rR.legKept, rR.legWas);
+  check('the leg is named the way it is stored', rR.snapName);
+  check('an unsnapped remark keeps its share of its leg', rR.legShareStable);
+  check('a callout on a stretch of bar rides it as it shrinks', rR.rodeTheStretch, rR.rode);
+  check('a parent at the end of its bar may go outward', rR.endFree);
+  check('an arrowhead rests on a rippled border, touching it and crossing it nowhere', rR.headRests);
+  check('a wavy line is waved to its ends and round its corners', rR.noBareEnds && rR.waveFromStart);
+  check('a lone port lines itself up with a shared one', rR.lonePortStraight, rR.lonePts);
+  check('a bend put back within a step of the corner it came from goes', rR.returnedGoes);
+  check('a click on a caption picks it up without a card', rR.captionNoCard);
+  check('the light on a ground is stronger on the dark page', rR.glintStronger);
   });
 
   /* ---- 29. nothing threw along the way ---- */

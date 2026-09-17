@@ -183,7 +183,7 @@ function sinkEnds(pts, p1, p2){
        that no phase of the ripple can leave it short of contact, and well
        inside the border's own stroke, which is drawn over it. */
     const off = port.wavy
-      ? (port.head ? (port.drop || 0)
+      ? (port.head ? (typeof port.headDrop === 'number' ? port.headDrop : (port.drop || 0))
          : ((port.ring || 0) > 0
             ? (port.drop || 0) - POCKET_UNDERLAP
             : -(POCKET_DEEP + POCKET_BITE)))
@@ -212,6 +212,33 @@ function sinkEnds(pts, p1, p2){
  * turning either of them sideways is what makes a connector look like it
  * is attached to the wrong edge. In between, the direction already being
  * travelled wins, so the repair adds one corner rather than a staircase. */
+/* A run that is out of true by a unit or less is levelled, not squared.
+ *
+ * squareUp only acts on a step of more than half a unit, and a corner is
+ * the wrong repair for anything smaller anyway: a port on a half and a
+ * run-out on a whole leave a run that climbs half a unit over its length,
+ * drawn as a faint slant with the arrowhead tilted to match. Such a run is
+ * levelled by moving whichever of its ends can move along the run NEXT to
+ * it without bending that one — a point whose other run is square to this
+ * one slides along it, and the connector is straight on both. The two
+ * ports never move. */
+function levelSlivers(pts){
+  if(!pts || pts.length < 3) return pts;
+  const out = pts.map(q=> ({...q}));
+  const last = out.length - 1;
+  for(let i = 1; i <= last; i++){
+    const a = out[i-1], b = out[i];
+    const dx = Math.abs(b.x - a.x), dy = Math.abs(b.y - a.y);
+    for(const [off, along, key, other] of [[dy, dx, 'y', 'x'], [dx, dy, 'x', 'y']]){
+      if(!(off > 0.01 && off <= 1 && along > off * 4)) continue;
+      // b can slide if its next run is square to this one (shares `other`).
+      if(i < last && Math.abs(out[i+1][other] - b[other]) < 0.01){ b[key] = a[key]; break; }
+      // …or a can, if its previous run is.
+      if(i - 1 > 0 && Math.abs(out[i-2][other] - a[other]) < 0.01){ a[key] = b[key]; break; }
+    }
+  }
+  return out;
+}
 function squareUp(pts, p1, p2){
   if(!pts || pts.length < 2) return pts;
   const vert = (side)=> side === 'top' || side === 'bottom';

@@ -355,42 +355,27 @@ setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
   });
 })();
 /* Anywhere else settles it — the toolbar and its pickers excepted, since
-   pressing a button on the field's own toolbar is working IN the field. */
+   pressing a button on the field's own toolbar is working IN the field.
+ *
+ * The pickers are not inside the field: they are placed against the
+ * viewport and live at the end of the page. They were excused here by
+ * class names nothing on the page carries, so the press that chose a
+ * sticker or a citation closed the field first — and the insert then
+ * landed in a field that was no longer open. The names are the ones the
+ * pickers actually wear. */
+const NODE_EDITOR_SATELLITES = '#nodeEditor, .sticker-picker, #stickerPicker, #refPicker, #mediaPicker, .mini-toolbar';
 document.addEventListener('mousedown', ev=>{
   if(!nodeEditorTarget) return;
   const t = ev.target;
-  if(t && t.closest && (t.closest('#nodeEditor') || t.closest('.tb-pop') ||
-                        t.closest('.sticker-pop') || t.closest('.tb-menu'))) return;
+  if(t && t.closest && t.closest(NODE_EDITOR_SATELLITES)) return;
   closeNodeEditor(true);
 }, true);
-function positionCalloutPopover(evt){
-  const host = document.querySelector('.main').getBoundingClientRect();
-  const rect = calloutPopover.getBoundingClientRect();
-  const margin = 10;
-  let x = 16, y = 16;
-  if(evt && typeof evt.clientX === 'number'){
-    x = evt.clientX - host.left + 14;
-    y = evt.clientY - host.top + 14;
-  }
-  x = Math.max(margin, Math.min(x, host.width - rect.width - margin));
-  y = Math.max(margin, Math.min(y, host.height - rect.height - margin));
-  calloutPopover.style.left = x + 'px';
-  calloutPopover.style.top = y + 'px';
-}
-/* The card is the one thing the drawing cannot offer for a callout, which
-   is a way to remove it. Its words are written on the card itself — see
-   the in-node editor — so nothing here commits any text any more. */
+/* A callout's little card is no longer opened by anything — a click only
+   selects, and Delete removes what is selected. What is left here only
+   makes sure a card that is somehow still up can be put away. */
 function closeCalloutPopover(){
   calloutPopover.classList.remove('open');
   calloutTarget = null;
-}
-function openCalloutPopover(id, evt){
-  const n = nodes.get(id);
-  if(!n || readOnlyView) return;
-  if(typeof closeEdgePopover === 'function' && edgePopover.classList.contains('open')) closeEdgePopover();
-  calloutTarget = id;
-  calloutPopover.classList.add('open');
-  positionCalloutPopover(evt);
 }
 document.getElementById('calloutClose').onclick = (ev)=>{ ev.stopPropagation(); closeCalloutPopover(); };
 document.getElementById('calloutDelete').onclick = (ev)=>{

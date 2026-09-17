@@ -44,13 +44,42 @@ function syncTagLiveliness(){
    * through is given a negative delay of exactly how far through it was.
    * The animation then carries on from where the old element left off and
    * nothing on screen registers that anything was replaced. */
-  livelyStart.forEach((_, id)=>{ if(!live.has(id)) livelyStart.delete(id); });
-  live.forEach(id=>{ if(!livelyStart.has(id)) livelyStart.set(id, performance.now()); });
+  /* …and forgotten only after a moment of NOT being looked at.
+   *
+   * Letting go of a carried entry rebuilds it, and the pointer leaves the
+   * old element and enters the new one within the same instant — to this
+   * code, the entry stopped being looked at and started again, and every
+   * performance on it went back to its first frame on every drop. A
+   * performance that resumes within LIVELY_GRACE carries on from where it
+   * was; one that has really been left starts afresh next time. */
+  const now = performance.now();
+  livelyStart.forEach((_, id)=>{
+    if(live.has(id)){ livelyLeft.delete(id); return; }
+    if(!livelyLeft.has(id)) livelyLeft.set(id, now);
+    else if(now - livelyLeft.get(id) > LIVELY_GRACE){ livelyStart.delete(id); livelyLeft.delete(id); }
+  });
+  live.forEach(id=>{
+    if(livelyLeft.has(id) && now - livelyLeft.get(id) > LIVELY_GRACE) livelyStart.delete(id);
+    livelyLeft.delete(id);
+    if(!livelyStart.has(id)) livelyStart.set(id, now);
+  });
   [...auraLayer.querySelectorAll('.node-aura'),
    ...fanLayer.querySelectorAll(GROUND_PARTS)].forEach(e=>{
     const on = live.has(e.dataset.id);
+    const already = e.classList.contains('tag-lively');
     e.classList.toggle('tag-lively', on);
     if(!on){ resumeAnimation(e, null, 0); return; }
+    /* A performance already running is left alone.
+     *
+     * The delay below is the right answer for an element that is STARTING
+     * — it puts a rebuilt decoration where its predecessor had got to. Set
+     * again on one that is already running, it is a seek: the browser
+     * re-reads the delay against the moment that animation began, and the
+     * picture jumps forward by however long it had been playing. This runs
+     * on every selection change and on every frame of a drag, so pressing
+     * the mouse on an entry skipped its glint ahead, and carrying one made
+     * the light stutter across the weave the whole way. */
+    if(already) return;
     const since = performance.now() - (livelyStart.get(e.dataset.id) || performance.now());
     if(e.classList.contains('fanfic-glint') || e.classList.contains('unreleased-glint'))
       resumeAnimation(e, LIVELY_CYCLE.glint, since);
@@ -77,6 +106,8 @@ function syncTagLiveliness(){
    step with the @keyframes durations in the stylesheet. */
 const LIVELY_CYCLE = {echo: 2700, sheet: 1700, glint: 3400};
 const livelyStart = new Map();     // entry id -> when its decorations woke
+const livelyLeft = new Map();      // entry id -> when it stopped being looked at
+const LIVELY_GRACE = 400;          // ms a performance waits to be resumed
 /* `stagger` is in milliseconds, like everything else here.
  *
  * It used to be added straight to a figure in SECONDS, so a sheet that
@@ -153,6 +184,7 @@ function applyTransform(){
   // The bio card is an HTML overlay in screen space, so it has to be
   // re-anchored whenever the drawing moves under it.
   if(typeof positionBioCard === 'function') positionBioCard();
+  if(typeof positionSwapButton === 'function') positionSwapButton();
   /* The in-node field stands on its entry, so it moves with the drawing.
      Its type is scaled by the zoom as well, which is what keeps what is
      being typed the same size as what it will be. */
@@ -305,6 +337,30 @@ svg.addEventListener('touchmove', e=>{
 // to everyone including read-only viewers.
 document.getElementById('gridToggle').onclick = ()=> setAlignGrid(!alignGridOn);
 setAlignGrid(alignGridOn);
+
+/* Light or dark ground, the reader's choice, remembered in this browser.
+   Only a convenience: a page that cannot store it opens light, which is
+   how every copy of this chart opened before the button existed. */
+const THEME_KEY = 'rhizome.theme';
+function setTheme(dark){
+  const root = document.documentElement;
+  if(dark) root.setAttribute('data-theme', 'dark');
+  else root.setAttribute('data-theme', 'light');
+  try{ localStorage.setItem(THEME_KEY, dark ? 'dark' : 'light'); }catch(e){}
+  const btn = document.getElementById('themeToggle');
+  if(btn){
+    btn.classList.toggle('active', !!dark);
+    btn.title = dark ? 'Light background' : 'Dark background';
+  }
+}
+function themeIsDark(){ return document.documentElement.getAttribute('data-theme') === 'dark'; }
+{
+  let saved = null;
+  try{ saved = localStorage.getItem(THEME_KEY); }catch(e){}
+  setTheme(saved === 'dark');
+  const btn = document.getElementById('themeToggle');
+  if(btn) btn.onclick = ()=> setTheme(!themeIsDark());
+}
 
 document.getElementById('zoomIn').onclick = ()=>{ vs=Math.min(3,vs*1.25); applyTransform(); };
 document.getElementById('zoomOut').onclick = ()=>{ vs=Math.max(0.08,vs*0.8); applyTransform(); };
@@ -511,6 +567,9 @@ function beginNodeDrag(ev, n, g){
      * the group and travels with it; one with a single end in it keeps its
      * bends, because they are what the reader fixed and the other end has
      * not moved. */
+    /* A parent carried alone keeps to its own stretch of its bar; see
+       barLeashFor. */
+    barLeash: group.length === 1 ? barLeashFor(n.id, {x: n.x + n.w/2, y: n.y + n.h/2}) : [],
     bendCarry: EDGE_STYLES
       .filter(o=> Array.isArray(o.bends) && o.bends.length &&
                   group.includes(o.from) && group.includes(o.to))
@@ -639,15 +698,29 @@ window.addEventListener('mousemove', e=>{
      "put this back on the ruled grid": both are the reader asking for a
      tidy position rather than the exact one under the pointer, and the
      guide is the more specific of the two, so it wins where it applies. */
-  const snapped = e.shiftKey && !free
-    ? alignGuides(st, offX, offY, free)
-    : (clearGuides(), {x: offX, y: offY});
-  offX = snapped.x; offY = snapped.y;
+  /* Judged from where the HAND is, not from the grid.
+   *
+     Shift also puts the entry back on the ruled grid, and the guides used
+     to be offered from that snapped position — so the entry could only
+     ever stand on a multiple of ten when the alignments were weighed. Two
+     boxes of different heights have their middles on a half-step between
+     those, which the grid can never reach, while an edge-to-edge match sat
+     right on a grid line: centring one entry on another was simply not on
+     offer, and the guide that did appear was for the tops or the bottoms.
+     The alignments are weighed at the pointer; an axis that finds one
+     takes it, and an axis that finds none keeps the grid. */
+  if(e.shiftKey && !free){
+    const g = alignGuides(st, rawX - st.originX, rawY - st.originY, free);
+    if(g.hitX) offX = g.x;
+    if(g.hitY) offY = g.y;
+  } else clearGuides();
   /* A merge's entry stays between its bar's ends — see amalgamBarClamp.
      Guides are an offer; this is a limit the shape imposes, and a limit
      outranks an offer. */
   const barHeld = amalgamBarClamp(st, offX, offY);
   if(barHeld){ offX = barHeld.x; offY = barHeld.y; clearGuides(); }
+  const leashed = applyBarLeash(st, offX, offY);
+  if(leashed){ offX = leashed.x; offY = leashed.y; }
   carryBends(st, offX, offY);
   st.members.forEach(m=>{
     m.node.x = m.originX + offX;
@@ -672,6 +745,9 @@ function queueDragRedraw(st){
   if(dragRedrawFrame) return;
   dragRedrawFrame = requestAnimationFrame(()=>{
     dragRedrawFrame = 0;
+    // Where the carried entries stood when these routes were drawn; see
+    // connectorAlignments, which has to allow for the pointer being ahead.
+    if(st && st.node) st.drawnOff = {x: st.node.x - st.originX, y: st.node.y - st.originY};
     redrawEdges();
     applyVisibility();
     /* Every connector has just been rebuilt from nothing, so none of them
@@ -725,6 +801,13 @@ window.addEventListener('mouseup', ()=>{
     carryBends(st, 0, 0);
     return;
   }
+  /* Any bend these entries' connectors no longer need goes with the drop;
+     see pruneHandBends. Settled against the drawing just made, and inside
+     the same step of undo as the move itself. */
+  const ids = new Set(st.members.map(m=> m.id));
+  redrawEdges();
+  pruneHandBends(structEdges.filter(e=> ids.has(e.from) || ids.has(e.to))
+                            .map(e=> ({from: e.from, to: e.to})));
   saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
 

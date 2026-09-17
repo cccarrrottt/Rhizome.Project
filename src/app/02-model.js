@@ -135,7 +135,8 @@ function calloutAnchorOf(opts){
   if(!L || typeof L !== 'object') return null;
   if(typeof L.from !== 'string' || typeof L.to !== 'string') return null;
   const at = (typeof L.at === 'number' && L.at >= 0 && L.at <= 1) ? L.at : 0.5;
-  return {from: L.from, to: L.to, at};
+  const snap = validSnap(L.snap);
+  return snap ? {from: L.from, to: L.to, at, snap} : {from: L.from, to: L.to, at};
 }
 function isCalloutNode(n){ return !!n && (n.shape || '') === 'callout'; }
 /* Which face of a box a point outside it is seen through. The same slab

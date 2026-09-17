@@ -236,18 +236,33 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     : 0;
   n.cardTop = isCard ? cardImgB - n.y : 0;
 
+  /* The grounds are drawn in the ENTRY'S coordinates, not the chart's.
+   *
+   * Their rulings are userSpaceOnUse patterns, which are laid out from the
+   * origin of whatever space the element stands in. In chart space that
+   * origin is fixed, so the ruling was a grid painted on the chart that the
+   * patch merely showed a window onto: while an entry was carried, the
+   * patch travelled by transform and took the ruling with it, and on the
+   * drop it was rebuilt at its new place over the chart's own grid — the
+   * lines jumped to a different phase the moment the button came up. Drawn
+   * inside a group translated to the entry, the ruling belongs to the
+   * entry, and a carry and a drop show the same picture. */
+  let groundHost = null;
+  const groundAnchor = ()=> groundHost ||
+    (groundHost = el('g', {class:'ground-anchor', 'data-ground': n.id,
+                           transform:`translate(${n.x},${n.y})`}, fanLayer));
   // The weave for a fan-fiction entry, laid on the canvas under everything
   // else so the entry itself and its connectors stay perfectly crisp.
   if(!isFree && n.tags && n.tags.includes(FANFIC_TAG)){
     const box = {
-      x: n.x - FANFIC_HALO, y: n.y - FANFIC_HALO,
+      x: -FANFIC_HALO, y: -FANFIC_HALO,
       width: n.w + FANFIC_HALO*2, height: h + FANFIC_HALO*2,
       rx: FANFIC_HALO
     };
     el('rect', Object.assign({}, box, {
       class: 'fanfic-weave', 'data-id': n.id,
       fill: 'url(#fanfic-weave)', mask: 'url(#fanfic-mask)'
-    }), fanLayer);
+    }), groundAnchor());
     /* And a second copy of the same weave, drawn brighter and shown only
        where a band of light crosses it. It is invisible until the entry is
        under the pointer or open in the panel; then the band sweeps across,
@@ -258,7 +273,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     el('rect', Object.assign({}, box, {
       class: 'fanfic-glint', 'data-id': n.id,
       fill: 'url(#fanfic-weave-lit)'
-    }), fanLayer);
+    }), groundAnchor());
   }
   /* The ruled ground for an unreleased entry. The same patch and the same
      fade as the weave, so an entry carrying both tags stands on one piece
@@ -266,18 +281,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      patches of different sizes. */
   if(!isFree && n.tags && n.tags.includes(UNRELEASED_TAG)){
     const box = {
-      x: n.x - FANFIC_HALO, y: n.y - FANFIC_HALO,
+      x: -FANFIC_HALO, y: -FANFIC_HALO,
       width: n.w + FANFIC_HALO*2, height: h + FANFIC_HALO*2,
       rx: FANFIC_HALO
     };
     el('rect', Object.assign({}, box, {
       class: 'unreleased-rule', 'data-id': n.id,
       fill: 'url(#unreleased-rule)', mask: 'url(#fanfic-mask)'
-    }), fanLayer);
+    }), groundAnchor());
     el('rect', Object.assign({}, box, {
       class: 'unreleased-glint', 'data-id': n.id,
       fill: 'url(#unreleased-rule-lit)'
-    }), fanLayer);
+    }), groundAnchor());
   }
 
   // Border: one ring per color in n.colors (an entry with more than one
@@ -1027,18 +1042,22 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     if(isCallout){
       selectNode(n.id, {quiet:true});
       paintMultiSelection();
-      /* The card that used to hold a copy of the words now holds only the
-         Delete, so it is no longer a form appearing over the drawing and
-         can come up on a single click again — which is what puts a
-         callout's one remaining control back within reach, now that a
-         double click is how its words are opened. */
-      openCalloutPopover(n.id, ev, {focus:false});
+      /* No card on a click. All it held was a Delete, which the Delete key
+         does to anything selected — so a click that only means "this one"
+         put a menu over the drawing every time for a control that was
+         already there. */
       return;
     }
     selectNode(n.id);
     paintMultiSelection();
     clearTimeout(nodeClickTimer);
-    const wantsBio = isBio, wantsFree = isFree, evForMenu = ev;
+    /* A caption is not given its Text card on a click either. Its face,
+       size and colour are on the toolbar of the field its words open in,
+       it turns by its own corner grip, and Delete removes it: the card was
+       a second place for all of that, opened by a click that only meant
+       to pick the caption up. A picture keeps its card — the file it shows
+       is set nowhere else. */
+    const wantsBio = isBio, wantsFree = isFree && isImage, evForMenu = ev;
     nodeClickTimer = setTimeout(()=>{
       nodeClickTimer = null;
       if(wantsBio) openBioCard(n.id, true); else closeBioCard();

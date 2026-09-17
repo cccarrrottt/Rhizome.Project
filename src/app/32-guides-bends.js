@@ -225,12 +225,81 @@ window.addEventListener('mouseup', ()=>{
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
   applyEdit(()=>{
-    const list = dropIdleBends(st.target.from, st.target.to, bendListOf(st.target.from, st.target.to));
-    setBendList(st.target.from, st.target.to, list);
+    pruneHandBends([st.target]);
   }, st.before);
   refreshSaveUI();
   drawBendHandles();
 });
+/* Bends that no longer say anything are taken out.
+ *
+ * A hand-set bend is a statement that the connector should NOT take the
+ * route the router would give it. Once the entries have been moved back to
+ * where that route and the bent one are the same line, the statement is
+ * empty — but the points stayed in the list, and the next time either
+ * entry moved the connector was dragged through them into a shape nobody
+ * had asked for. So after anything that can make a bend redundant — a bend
+ * let go, an entry let go — each affected connector is routed once without
+ * its bends, and if that is the line already drawn, the bends go. Then the
+ * ones the drawn route simply passes straight through go as well. */
+/* "The same line", as a reader judges it rather than to the pixel.
+ *
+ * A bend dragged back to where the connector used to turn lands on the
+ * ruled grid, and the corner it came from did not: the two routes have the
+ * same shape and every corner within a step of the other, and that was
+ * enough for them to count as different — so the bends stayed, and the
+ * next move of either entry dragged the line through them. Same number of
+ * corners, turning the same ways, each within BEND_SAME_TOL of its
+ * counterpart, is the same line. */
+const BEND_SAME_TOL = GRID + 2;
+function samePolyline(a, b, tol){
+  const t = (typeof tol === 'number') ? tol : 0.6;
+  const norm = (pts)=> tidyPoints((pts || []).map(q=> ({x:q.x, y:q.y})));
+  const p = norm(a), q = norm(b);
+  if(p.length !== q.length) return false;
+  for(let i = 0; i < p.length; i++){
+    if(Math.abs(p[i].x - q[i].x) > t || Math.abs(p[i].y - q[i].y) > t) return false;
+  }
+  return true;
+}
+function pruneHandBends(pairs){
+  const seen = new Set();
+  const todo = (pairs || []).filter(pr=>{
+    const k = calloutEdgeKey(pr.from, pr.to);
+    if(seen.has(k)) return false;
+    seen.add(k);
+    return bendListOf(pr.from, pr.to).length > 0 && !isAmalgamMember(pr.from, pr.to);
+  });
+  if(!todo.length) return false;
+  let changed = false;
+  const ports = resolvePorts(structEdges);
+  todo.forEach(pr=>{
+    const rec = drawnRoutes.get(calloutEdgeKey(pr.from, pr.to));
+    const e = structEdges.find(x=> x.from === pr.from && x.to === pr.to);
+    const a = nodes.get(pr.from), b = nodes.get(pr.to);
+    if(!rec || !e || !a || !b) return;
+    const bare = Object.assign({}, edgeStyleFor(pr.from, pr.to), {bends: undefined});
+    /* Routed against the OTHER connectors only. The record of what has
+       been drawn still holds this connector's own bent route, and the
+       router steers away from overlapping what is there — so the trial
+       dodged its own ghost and came out a different shape from the one it
+       would really take. */
+    const key = calloutEdgeKey(pr.from, pr.to);
+    resetRoutedSegments();
+    drawnRoutes.forEach((r, k)=>{ if(k !== key && r && r.pts) registerRoutedSegments(r.pts); });
+    const auto = routeEdge(a, b, bare, ports.get(e));
+    if(auto && samePolyline(auto.pts, rec.pts, BEND_SAME_TOL)){
+      setBendList(pr.from, pr.to, []);
+      changed = true;
+      return;
+    }
+    const list = bendListOf(pr.from, pr.to);
+    const kept = dropIdleBends(pr.from, pr.to, list);
+    if(kept.length !== list.length){ setBendList(pr.from, pr.to, kept); changed = true; }
+  });
+  // The trial routes above were recorded as drawn; the next redraw starts
+  // that record again from nothing, so nothing is steered by them.
+  return changed;
+}
 /* A bend that bends nothing is taken out when it is let go.
  *
  * Dragging a hollow mark out of a run and dropping it back on that run
@@ -329,7 +398,16 @@ function routeRuns(pts){
   return out;
 }
 const RUN_NEIGHBOURHOOD = 120;   // how far apart two runs may be and still read as one line
-function connectorAlignments(moving){
+/* `shift` is how far the carried entries have moved since the routes in
+ * drawnRoutes were drawn. Those routes are a frame old — they are redrawn
+ * once per frame and the pointer runs ahead of them — so a carried end
+ * read straight off them is where the entry WAS. Measured from there, the
+ * offer was applied to where the entry is now: the entry landed somewhere
+ * else and the guide was drawn at a level nothing was aligned to. The
+ * carried ends and runs are moved on by `shift` before anything is
+ * compared. */
+function connectorAlignments(moving, shift){
+  const sx = (shift && shift.x) || 0, sy = (shift && shift.y) || 0;
   const best = {x:null, y:null};
   const take = (axis, d, a, b)=>{
     const cur = best[axis];
@@ -342,9 +420,15 @@ function connectorAlignments(moving){
     const aM = moving.has(rec.from), bM = moving.has(rec.to);
     const runs = routeRuns(pts);
     if(!aM && !bM){ runs.forEach(r=> others.push(r)); return; }
-    runs.forEach(r=> mine.push(r));
+    /* A run of a connector with one end in the hand is only roughly where
+       the drag has taken it — the far end has not moved — but the run
+       nearest the carried end has, and that is the one worth lining up. */
+    runs.forEach(r=> mine.push(r.axis === 'x'
+      ? {axis:'x', v:r.v + sx, lo:r.lo + sy, hi:r.hi + sy}
+      : {axis:'y', v:r.v + sy, lo:r.lo + sx, hi:r.hi + sx}));
     if(aM === bM) return;                    // both ends carried: nothing to meet
-    const p = aM ? pts[0] : pts[pts.length-1];
+    const raw = aM ? pts[0] : pts[pts.length-1];
+    const p = {x: raw.x + sx, y: raw.y + sy};
     const q = aM ? pts[pts.length-1] : pts[0];
     const lead = aM ? pts[1] : pts[pts.length-2];
     const sideways = Math.abs(lead.x - p.x) >= Math.abs(lead.y - p.y);
@@ -361,27 +445,40 @@ function connectorAlignments(moving){
   }));
   return best;
 }
-/* And an amalgam offered the middle of its own bar.
+/* And the places on a merge's bar — see barTargetsFor.
  *
- * The bar is where its lineages hand over to the merged arrow, and the
- * arrow leaves from the bar's centre — so an amalgam standing anywhere
- * else makes the arrow leave at an angle to the entry it feeds. Nothing
- * else on the chart marks that place, and it cannot be guessed from the
- * boxes. */
-function amalgamBarAlignment(st, offX, offY){
-  if(!st || st.members.length !== 1) return null;
-  const m = st.members[0], n = m.node;
-  const bar = amalgamBars.get(m.id);
-  if(!bar) return null;
-  const mid = (bar.lo + bar.hi) / 2;
-  const c = bar.axis === 'x'
-    ? m.originX + offX + n.w/2
-    : m.originY + offY + n.h/2;
-  return {axis: bar.axis, d: mid - c, at: mid, bar};
+ * The amalgam used to be offered the middle of its own bar and nothing
+ * else, and a parent was offered nothing at all. Now whatever single entry
+ * is in the hand and belongs to a bar is offered every place on it, and
+ * all of them are marked while Shift is held, so the snap is aimed rather
+ * than stumbled on. */
+function barAlignment(st, offX, offY){
+  let best = null;
+  barTargetsFor(st).forEach(t=>{
+    const m = st.members[0], n = m.node;
+    const c = (t.bar.axis === 'x' ? m.originX + offX + n.w/2 : m.originY + offY + n.h/2) + t.portOff;
+    t.places.forEach(pl=>{
+      const d = pl.at - c;
+      if(!best || Math.abs(d) < Math.abs(best.d)) best = {axis: t.bar.axis, d, at: pl.at, bar: t.bar,
+                                                          place: pl, portOff: t.portOff};
+    });
+  });
+  return best;
+}
+function paintBarPlaces(st){
+  barTargetsFor(st).forEach(t=>{
+    t.places.forEach(pl=>{
+      const x = t.bar.axis === 'x' ? pl.at : t.bar.cross;
+      const y = t.bar.axis === 'x' ? t.bar.cross : pl.at;
+      el('circle', {class:`align-guide align-guide-dot bar-place bar-place-${pl.kind}`,
+                    cx:x.toFixed(2), cy:y.toFixed(2),
+                    r: pl.kind === 'mid' ? GUIDE_DOT_R + 1 : GUIDE_DOT_R - 0.6}, guideLayer);
+    });
+  });
 }
 function alignGuides(st, offX, offY, free){
   clearGuides();
-  if(free || !st || !st.members || !st.members.length) return {x: offX, y: offY};
+  if(free || !st || !st.members || !st.members.length) return {x: offX, y: offY, hitX:false, hitY:false};
   const moving = new Set(st.members.map(m=> m.id));
   let x0 = Infinity, y0 = Infinity, x1 = -Infinity, y1 = -Infinity;
   st.members.forEach(m=>{
@@ -389,7 +486,7 @@ function alignGuides(st, offX, offY, free){
     x0 = Math.min(x0, nx);            y0 = Math.min(y0, ny);
     x1 = Math.max(x1, nx + m.node.w); y1 = Math.max(y1, ny + m.node.h);
   });
-  if(!Number.isFinite(x0)) return {x: offX, y: offY};
+  if(!Number.isFinite(x0)) return {x: offX, y: offY, hitX:false, hitY:false};
   const tol = GUIDE_SNAP_PX / (vs || 1);
   const xs = [], ys = [];
   nodes.forEach(o=>{
@@ -401,8 +498,10 @@ function alignGuides(st, offX, offY, free){
   let gy = nearestAlignment([y0, (y0+y1)/2, y1], ys, tol);
   /* The connectors' own offers, and the amalgam's bar, on the same terms
      as the boxes: within the same tolerance, and the nearest one wins. */
-  const conn = connectorAlignments(moving);
-  const barA = amalgamBarAlignment(st, offX, offY);
+  const drawn = st.drawnOff || {x: 0, y: 0};
+  const conn = connectorAlignments(moving, {x: offX - drawn.x, y: offY - drawn.y});
+  const barA = barAlignment(st, offX, offY);
+  paintBarPlaces(st);
   let px = null, py = null;                 // an extra offer, if it beats the box
   const offer = (cand, axis)=>{
     if(!cand || Math.abs(cand.d) > tol) return;
@@ -464,15 +563,16 @@ function alignGuides(st, offX, offY, free){
        The line alone says "this coordinate"; the middle of a bar is a
        PLACE, and the reader is centring the entry on it. */
     if(c.bar && typeof c.bar.cross === 'number'){
-      el('circle', {class:'align-guide align-guide-dot',
-                    cx: (vertical ? c.at : c.bar.cross).toFixed(2),
-                    cy: (vertical ? c.bar.cross : c.at).toFixed(2),
-                    r: GUIDE_DOT_R}, guideLayer);
+      const at = typeof c.mark === 'number' ? c.mark : c.at;
+      el('circle', {class:'align-guide align-guide-dot bar-place-taken',
+                    cx: (vertical ? at : c.bar.cross).toFixed(2),
+                    cy: (vertical ? c.bar.cross : at).toFixed(2),
+                    r: GUIDE_DOT_R + 2.5}, guideLayer);
     }
   };
   paintExtra(px, true);
   paintExtra(py, false);
-  return {x: outX, y: outY};
+  return {x: outX, y: outY, hitX: !!(gx || px), hitY: !!(gy || py)};
 }
 const leaderPickLayer = el('g', {id:'leaderPickLayer', style:'pointer-events:none;'}, viewport);
 
@@ -523,20 +623,17 @@ function paintLeaderGhost(f){
   const m = pointAtFraction(leaderPick.pts, f);
   el('circle', {class:'leader-ghost', cx:m.x.toFixed(2), cy:m.y.toFixed(2), r:5}, leaderPickLayer);
   if(document.body.classList.contains('leader-snapping')){
-    LEADER_SNAPS.forEach(s=>{
-      const q = pointAtFraction(leaderPick.pts, s);
-      el('circle', {class:'leader-snap', cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:2.6}, leaderPickLayer);
-    });
+    paintConnectorSnaps(leaderPick.pts);
   }
 }
 function leaderFractionAt(ev){
   const p = clientToWorld(ev.clientX, ev.clientY);
   let f = fractionNearest(leaderPick.pts, p.x, p.y);
   if(ev.shiftKey){
-    let best = LEADER_SNAPS[0];
-    LEADER_SNAPS.forEach(s=>{ if(Math.abs(s-f) < Math.abs(best-f)) best = s; });
-    f = best;
-  }
+    const sn = nearestSnapRecord(leaderPick.pts, f);
+    if(sn) f = sn.f;
+    leaderPick.snapName = snapNameFor(leaderPick.pts, sn);
+  } else leaderPick.snapName = null;
   return f;
 }
 

@@ -454,15 +454,39 @@ def build():
     # itself identically however it was opened. The charset and viewport are
     # repeated in the wrapper's own head because a charset declared from
     # inside <body> is read too late to count.
-    alone = (
-        '<!doctype html>\n<html lang="en">\n<head>\n'
-        '<meta charset="utf-8">\n'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
-        '</head>\n<body>\n'
-        + page +
-        '</body>\n</html>\n')
+    def whole_document(fragment):
+        return ('<!doctype html>\n<html lang="en">\n<head>\n'
+                '<meta charset="utf-8">\n'
+                '<meta name="viewport" content="width=device-width, initial-scale=1">\n'
+                '</head>\n<body>\n'
+                + fragment +
+                '</body>\n</html>\n')
+
+    alone = whole_document(page)
     (DIST / 'nexus-standalone.html').write_text(alone, encoding='utf-8')
     print(f'  dist/nexus-standalone.html {len(alone):>8,} chars')
+
+    # The fourth copy, and the one the public site is.
+    #
+    # There are two questions about a build and they are independent: may it
+    # be edited, and is it a whole document. Three of the four answers had a
+    # file and the fourth did not — so the only page that was BOTH a document
+    # and read-only did not exist, and GitHub Pages, which needs a document,
+    # got the editable one.
+    #
+    # Nobody could deface anything with it: Pages serves a static file, and a
+    # page with no host to publish to saves into the reader's own browser,
+    # keyed to the address. But it opened as an editor, and an edit survived
+    # a reload, so a reader had every reason to believe they had changed the
+    # chart everyone else sees. A public page should not be able to give
+    # anybody that impression.
+    #
+    # Export is deliberately still there: read-only stops writing to THIS
+    # chart, not taking a copy away, and a reader who wants to build on it
+    # should be able to.
+    alone_share = whole_document(share)
+    (DIST / 'nexus-share-standalone.html').write_text(alone_share, encoding='utf-8')
+    print(f'  dist/nexus-share-standalone.html {len(alone_share):>8,} chars')
 
 
 if __name__ == '__main__':

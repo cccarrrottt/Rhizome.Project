@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.9.24** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.9.26** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 
@@ -44,9 +44,12 @@ package.json   npm run build / test / test:src / test:fast / test:list /
 .backups/      the last three copies of src/data.js and dist/nexus.html,
                written before either is overwritten; not part of the sources
 dist/          GENERATED — not in the repository, see "The repository" below
-  nexus.html         the editable chart      → published WITH write access
-  nexus-share.html   the same, read-only     → published WITHOUT it
-  nexus-standalone.html  a whole document    → what Pages serves
+  Two questions, independent, so four files: may it be edited, and is it a
+  whole document rather than a fragment the artifact host wraps itself?
+  nexus.html                   editable   fragment  → published WITH write access
+  nexus-share.html             read-only  fragment  → published WITHOUT it
+  nexus-standalone.html        editable   document  → to keep, host or open off disk
+  nexus-share-standalone.html  read-only  document  → what Pages serves
 ```
 
 ## One scope, many files
@@ -139,10 +142,19 @@ that run at the same time, so a regression job is about a minute and a half
 rather than six. The built files are attached to each run as an artifact, so
 a copy is always downloadable without building.
 
-On `main`, and only after everything above is green, `dist/nexus-standalone.html`
-is published to GitHub Pages as `index.html`. That is the copy with its own
-`<!doctype html>`; the other two exist for the artifact host, which supplies
-the wrapper itself.
+On `main`, and only after everything above is green,
+`dist/nexus-share-standalone.html` is published to GitHub Pages as
+`index.html`: the copy that is both a whole document, which a page on the
+open web has to be, and read-only, which a page anyone can open ought to be.
+
+This used to publish `nexus-standalone.html`, which is a document and is
+**editable** — so everyone who opened the site got the full editor. Nothing
+they did could reach anyone else: Pages serves a static file, and a page with
+no host to publish to saves into the reader's own browser, keyed to the
+address. But an edit survived a reload, so a reader had every reason to think
+they had changed the chart everybody sees. Export still works in the
+published copy — read-only stops writing to *this* chart, not taking a copy
+away.
 
 > Pages has to be switched on once, by hand: **Settings → Pages → Source →
 > GitHub Actions**. Until then the `pages` job is the only one that fails.
@@ -201,7 +213,7 @@ The build now says the same two things itself — that it had nothing to carry
 from, or that what it carried differs from the sources — so neither case is
 silent.
 
-## The two published copies
+## The copies published to the artifact host
 
 `dist/nexus.html` is published with the `artifact` runtime capability, which
 is what lets the page publish new versions of itself — that is the Save
@@ -437,7 +449,7 @@ gives each shard a port of its own, so nothing collides. They pick up Playwright
 browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
 instead, which is what CI and the original sandbox each do.
 
-70 scenarios and 561 checks — 552 against `src`, where reading its own source
+73 scenarios and 597 checks — 582 against `src`, where reading its own source
 does not apply — driven through a real browser against the real built page. The
 two webfont hosts are answered with an empty stylesheet rather than reached, so
 every machine runs the same test and it is the one the section above promises

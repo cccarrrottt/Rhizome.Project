@@ -306,6 +306,7 @@ function applyLiveEdgeStyle(){
        drop it, and a note somebody had slid to one end jumped back to the
        middle the moment its connector's colour was changed. */
     noteAt: (typeof kept.noteAt === 'number' && kept.noteAt !== 0.5) ? kept.noteAt : undefined,
+    noteSnap: kept.noteSnap || undefined,
     noteBg: (styleNoteBgInput && readHex(styleNoteBgInput)) || undefined,
     color: paint.color,
     /* And the fact that it was CHOSEN, which is what makes it win over the
@@ -391,6 +392,149 @@ if(styleNoteBgInput){
  * along a line and coarse enough that two readers pointing at the same
  * place land on the same value. */
 const LEADER_SNAP_STEPS = 20;
-const LEADER_SNAPS = Array.from({length: LEADER_SNAP_STEPS + 1},
-                                (_, i)=> +(i / LEADER_SNAP_STEPS).toFixed(4));
+/* …without the two ends. A remark at the very end of a connector sits on
+   the port, under the arrowhead or inside the entry's border — nobody aims
+   there, and two beads standing on the boxes only got in the way of the
+   ones that mattered. */
+const LEADER_SNAPS = Array.from({length: LEADER_SNAP_STEPS - 1},
+                                (_, i)=> +((i + 1) / LEADER_SNAP_STEPS).toFixed(4));
+/* Every place Shift offers on one connector, each with the kind of place
+ * it is.
+ *
+ *   step — the twentieths, the fine rhythm along the whole line;
+ *   mid  — the middle of the connector, the place a remark most often
+ *          belongs, drawn so it cannot be mistaken for a step;
+ *   leg  — the middle of each straight run of an orthogonal route. The
+ *          twentieths are measured along the whole line and so land on a
+ *          leg wherever they happen to; the middle of a leg is where the
+ *          eye puts a label on it, and it was not on offer at all.
+ *
+ * A leg too short to carry a remark offers nothing, and a leg whose middle
+ * IS the connector's middle is the connector's middle. A step within a
+ * unit of a leg's middle gives way to it. */
+const SNAP_LEG_MIN = GRID * 4;   // a run-out from a port is not a leg worth labelling
+function connectorSnaps(pts){
+  const out = LEADER_SNAPS.map(f=> ({f, kind: Math.abs(f - 0.5) < 1e-9 ? 'mid' : 'step'}));
+  if(!pts || pts.length < 2) return out;
+  const legs = [];
+  let total = 0;
+  for(let i = 1; i < pts.length; i++){
+    const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    const horiz = Math.abs(pts[i].y - pts[i-1].y) < 0.5;
+    const last = legs[legs.length - 1];
+    if(last && L > 0 && last.horiz === horiz) last.len += L;
+    else if(L > 0) legs.push({start: total, len: L, horiz});
+    total += L;
+  }
+  if(!total) return out;
+  legs.forEach(leg=>{
+    if(leg.len < SNAP_LEG_MIN) return;
+    const f = (leg.start + leg.len / 2) / total;
+    if(Math.abs(f - 0.5) * total < 1) return;
+    for(let i = out.length - 1; i >= 0; i--){
+      if(out[i].kind === 'step' && Math.abs(out[i].f - f) * total < 1) out.splice(i, 1);
+    }
+    out.push({f: +f.toFixed(4), kind: 'leg'});
+  });
+  return out.sort((a, b)=> a.f - b.f);
+}
+function nearestSnapRecord(pts, f){
+  let best = null;
+  connectorSnaps(pts).forEach(sn=>{
+    if(!best || Math.abs(sn.f - f) < Math.abs(best.f - f)) best = sn;
+  });
+  return best;
+}
+/* The straight legs of a route, every one of them, in order. The snaps
+   above only OFFER the long ones, but a leg's number has to mean the same
+   leg whatever its length, so the numbering counts them all. */
+function routeLegs(pts){
+  const legs = [];
+  let total = 0;
+  for(let i = 1; i < (pts || []).length; i++){
+    const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    if(L <= 0) continue;
+    const horiz = Math.abs(pts[i].y - pts[i-1].y) < 0.5;
+    const last = legs[legs.length - 1];
+    if(last && last.horiz === horiz) last.len += L;
+    else legs.push({start: total, len: L, horiz});
+    total += L;
+  }
+  return {legs, total};
+}
+/* The name a snap is written under — see validSnap. A step has none: it
+   is a fraction like any other, and is kept like one. */
+function snapNameFor(pts, sn){
+  if(!sn) return null;
+  if(sn.kind === 'mid') return 'mid';
+  if(sn.kind !== 'leg') return null;
+  const {legs, total} = routeLegs(pts);
+  if(!total) return null;
+  const i = legs.findIndex(l=> Math.abs((l.start + l.len/2) / total - sn.f) < 1e-3);
+  return i >= 0 ? 'leg:' + i : null;
+}
+function fractionForSnap(pts, snap){
+  if(snap === 'mid') return 0.5;
+  const m = /^leg:(\d+)$/.exec(snap || '');
+  if(!m) return null;
+  const {legs, total} = routeLegs(pts);
+  const leg = legs[+m[1]];
+  if(!leg || !total) return null;
+  return (leg.start + leg.len/2) / total;
+}
+/* Where an anchor sits, as a leg and a share of that leg.
+ *
+ * A remark belongs to a PART of its connector. Kept as a fraction of the
+ * whole route it slid round corners whenever anything re-routed the line;
+ * kept as a point it stayed behind while the part it was on shrank under
+ * it, and got shoved along by whatever was shrinking it — a merge's
+ * lineage being slid along its bar pushed the callout on its neighbour's
+ * stretch ahead of it. Kept as "this far along this leg", it moves with
+ * the leg: a stretch that shrinks carries its remark with it, in
+ * proportion, and a leg that does not change keeps it exactly. When the
+ * route has a different number of legs there is no "this leg" any more,
+ * and the nearest point of the new route is used instead. */
+function legPlace(pts, f){
+  const {legs, total} = routeLegs(pts);
+  const d = f * total;
+  let i = legs.findIndex(l=> d <= l.start + l.len + 1e-6);
+  if(i < 0) i = legs.length - 1;
+  const leg = legs[i];
+  return {leg: i, t: leg && leg.len ? (d - leg.start) / leg.len : 0, legs: legs.length};
+}
+function settleAnchor(pts, stored, snap, held, busy){
+  if(!pts || pts.length < 2) return stored;
+  if(snap){
+    const f = fractionForSnap(pts, snap);
+    if(f !== null) return f;
+  }
+  if(!held || busy || Math.abs(held.at - stored) > 1e-6) return stored;
+  const {legs, total} = routeLegs(pts);
+  if(total && held.legs === legs.length && legs[held.leg]){
+    const leg = legs[held.leg];
+    return Math.max(0, Math.min(1, (leg.start + leg.len * held.t) / total));
+  }
+  const shift = routeShift(held.pts, pts);
+  return fractionNearest(pts, held.x + (shift ? shift.dx : 0), held.y + (shift ? shift.dy : 0));
+}
+function heldAnchor(pts, f){
+  const m = pointAtFraction(pts, f);
+  return Object.assign({x: m.x, y: m.y, at: f, pts: pts.map(q=> ({x:q.x, y:q.y}))},
+                       legPlace(pts, f));
+}
+/* The beads, drawn into the picking layer. `current`, when given, is the
+   fraction the thing being placed is attached to right now; the bead it
+   sits on is ringed, so the reader can see which place it has taken. */
+const SNAP_BEAD_R = {step: 2.2, leg: 3.2, mid: 4.2};
+function paintConnectorSnaps(pts, current){
+  connectorSnaps(pts).forEach(sn=>{
+    const q = pointAtFraction(pts, sn.f);
+    el('circle', {class:`leader-snap leader-snap-${sn.kind}`,
+                  cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:SNAP_BEAD_R[sn.kind]}, leaderPickLayer);
+    if(typeof current === 'number' && Math.abs(current - sn.f) < 1e-4){
+      el('circle', {class:'leader-snap-current', cx:q.x.toFixed(2), cy:q.y.toFixed(2),
+                    r:SNAP_BEAD_R[sn.kind] + 3}, leaderPickLayer);
+    }
+  });
+}
 let leaderPick = null;   // {from, to, pts} while picking

@@ -58,7 +58,7 @@ function segmentBlocked(x1, y1, x2, y2, obstacles){
    matter to the route between them. Generous, so a connector can still be
    sent well around an obstruction, but finite. */
 const LATTICE_CORRIDOR = 240;
-function latticeRoute(s1, s2, allObstacles){
+function latticeRoute(s1, s2, allObstacles, endNormal){
   /* Only the boxes anywhere near this pair take part.
 
      This is not merely an economy. The lattice is capped at LATTICE_MAX
@@ -195,7 +195,42 @@ function latticeRoute(s1, s2, allObstacles){
     if(k === startI) break;
   }
   path.reverse();
-  return path.length ? path : null;
+  if(!path.length) return null;
+  /* The lattice is laid on whole units, and the two ends are not.
+   *
+   * A port sits at its share of a side, and a box a hundred and twenty-nine
+   * units wide has its middle on a half — so the search started from 65
+   * where the run-out was at 64.5, and the route came out of the entry,
+   * stepped half a unit sideways on a slant, and went on. Half a unit is
+   * a visible kink at the first corner, and the arrowhead at the far end
+   * took its angle from the slant. Every lattice line that stands for one
+   * of the two ends is put back on that end's true coordinate. */
+  path[0] = {x: s1.x, y: s1.y};
+  if(path.length > 1) path[path.length-1] = {x: s2.x, y: s2.y};
+  const n = path.length;
+  // Inward from each end, every lattice line within a unit of its
+  // neighbour is taken to BE its neighbour's line.
+  for(let i = 1; i < n - 1; i++){
+    if(Math.abs(path[i].x - path[i-1].x) < 1) path[i].x = path[i-1].x;
+    if(Math.abs(path[i].y - path[i-1].y) < 1) path[i].y = path[i-1].y;
+  }
+  for(let i = n - 2; i > 0; i--){
+    const q = path[i], r = path[i+1];
+    const slant = Math.abs(q.x - r.x) > 0.01 && Math.abs(q.y - r.y) > 0.01;
+    if(!slant) continue;
+    if(Math.abs(q.x - r.x) < 1) q.x = r.x;
+    else if(Math.abs(q.y - r.y) < 1) q.y = r.y;
+  }
+  /* Two ends with nothing between them, less than a unit out of line: the
+     far run-out is lengthened or shortened by that much, along its own
+     normal, rather than drawn as a slant. Only along the normal — sliding
+     it sideways would take it off its port. */
+  if(n === 2 && endNormal){
+    const a = path[0], b = path[1];
+    if(endNormal.y && Math.abs(a.y - b.y) < 1 && Math.abs(a.x - b.x) > 1) b.y = a.y;
+    if(endNormal.x && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) > 1) b.x = a.x;
+  }
+  return path;
 }
 
 // p1/p2 carry a .side; lane is a small per-edge offset that keeps sibling
@@ -362,7 +397,7 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
   // full obstacle set, so the route it finds already goes around both
   // endpoint boxes rather than needing to be checked for it afterwards.
   if(!bestClear){
-    const routed = latticeRoute(s1, s2, midObstacles);
+    const routed = latticeRoute(s1, s2, midObstacles, SIDE_NORMAL[p2.side]);
     if(routed){
       const pts = tidyPoints([p1, ...routed, p2]);
       // Take it whenever it actually clears the boxes, however long or
@@ -440,8 +475,13 @@ function unfoldEnds(pts, p1, p2){
    reconcile. The old version faded a sampled sine in and out with an
    envelope and then smoothed the samples, which is where its softness and
    its faint kinks at the corners came from. */
-// One dial: how long each semicircle is. Its height follows.
-const EDGE_WAVE_LEN = 5.4;
+/* Two dials now: how long each half-wave is, and how far it swings. They
+   used to be one — the height followed the length, which is what a
+   semicircle needs — but the squiggle is a sine, and a sine's height is
+   its own. Matched to the pocket border's, so a wavy connector leaving a
+   pocket reality is visibly the same line as the edge it leaves. */
+const EDGE_WAVE_LEN = 6;
+const EDGE_WAVE_PEAK = 1.6;
 /* The wave goes quiet well before a bend and only picks up again well
    after it. A corner is where the eye reads the line's direction, and a
    crest sitting on it hides that; a plain elbow with the ripple resuming
@@ -452,7 +492,12 @@ const EDGE_WAVE_LEN = 5.4;
    longer sine, and against a 7-unit semicircle they read as long bald
    patches. Cut to about the length of a single arc: enough to keep a
    corner legible, short enough that the line reads as wavy throughout. */
-const EDGE_WAVE_END_FLAT = 2, EDGE_WAVE_CORNER_FLAT = 2.5;
+/* …and now none at all. A bare stretch either side of every bend was the
+   thing that made a wavy line read as broken at its corners; the corner
+   radius is small on a wavy line (see WAVY_CORNER_R) and the arcs run
+   right up to it. */
+const EDGE_WAVE_END_FLAT = 0, EDGE_WAVE_CORNER_FLAT = 0;
+const WAVY_CORNER_R = 2.5;
 /* Collinear points are not corners.
  *
  * A routed connector always carries a short stub at each end, standing the
@@ -565,8 +610,8 @@ function wavyPath(rawPts, trimIn, trimOut){
     const nextSeg = isLast  ? 0 : Math.hypot(pts[i+2].x-b.x, pts[i+2].y-b.y);
     // Two corners sharing this leg get half of it each, so their arcs
     // cannot overlap — the same rule roundedPath uses.
-    const rIn  = isFirst ? 0 : Math.min(EDGE_CORNER_R, len/2, prevSeg/2);
-    const rOut = isLast  ? 0 : Math.min(EDGE_CORNER_R, len/2, nextSeg/2);
+    const rIn  = isFirst ? 0 : Math.min(WAVY_CORNER_R, len/2, prevSeg/2);
+    const rOut = isLast  ? 0 : Math.min(WAVY_CORNER_R, len/2, nextSeg/2);
     const straight = len - rIn - rOut;
 
     const cap = straight / 3;
@@ -584,25 +629,28 @@ function wavyPath(rawPts, trimIn, trimOut){
       // Too short to carry a whole wave: this run stays straight.
       d += ` L${ptAt(stopAt)}`;
     } else {
-      const bumps = waveBumps(runLen, EDGE_WAVE_LEN);
-      // Whole arcs only; whatever is left over pads both ends equally, so
-      // the ripple stays centred on the run it belongs to.
-      const start = from + (runLen - bumps*EDGE_WAVE_LEN) / 2;
+      /* As many arcs as fit at about EDGE_WAVE_LEN, stretched a hair to
+         fill the run exactly — no bare remainder at either end. The run
+         is the whole leg whatever arrowheads it carries (they only hide
+         arcs; see below), so a head still never re-pitches the ripple. */
+      const bumps = Math.max(1, Math.round(runLen / EDGE_WAVE_LEN));
+      const pitch = runLen / bumps;
+      const start = from;
       // Only the arcs that lie clear of both arrowheads are drawn. The
       // rest of the leg is flat, and every drawn arc keeps the exact
       // position it would have had with no heads at all.
       let first = 0, count = bumps;
-      while(first < bumps && start + first*EDGE_WAVE_LEN < lo - 0.01) first++;
-      while(count > first && start + count*EDGE_WAVE_LEN > hi + 0.01) count--;
+      while(first < bumps && start + first*pitch < lo - 0.01) first++;
+      while(count > first && start + count*pitch > hi + 0.01) count--;
       if(count > first){
-        const s0 = start + first*EDGE_WAVE_LEN;
+        const s0 = start + first*pitch;
         d += ` L${ptAt(Math.max(lo, Math.min(s0, stopAt)))}`;
         /* Carrying the phase across the arcs an arrowhead covers. The arcs
            alternate sides, and the run is drawn starting from whichever
            one is first VISIBLE — so without this the whole ripple flipped
            over the moment a head hid an odd number of arcs, which is the
            pattern shifting all over again by another route. */
-        d += waveRun(a.x, a.y, ux, uy, nx, ny, s0, count - first, EDGE_WAVE_LEN, first % 2);
+        d += waveRun(a.x, a.y, ux, uy, nx, ny, s0, count - first, pitch, first % 2);
       }
       d += ` L${ptAt(stopAt)}`;
     }

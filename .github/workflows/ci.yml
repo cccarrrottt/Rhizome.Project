@@ -134,13 +134,18 @@ jobs:
       - name: Build
         run: python3 build.py
 
-      # The standalone copy is the one with its own <!doctype html>, so it is
-      # the one that can be a page on its own. The other two exist for the
-      # artifact host, which supplies the wrapper itself.
+      # The READ-ONLY standalone copy. Two questions decide which of the four
+      # builds belongs here and they are independent: a page on the open web
+      # has to be a whole document, and it must not present itself as an
+      # editor. This used to publish nexus-standalone.html, which answered
+      # the first and not the second — so anyone who opened the site got the
+      # full editor, and because a page with no host to publish to saves into
+      # the reader's own browser, their edit survived a reload and looked for
+      # all the world like they had changed the chart everybody sees.
       - name: Stage the site
         run: |
           mkdir -p _site
-          cp dist/nexus-standalone.html _site/index.html
+          cp dist/nexus-share-standalone.html _site/index.html
 
       - uses: actions/configure-pages@v5
 

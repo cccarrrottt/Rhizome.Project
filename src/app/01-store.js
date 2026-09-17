@@ -192,6 +192,11 @@ function edgeStyleFor(from, to){
        it is written on is, and on a crowded chart a note usually wants
        something to sit on. */
     noteBg: (typeof o.noteBg === 'string' && o.noteBg) ? o.noteBg : null,
+    /* Which kind of place the note was put on with Shift, if any — the
+       middle of the connector, or the middle of one of its legs. A note
+       on such a place keeps to it as the connector changes; see
+       settleAnchor. */
+    noteSnap: validSnap(o.noteSnap),
     /* Points this connector has to pass through, set by hand — see
        handBends. In chart coordinates, in order from the source end. */
     bends: (Array.isArray(o.bends) && o.bends.length) ? o.bends : null,
@@ -214,3 +219,9 @@ function edgeStyleFor(from, to){
   };
 }
 
+
+/* A snap is written as 'mid' or 'leg:N' — N the leg's order along the
+   route. Anything else is no snap at all. */
+function validSnap(v){
+  return (typeof v === 'string' && /^(mid|leg:\d{1,3})$/.test(v)) ? v : null;
+}

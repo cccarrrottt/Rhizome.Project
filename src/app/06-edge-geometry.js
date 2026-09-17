@@ -143,17 +143,10 @@ function wavyDropAt(n, side, ring){
   const grow = (ring || 0) * step;
   const r = Math.max(0, Math.min(POCKET_CORNER_R, w/2 - 1, h/2 - 1));
   const len = (side === 'top' || side === 'bottom') ? w : h;
-  const straight = len - r*2;
-  const flat = Math.min(POCKET_CORNER_FLAT, straight/4);
-  const runLen = straight - flat*2;
-  if(runLen < POCKET_WAVELEN * 1.5) return 0;
-  const W = POCKET_WAVELEN;
-  const absAtSx = -grow + r;
-  const firstIdx = Math.ceil((absAtSx + flat) / W);
-  const start = firstIdx * W - absAtSx;
-  const bumps = Math.floor((runLen + flat - start) / W);
-  if(bumps < 1) return 0;
-  const phase = ((firstIdx % 2) + 2) % 2;
+  void grow;
+  const lay = pocketSideLayout(len, r);
+  if(!lay) return 0;
+  const {start, bumps, W, phase} = lay;
   /* Where the port sits, measured from the corner THIS side starts at —
      which is not the same corner for all four: wavyRectPath walks the
      frame clockwise, so the bottom is drawn right-to-left and the left
@@ -170,14 +163,34 @@ function wavyDropAt(n, side, ring){
     const j = Math.min(bumps - 1, Math.floor(u / W));
     const local = (u - j*W) / W;
     const lift = ((j + phase) % 2 === 0) ? POCKET_LIFT : -POCKET_LIFT;
-    let t = local;
-    for(let k = 0; k < 6; k++){
-      const hh = t*t*(3 - 2*t), dh = 6*t*(1 - t);
-      if(Math.abs(dh) < 1e-6) break;
-      t = Math.max(0, Math.min(1, t - (hh - local)/dh));
-    }
-    return 3 * lift * t * (1 - t);
+    return 3 * lift * waveParamAt(local) * (1 - waveParamAt(local));
   };
+}
+/* Where an arrowhead's TIP has to stand for the head to meet a rippled
+ * border and not cut into it.
+ *
+ * The tip used to go exactly on the wave at the port — right for a point,
+ * wrong for a triangle. The head widens as it leaves its tip, and the
+ * ripple rises and falls under it faster than the head's sides slope
+ * away, so beside a trough the neighbouring crests pushed up into the
+ * head, and the border's own stroke, half of which stands outside the
+ * wave's centre line, sat over the tip. So the head is lowered onto the
+ * border the way a real triangle would come to rest on it: for every
+ * point across its width, how high the stroked border stands there, less
+ * how far the head's side has already risen at that distance from the
+ * tip — and the tip stands at the highest of those. The head then
+ * touches the border, at the tip or on a flank, and crosses it nowhere. */
+const BORDER_HALF_W = 0.8;   // half of a node border's 1.6 stroke
+function wavyHeadDrop(dropFn, side, x, y){
+  const slope = ARROW_LEN / ARROW_HALF;
+  let best = -Infinity;
+  for(let u = -ARROW_HALF; u <= ARROW_HALF + 1e-9; u += 0.2){
+    const px = sideIsVertical(side) ? x + u : x;
+    const py = sideIsVertical(side) ? y : y + u;
+    const need = dropFn(px, py) + BORDER_HALF_W - Math.abs(u) * slope;
+    if(need > best) best = need;
+  }
+  return best;
 }
 function portOnSide(n, side, i, count, ring){
   const t = (i+1)/(count+1);
@@ -211,7 +224,9 @@ function portOnSide(n, side, i, count, ring){
      at exactly this point — carried on the port so the line's end and its
      arrowhead can both meet the border where it really is. Zero on every
      other archetype, which is what makes them all behave the same. */
-  const drop = wavy ? (wavyDropAt(n, side, ring || 0) || (()=>0))(at.x, at.y) : 0;
+  const dropFn = wavy ? (wavyDropAt(n, side, ring || 0) || (()=>0)) : null;
+  const drop = dropFn ? dropFn(at.x, at.y) : 0;
+  const headDrop = dropFn ? wavyHeadDrop(dropFn, side, at.x, at.y) : 0;
   /* A portrait is a CIRCLE, and a point on the side of the square it is
      inscribed in is not on it.
    *
@@ -235,7 +250,7 @@ function portOnSide(n, side, i, count, ring){
      later without landing on a neighbour — see nudgePortAlong. `span` is
      the length actually shared out, `slots` how many connectors are
      sharing it, `slot` which one this is. */
-  return {x:at.x, y:at.y, side, ring:ring||0, step, wavy, rings, drop,
+  return {x:at.x, y:at.y, side, ring:ring||0, step, wavy, rings, drop, headDrop,
           owner: n.id, span: sideIsVertical(side) ? w : (h - skip),
           slot: i, slots: count};
 }
@@ -275,6 +290,7 @@ function movePortAlong(p, delta){
     const n = nodes.get(p.owner);
     const f = n && wavyDropAt(n, p.side, p.ring || 0);
     p.drop = f ? f(p.x, p.y) : 0;
+    p.headDrop = f ? wavyHeadDrop(f, p.side, p.x, p.y) : 0;
   }
   return delta;
 }
@@ -383,6 +399,33 @@ const EDGE_CORNER_R = 6;
  * and shallow, which is what was asked for — a true half-circle's height
  * is locked to half its width and would be far too tall. */
 const WAVE_K = 4/3;
+/* …and from a coil back to a squiggle.
+ *
+ * The half-ellipses read as a row of scallops, which on a box looked like a
+ * jigsaw piece and on a line like a string of beads. What was asked for is
+ * the hand-drawn squiggle: short, shallow, and SMOOTH through the baseline.
+ * That is a sine, and a cubic makes a very good half-sine when its two
+ * controls stand in from the ends by 4/(3π) of the arc — the slope it then
+ * leaves the baseline at is exactly the sine's, and the peak is still 3/4
+ * of the control height. The phase grid, the alternation and the whole
+ * arcs are unchanged; only where the controls stand along the run is. */
+const WAVE_CTRL = 4 / (3 * Math.PI);
+/* Where along its own arc a point of the wave is, given how far along the
+   run it is — the inverse of the cubic's x(t), which with inset controls
+   is no longer a simple smoothstep. Newton from the identity; six steps
+   land well inside a hundredth of a unit. */
+function waveParamAt(u){
+  const k = WAVE_CTRL;
+  let t = Math.max(0, Math.min(1, u));
+  for(let i = 0; i < 6; i++){
+    const mt = 1 - t;
+    const x = 3*k*t*mt*mt + 3*(1 - k)*t*t*mt + t*t*t;
+    const dx = 3*k*mt*mt + 6*(1 - 2*k)*t*mt + 3*k*t*t;
+    if(Math.abs(dx) < 1e-6) break;
+    t = Math.max(0, Math.min(1, t - (x - u)/dx));
+  }
+  return t;
+}
 /* Amplitude is DERIVED from the spacing unless a caller says otherwise. A
    semicircle's height is half its width, so once the spacing is chosen the
    radius follows — and letting the two be set independently at every call
@@ -410,32 +453,24 @@ const WAVE_K = 4/3;
 function waveRun(ax, ay, ux, uy, nx, ny, from, bumps, step, phase, liftOverride){
   const at = (dist, off)=>
     `${(ax + ux*dist + nx*off).toFixed(2)},${(ay + uy*dist + ny*off).toFixed(2)}`;
-  const lift = (typeof liftOverride === 'number') ? liftOverride : (step / 2) * WAVE_K;
+  const lift = (typeof liftOverride === 'number') ? liftOverride : EDGE_WAVE_PEAK * WAVE_K;
   const start = phase || 0;
+  const inset = step * WAVE_CTRL;
   let d = '';
   for(let j=0; j<bumps; j++){
     const s = from + j*step, e = s + step;
-    // Every second arc turns over. Half-circles all bulging the same way
-    // read as a coil; alternating them reads as a wave, and the line keeps
-    // the same pitch and the same amplitude either way.
+    // Every second arc turns over, so the run is a wave and not a coil.
     const side = ((j + start) % 2 === 0) ? lift : -lift;
-    d += ` C${at(s, side)} ${at(e, side)} ${at(e, 0)}`;
+    d += ` C${at(s + inset, side)} ${at(e - inset, side)} ${at(e, 0)}`;
   }
   return d;
-}
-/* How many arcs fit in `len` at roughly `target` each. Each arc begins and
-   ends on the baseline whichever side it bulges to, so the count does not
-   have to come out even — which lets the spacing land closer to the target
-   and keeps adjacent runs consistent. */
-// How many WHOLE arcs of `target` fit. The remainder is not squeezed into
-// them — it is left as flat, so the pitch never varies.
-function waveBumps(len, target){
-  return Math.max(1, Math.floor(len / target));
 }
 
 // Many small scallops rather than a few big ones: a fine ripple reads as
 // a deliberate frame, where a long slow wave just looks like a wobbly box.
-const POCKET_WAVELEN = 8;
+/* A squiggle, not a scallop: half-waves about as long as a stroke is wide
+   a few times over. See WAVE_CTRL. */
+const POCKET_WAVELEN = 6;
 // How far a ripple stands off its own baseline — the height of one
 // half-wave, and so how deep a pocket reality's border really is. Declared
 // here rather than up beside the other border constants because it is
@@ -449,15 +484,10 @@ const POCKET_WAVELEN = 8;
  * there. This sits between the two, and is only possible because the rings
  * share one phase grid (see wavySideCommands) and so stay exactly the ring
  * spacing apart however deep the ripple is. */
-const POCKET_LIFT = 3.1;
-/* The frame borrows the connector's arrangement: a short flat stretch at
-   each corner, an even row of scallops between them. Running the wave all
-   the way into the corner put a crest exactly where two sides meet, which
-   softened the corner into a blob and made the box lose its shape; a
-   corner that stays square reads as a box with a wavy edge, which is what
-   a pocket reality is meant to look like. Like the connector's, these
-   flats give way on a short side rather than eating it. */
-const POCKET_CORNER_FLAT = 0;
+/* The height of the CONTROLS; the ripple itself peaks at three quarters of
+   it — a little under two units, which is the hand-drawn look, and keeps
+   two rings four units apart well clear of each other. */
+const POCKET_LIFT = 2.1;
 /* One side of the pocket frame, from just past one corner to just short of
    the next. The radius is held back at both ends so wavyRectPath can turn
    the corner with an arc, the way every other box on the chart does. */
@@ -472,26 +502,31 @@ const POCKET_CORNER_FLAT = 0;
  * forced the ripple to be shallow enough to be barely visible. Anchored to
  * a shared grid the rings are parallel curves, exactly the ring spacing
  * apart at every point, and the ripple can have some depth again. */
+/* How one side of a rippled frame is divided.
+ *
+ * It was laid on a grid shared by every ring of the entry, whole arcs only,
+ * with the remainder left flat — which at each corner could be most of an
+ * arc of bare border. The arcs now fill the side exactly: as many as fit
+ * at about POCKET_WAVELEN, stretched a hair to come out even, and every
+ * side starts on the same foot. Rings a step apart differ in length by a
+ * fraction of an arc, so their ripples still run nearly parallel, and at
+ * this depth there is daylight between them wherever they drift. */
+function pocketSideLayout(len, r){
+  const straight = len - r*2;
+  if(straight < POCKET_WAVELEN * 1.5) return null;
+  const bumps = Math.max(1, Math.round(straight / POCKET_WAVELEN));
+  return {start: 0, bumps, W: straight / bumps, phase: 0};
+}
 function wavySideCommands(x1, y1, x2, y2, outX, outY, r, phaseBase){
   const len = Math.hypot(x2-x1, y2-y1);
   if(len < 2) return ` L${x2},${y2}`;
   const ux = (x2-x1)/len, uy = (y2-y1)/len;
   const sx = x1 + ux*r, sy = y1 + uy*r;          // start, past the last corner
   const ex = x2 - ux*r, ey = y2 - uy*r;          // end, short of the next one
-  const straight = len - r*2;
-  const flat = Math.min(POCKET_CORNER_FLAT, straight/4);
-  const runLen = straight - flat*2;
-  if(runLen < POCKET_WAVELEN * 1.5) return ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
-  const W = POCKET_WAVELEN;
-  // Where `sx` sits on the entry's own grid, and the first grid line at or
-  // past the point the arcs may begin.
-  const absAtSx = (phaseBase || 0) + r;
-  const firstIdx = Math.ceil((absAtSx + flat) / W);
-  const start = firstIdx * W - absAtSx;
-  const bumps = Math.floor((runLen + flat - start) / W);
-  if(bumps < 1) return ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
-  // Which way the first drawn arc bulges, so neighbouring rings agree.
-  const phase = ((firstIdx % 2) + 2) % 2;
+  void phaseBase;
+  const lay = pocketSideLayout(len, r);
+  if(!lay) return ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
+  const {start, bumps, W, phase} = lay;
   let d = ` L${(sx + ux*start).toFixed(2)},${(sy + uy*start).toFixed(2)}`;
   d += waveRun(sx, sy, ux, uy, outX, outY, start, bumps, W, phase, POCKET_LIFT);
   d += ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
