@@ -76,14 +76,19 @@ jobs:
           path: dist/
           retention-days: 14
 
+  # The suite is 67 named scenarios and they do not depend on one another —
+  # which is checked rather than assumed: four shards print exactly the checks
+  # one whole run prints, by name. So they run as shards, and a regression job
+  # is about a minute and a half instead of six.
   test:
-    name: Regression (${{ matrix.target }})
+    name: Regression (${{ matrix.target }} ${{ matrix.shard }}/4)
     runs-on: ubuntu-latest
     needs: build
     strategy:
       fail-fast: false
       matrix:
         target: [dist, src]
+        shard: [0, 1, 2, 3]
     steps:
       - uses: actions/checkout@v4
 
@@ -106,7 +111,7 @@ jobs:
         run: python3 build.py
 
       - name: Run the suite
-        run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }}
+        run: node tests/regression.js ${{ matrix.target == 'src' && 'src' || '' }} --shard=${{ matrix.shard }}/4
 
   pages:
     name: Publish to Pages

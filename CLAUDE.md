@@ -84,20 +84,37 @@ node tests/regression.js         # ~6 minutes, against dist
 node tests/regression.js src     # ~6 minutes, against src
 ```
 
-The two regression runs share port 8830, so they run **one after the other**,
-or one of them with `RHIZOME_TEST_PORT` set. They are long enough that a
-two-minute tool timeout will cut them off — background them and poll:
-
-```bash
-setsid nohup node tests/regression.js > /tmp/dist.log 2>&1 & disown
-```
-
 `dist` and `src` load the same program by different paths. A green run on one
 says nothing about the other; run both.
 
-Adding behaviour means adding a named check to `tests/regression.js`. When a
-claim turns out to be wrong — including one this file makes — the fix is a
-check that would have caught it, not a note.
+### Running less than all of it
+
+The suite is 67 named scenarios, and they do not depend on one another —
+which is checked rather than assumed: four shards print exactly the checks
+one whole run prints, by name, and the wrapping that introduced them added
+two lines per scenario and moved no bodies.
+
+```bash
+node tests/regression.js --list           what there is to run
+node tests/regression.js --only=callout   just those, ~20s rather than ~5min
+node tools/shards.js                      the whole thing, four ways, ~90s
+node tools/shards.js src                  the same against the sources
+```
+
+`--only` that matches nothing exits 2 rather than 0: a mistyped name used to
+read exactly like a run that passed. Each run names its three slowest
+scenarios, so which ones are worth a quick set is answered by the suite
+rather than guessed. A scenario that throws is caught and counted instead of
+ending the run — one broken scenario used to take the sixty after it with it.
+
+A plain `node tests/regression.js` still runs everything in order and still
+takes about six minutes; the shards are for when you want the answer now. CI
+runs the shards.
+
+Adding behaviour means adding a named check to `tests/regression.js`, inside
+the scenario it belongs to. When a claim turns out to be wrong — including
+one this file makes — the fix is a check that would have caught it, not a
+note.
 
 ## The two published copies
 
@@ -199,8 +216,13 @@ Do not re-propose these without new evidence:
    artifact host.
 2. **Bughunting**, and removing behaviour that is unwanted or surprising, over
    new features.
-3. Splitting the suites into a quick set and a full set, so a small change
-   does not cost twelve minutes.
+
+A third priority stood here: splitting the suites so a small change did not
+cost twelve minutes. It is done, and differently from how it was posed — not
+a quick set and a full set, which would have meant deciding by hand which
+checks matter, but named scenarios that can be selected (`--only`) and run in
+parallel (`tools/shards.js`). Twelve minutes of waiting is now about three,
+and one scenario is twenty seconds.
 
 ## House style
 

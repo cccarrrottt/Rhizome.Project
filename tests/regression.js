@@ -50,6 +50,72 @@ function eq(name, got, want){
 
 const wait = ms => new Promise(r => setTimeout(r, ms));
 
+/* ---------------------------------------------------------------------
+   The suite as named scenarios.
+
+   This was one linear run of 8,700 lines. Every check in it was named, and
+   the suite as a whole was not: there was no way to run one of them, so a
+   one-line change cost twelve minutes and a failure could only be looked
+   into by reading the log of everything that came before it. The sections
+   had numbers, and by the end the numbers had stopped meaning anything —
+   markers ran 1..41 and then 27b..27z while the TEXT of those same lines
+   said "section 42".."section 65", two schemes disagreeing inside one line.
+
+   So sections are named and addressable now, and nothing else about them
+   changed: the wrapping added two lines per section and moved none of the
+   bodies, which is why the diff that introduced it is 134 insertions and no
+   deletions, and why the suite prints the same checks in the same order.
+
+       node tests/regression.js                 everything, against dist
+       node tests/regression.js src             everything, against src
+       node tests/regression.js --list          what there is to run
+       node tests/regression.js --only=callout  scenarios whose name matches
+       node tests/regression.js --shard=0/4     every fourth one, from the
+                                                first — four of these in
+                                                parallel, on four ports, is
+                                                the whole suite in a quarter
+                                                of the time
+
+   A scenario that throws is caught and counted, rather than ending the run.
+   One broken scenario used to take the sixty after it with it, which is the
+   opposite of what a suite is for.
+   ------------------------------------------------------------------ */
+const ARGS = process.argv.slice(2);
+const argOf = (flag) => {
+  const hit = ARGS.find(a => a.startsWith(flag + '='));
+  return hit ? hit.slice(flag.length + 1) : null;
+};
+const ONLY = (argOf('--only') || '').toLowerCase();
+const LIST = ARGS.includes('--list');
+const SHARD = (() => {
+  const v = argOf('--shard');
+  if(!v) return null;
+  const [i, of] = v.split('/').map(Number);
+  if(!Number.isInteger(i) || !Number.isInteger(of) || of < 1 || i < 0 || i >= of){
+    console.error(`--shard wants i/n with 0 <= i < n, not ${v}`);
+    process.exit(2);
+  }
+  return {i, of};
+})();
+
+let sceneNo = 0, sceneRan = 0, sceneSkipped = 0;
+const sceneTimes = [];
+async function scenario(name, body){
+  const index = sceneNo++;
+  if(LIST){ console.log(`  ${String(index).padStart(3)}  ${name}`); return; }
+  if(ONLY && !name.toLowerCase().includes(ONLY)){ sceneSkipped++; return; }
+  if(SHARD && index % SHARD.of !== SHARD.i){ sceneSkipped++; return; }
+  sceneRan++;
+  const t0 = Date.now();
+  try{
+    await body();
+  }catch(e){
+    // Counted as a failure of this scenario, not as the end of the run.
+    check(`scenario “${name}” threw`, false, (e && e.message) || String(e));
+  }
+  sceneTimes.push({name, ms: Date.now() - t0});
+}
+
 async function main(){
   const srv = http.createServer((q, r) => {
     const rel = decodeURIComponent(q.url.split('?')[0]);
@@ -84,6 +150,7 @@ async function main(){
   await wait(1500);
 
   /* ---- 1. boot ---- */
+  await scenario("boot", async () => {
   const boot = await page.evaluate(() => ({
     nodes: nodes.size,
     rendered: document.querySelectorAll('#nodeLayer .node').length,
@@ -96,7 +163,9 @@ async function main(){
   eq('all seven layers present', boot.layers, 7);
   eq('clean on load', boot.dirty, false);
 
+  });
   /* ---- 2. undo / redo ---- */
+  await scenario("undo / redo", async () => {
   const undo = await page.evaluate(async () => {
     const was = workingNodes[0][1];
     applyEdit(() => { workingNodes[0][1] = '__UNDO_PROBE__'; });
@@ -114,7 +183,9 @@ async function main(){
   eq('ctrl+z undoes', undo.undone, undo.was);
   eq('ctrl+y redoes', undo.redone, '__UNDO_PROBE__');
 
+  });
   /* ---- 3. node creation, every archetype ---- */
+  await scenario("node creation, every archetype", async () => {
   const shapes = await page.evaluate(async () => {
     const out = {};
     for(const shape of ['rect','ellipse','amalgam','image','textbox']){
@@ -128,7 +199,9 @@ async function main(){
   });
   for(const [shape, ok] of Object.entries(shapes)) check(`archetype renders: ${shape}`, ok);
 
+  });
   /* ---- 4. card layout ---- */
+  await scenario("card layout", async () => {
   const card = await page.evaluate(async () => {
     const id = 'probe_card';
     applyEdit(() => { workingNodes.push([id, 'Card Probe', null, null, 'body text', 'rect',
@@ -149,7 +222,9 @@ async function main(){
         JSON.stringify(card));
   check('card records its picture band for port routing', card.cardTop);
 
+  });
   /* ---- 5. edge routing clears every obstacle ---- */
+  await scenario("edge routing clears every obstacle", async () => {
   const clearance = await page.evaluate(async () => {
     const ids = [];
     applyEdit(() => {
@@ -181,7 +256,9 @@ async function main(){
         clearance.hits === 0 && clearance.checked > 100,
         `${clearance.checked - clearance.hits}/${clearance.checked} sample points clear`);
 
+  });
   /* ---- 6. panels open ---- */
+  await scenario("panels open", async () => {
   for(const [btn, panel] of [['#legendToggle','#legend'], ['#fileToggle','#filePopover'],
                              ['#aboutToggle','#aboutOverlay'], ['#stickersToggle','#stickerOverlay'],
                              ['#addNodeToggle','#addNodeOverlay']]){
@@ -206,7 +283,9 @@ async function main(){
     return !document.getElementById('commentsOverlay').classList.contains('open');
   }));
 
+  });
   /* ---- 7. tag filtering hides nodes AND their connectors ---- */
+  await scenario("tag filtering hides nodes AND their connectors", async () => {
   const tagFilter = await page.evaluate(async () => {
     const id = 'probe_tagged';
     applyEdit(() => {
@@ -242,7 +321,9 @@ async function main(){
         tagFilter.touching > 0 && tagFilter.stillVisible === 0 && tagFilter.othersVisible > 0,
         JSON.stringify(tagFilter));
 
+  });
   /* ---- 8. search ---- */
+  await scenario("search", async () => {
   const search = await page.evaluate(async () => {
     const i = document.getElementById('searchInput');
     /* Searched for by the WORDS of a label, not by its source. A label on
@@ -259,7 +340,9 @@ async function main(){
   });
   check('search returns results', search > 0, `${search} elements`);
 
+  });
   /* ---- 9. grid toggle ---- */
+  await scenario("grid toggle", async () => {
   const grid = await page.evaluate(async () => {
     const g = document.getElementById('alignGrid');
     const b = document.getElementById('gridToggle');
@@ -273,11 +356,13 @@ async function main(){
   check('fixed grid toggles both ways', grid.flipped !== grid.start && grid.back === grid.start,
         JSON.stringify(grid));
 
+  });
   /* ---- 10. export / import round-trip ----
      Only meaningful against the built file. In src/ the markup and the data
      are separate files, so the page reading "its own source" gets index.html,
      which by design holds no chart. writeChart() says so plainly rather than
      writing a broken export, and that refusal is what's checked here. */
+  await scenario("export / import round-trip", async () => {
   if(MODE === 'src'){
     const refused = await page.evaluate(async () => {
       try { writeChart(await readOwnSource(true)); return null; }
@@ -305,7 +390,9 @@ async function main(){
   check('a junk import is refused without damage', io.rejected && io.intact);
   }
 
+  });
   /* ---- 11. no host: browser storage is the fallback ---- */
+  await scenario("no host: browser storage is the fallback", async () => {
   {
     const c2 = await browser.newContext();
     await c2.addInitScript(() => { try { delete window.claude; } catch(e){} });
@@ -328,7 +415,9 @@ async function main(){
     await c2.close();
   }
 
+  });
   /* ---- 12. waves are one-sided semicircles ---- */
+  await scenario("waves are one-sided semicircles", async () => {
   const waves = await page.evaluate(()=>{
     // 6 arcs over a 60-unit run: every control point should sit directly
     // above an endpoint (that is what makes the hump a half-ellipse rather
@@ -364,7 +453,9 @@ async function main(){
   check('arc height is half its width — a true semicircle',
         Math.abs(waves.peak - waves.wanted) < 0.02, JSON.stringify(waves));
 
+  });
   /* ---- 13. tag categories ---- */
+  await scenario("tag categories", async () => {
   const cats = await page.evaluate(async ()=>{
     applyEdit(()=>{
       workingNodes.push(['cat_a', 'Cat A', null, null, null, null, {pos:[600,600], tags:['probe-tag']}]);
@@ -397,7 +488,9 @@ async function main(){
   check('a category can declare a tag no entry carries yet', cats.orphanListed);
   check('deleting a category keeps its tags', cats.tagSurvived && cats.catGone, JSON.stringify(cats));
 
+  });
   /* ---- 14. the note lives in the entry panel, not its settings ---- */
+  await scenario("the note lives in the entry panel, not its settings", async () => {
   const notePlacement = await page.evaluate(async ()=>{
     const id = workingNodes[0][0];
     selectedId = id;
@@ -412,7 +505,9 @@ async function main(){
   eq('note is hidden while settings are open', notePlacement.whileOpen, 'none');
   check('note comes back when settings close', notePlacement.afterClose !== 'none');
 
+  });
   /* ---- 15. connector notes take formatting ---- */
+  await scenario("connector notes take formatting", async () => {
   const noteFmt = await page.evaluate(async ()=>{
     const a = workingNodes[0][0], b = workingNodes[1] ? workingNodes[1][0] : null;
     if(!b) return {skip:true};
@@ -441,7 +536,9 @@ async function main(){
     check('the connector note field is a rich field', noteFmt.isRich);
   }
 
+  });
   /* ---- 16. the crop chooser ---- */
+  await scenario("the crop chooser", async () => {
   const crop = await page.evaluate(()=>{
     cropNat = {w:400, h:200};
     resetCropSel();
@@ -461,7 +558,9 @@ async function main(){
   check('the crop dialog sits above every panel that can open it',
         crop.aboveEverything >= 150, 'z-index ' + crop.aboveEverything);
 
+  });
   /* ---- 17. links can only navigate ---- */
+  await scenario("links can only navigate", async () => {
   const urls = await page.evaluate(()=>({
     js: safeUrl('javascript:alert(1)'),
     jsMixedCase: safeUrl('JaVaScRiPt:alert(1)'),
@@ -474,7 +573,9 @@ async function main(){
   check('navigational URL schemes are kept',
         urls.https === 'https://example.com/a' && urls.mailto === 'mailto:a@b.c');
 
+  });
   /* ---- 18. wave arcs bulge away from the elbow ---- */
+  await scenario("wave arcs bulge away from the elbow", async () => {
   const waveDir = await page.evaluate(()=>{
     // Down, then right. The inside of that elbow is up-and-right of the
     // turn, so "outward" means left of the vertical run and below the
@@ -506,7 +607,9 @@ async function main(){
   check('and its first arc still leans away from the bend',
         waveDir.firstCx !== null && waveDir.firstCx < 0, JSON.stringify(waveDir.firstCx));
 
+  });
   /* ---- 19. the amalgam junction bead ---- */
+  await scenario("the amalgam junction bead", async () => {
   const bead = await page.evaluate(async ()=>{
     const before = workingNodes.slice();
     applyEdit(()=>{
@@ -542,7 +645,9 @@ async function main(){
   check('an amalgam junction gets a gradient bead, painted over the seam',
         bead.found && bead.gradient && bead.last && bead.onArrow, JSON.stringify(bead));
 
+  });
   /* ---- 20. the crop chooser is round only for a portrait ---- */
+  await scenario("the crop chooser is round only for a portrait", async () => {
   const cropShape = await page.evaluate(()=>{
     const frame = document.getElementById('cropFrame');
     const before = frame.className;
@@ -556,7 +661,9 @@ async function main(){
   check('a circular crop frame is actually drawn round',
         /50%|9999/.test(cropShape.round) && /^0/.test(cropShape.square), JSON.stringify(cropShape));
 
+  });
   /* ---- 21. callouts ---- */
+  await scenario("callouts", async () => {
   const leader = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -616,7 +723,9 @@ async function main(){
           LEADER_SNAPS[0] === 0 && LEADER_SNAPS[20] === 1 &&
           Math.abs(LEADER_SNAPS[5] - 0.25) < 1e-6));
 
+  });
   /* ---- 22. references ---- */
+  await scenario("references", async () => {
   const refs = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeRefs = REFS.slice();
@@ -670,7 +779,9 @@ async function main(){
   check('a citation survives the editor round-trip as its key', refs.roundTrip);
   check('deleting a reference removes its marks from the text', refs.stripped);
 
+  });
   /* ---- 23. this round's fixes ---- */
+  await scenario("this round's fixes", async () => {
   const round5 = await page.evaluate(async ()=>{
     const svgEl = document.getElementById('canvas');
     const side = (pts)=>{
@@ -808,7 +919,9 @@ async function main(){
         amalStraight.found && amalStraight.barSpread < 1.5 && amalStraight.beadOffBar < 1,
         JSON.stringify(amalStraight));
 
+  });
   /* ---- 24. this round ---- */
+  await scenario("this round", async () => {
   const r6 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     // Collinear port stubs must not count as corners.
@@ -906,6 +1019,7 @@ async function main(){
         r6c.blank && r6c.text === '', JSON.stringify(r6c));
   check('the leader Point row is gone — the placement starts the pick', r6c.noPointRow);
 
+  });
   /* ---- 25. saving must not break the page it saves ----
      The page reads its own source to save an edited copy. Fetching its own
      URL is the good way; a host that refuses it leaves only the live DOM,
@@ -913,6 +1027,7 @@ async function main(){
      that embedded the host's runtime in the chart and nested one document
      inside another — a save that left a page rendering half a chart and
      responding to nothing. The markers make the fallback exact. */
+  await scenario("saving must not break the page it saves", async () => {
   if(MODE === 'src'){
     /* The split sources carry no page markers — build.py adds them — so
        reading its own source is exactly what index.html cannot do, and
@@ -950,7 +1065,9 @@ async function main(){
         selfSource.fragmentOfDoc);
   }
 
+  });
   /* ---- 26. this round ---- */
+  await scenario("this round", async () => {
   const r7 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeRefs = REFS.slice();
@@ -1067,7 +1184,9 @@ async function main(){
   check('Ctrl frees a drag from the grid, Shift does not', r7c.ctrlIsFree);
   check('a toolbar picker counts as part of the connector popover', r7c.satellite);
 
+  });
   /* ---- 27. this round ---- */
+  await scenario("this round", async () => {
   const r8 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeRefs = REFS.slice();
@@ -1154,7 +1273,9 @@ async function main(){
         r8.noAButton && r8.hexDefault === '#20242b', JSON.stringify({noA:r8.noAButton, v:r8.hexDefault}));
   check('and carries a reset back to the entry\u2019s own colour', r8.hasHexReset);
 
+  });
   /* ---- 28. this round: borders outward, panel controls, note sizing ---- */
+  await scenario("this round: borders outward, panel controls, note sizing", async () => {
   const r9 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -1292,7 +1413,9 @@ async function main(){
   check('opening a toolbar menu closes the one already open',
         r9.legendClosed && r9.fileOpen, JSON.stringify({legendClosed:r9.legendClosed, fileOpen:r9.fileOpen}));
 
+  });
   /* ---- 29. this round: placement, patterns, the bowl, the panel ---- */
+  await scenario("this round: placement, patterns, the bowl, the panel", async () => {
   const r10 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -1596,7 +1719,9 @@ async function main(){
         Math.abs(pasted.landed[0] - pasted.far[0]) > 1000,
         JSON.stringify(pasted));
 
+  });
   /* ---- 30. this round: the colour commit, the bar's beads, the leash ---- */
+  await scenario("this round: the colour commit, the bar's beads, the leash", async () => {
   const r11 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -1776,7 +1901,9 @@ async function main(){
   check('and its hex box wears the same swatch as every other one',
         panelShape.hexStyled);
 
+  });
   /* ---- 31. this round: selection, colour inheritance, the ripple ---- */
+  await scenario("this round: selection, colour inheritance, the ripple", async () => {
   const r12 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -1964,7 +2091,9 @@ async function main(){
      plain line marks nothing a reader can act on — it is only worth
      knowing while the entry is being lined up on it, which is a guide. */
 
+  });
   /* ---- 32. this round: the grid, the grip, the bar's own colours ---- */
+  await scenario("this round: the grid, the grip, the bar's own colours", async () => {
   const r13 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -2117,7 +2246,9 @@ async function main(){
   check('a start arrowhead hides the arcs behind it and moves none of the others',
         wavePhase.held && wavePhase.dropped >= 1, JSON.stringify(wavePhase));
 
+  });
   /* ---- 33. this round: type controls, T-joins, group copy ---- */
+  await scenario("this round: type controls, T-joins, group copy", async () => {
   const r14 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -2335,8 +2466,10 @@ async function main(){
         trim.pocketNoCap && trim.pocketHeadUnder,
         JSON.stringify({noCap:trim.pocketNoCap, under:trim.pocketHeadUnder}));
 
+  });
   /* ---- 34. the review pass: nothing saved may be lost, nothing typed
              may be rewritten ---- */
+  await scenario("the review pass: nothing saved may be lost, nothing typed", async () => {
   const audit = await page.evaluate(async ()=>{
     const out = {};
     const beforeNodes = workingNodes.slice();
@@ -2524,7 +2657,9 @@ async function main(){
   check('a tight cluster of lineages keeps its bar centred on itself',
         Math.abs(lastPass.barOffCentre) < 1, String(lastPass.barOffCentre));
 
+  });
   /* ---- 35. this round ---- */
+  await scenario("this round", async () => {
   const r15 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const out = {};
@@ -2697,7 +2832,9 @@ async function main(){
         am.broughtHome, String(am.broughtHome));
 
 
+  });
   /* ---- 36. this round ---- */
+  await scenario("this round", async () => {
   const r16 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeRefs = REFS.slice();
@@ -2966,7 +3103,9 @@ async function main(){
         r16.refDraggable && r16.refOrder === 'q2,q3,q1' && r16.refMarkNumber === '[3]',
         JSON.stringify({order:r16.refOrder, mark:r16.refMarkNumber}));
 
+  });
   /* ---- 37. this round ---- */
+  await scenario("this round", async () => {
   const r17 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeRefs = REFS.slice();
@@ -3188,7 +3327,9 @@ async function main(){
   /* The per-lineage note directions are gone with the rest of the
      merged-note apparatus; see the note above. */
 
+  });
   /* ---- 38. this round ---- */
+  await scenario("this round", async () => {
   const r18 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -3403,7 +3544,9 @@ async function main(){
         r18.disabledOpacity < 0.6 && r18.disabledCursor === 'default',
         JSON.stringify({o:r18.disabledOpacity, c:r18.disabledCursor}));
 
+  });
   /* ---- 39. the review pass ---- */
+  await scenario("the review pass", async () => {
   const r19 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -3530,7 +3673,9 @@ async function main(){
   check('the routing lattice keeps the points it has to start and finish on',
         r19.latticeKeepsEnds);
 
+  });
   /* ---- 40. this round ---- */
+  await scenario("this round", async () => {
   const r20 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -3651,7 +3796,9 @@ async function main(){
   check('an annotation can be formatted without touching the word under it',
         r20.annoAlone === '[[base|{{#1d7a5f|an}}no]]', r20.annoAlone);
 
+  });
   /* ---- 41. this round ---- */
+  await scenario("this round", async () => {
   const r21 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -3926,8 +4073,10 @@ async function main(){
   check('an undo repaints the panel the change was made in',
         r21.libraryRepaints);
 
+  });
   /* ---- 27b. section 42: the double line style, Enter in a text field,
        one-line labels, and a pocket reality's connectors ---- */
+  await scenario("the double line style, Enter in a text field,", async () => {
   const r22 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4087,8 +4236,10 @@ async function main(){
         JSON.stringify({left:r22.enterLeavesField, saved:r22.enterSaved}));
   check('while Shift+Enter stays in it', r22.shiftEnterStays);
 
+  });
   /* ---- 27c. section 43: the router's guarantees, four grips, the leader
        gesture, readings, and the rebrand ---- */
+  await scenario("the router's guarantees, four grips, the leader", async () => {
   const r23 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4284,8 +4435,10 @@ async function main(){
         JSON.stringify({brand:r23.brand, title:r23.docTitle,
                         v:r23.versionLine, log:r23.versionLog}));
 
+  });
   /* ---- 27d. section 44: the ripple's real position, straight-through
        ports, one colour per colour, the leader gesture end to end ---- */
+  await scenario("the ripple's real position, straight-through", async () => {
   const r24 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4483,8 +4636,10 @@ async function main(){
   check('an entry at a negative coordinate keeps all four grips',
         r24.gripsNegative === 4, String(r24.gripsNegative));
 
+  });
   /* ---- 27e. section 45: the knee stays put, arrows on a ripple, and
        elements with nothing written in them ---- */
+  await scenario("the knee stays put, arrows on a ripple, and", async () => {
   const r25 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4586,8 +4741,10 @@ async function main(){
         JSON.stringify({made:r25.emptyEntryMade, size:r25.emptyEntrySize}));
   check('and a connector note can be empty too', r25.emptyCardDrawn);
 
+  });
   /* ---- 27f. section 46: even ports, readings that keep their dress, a
        rippled border from every side, and clearing a label ---- */
+  await scenario("even ports, readings that keep their dress, a", async () => {
   const r26 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4754,9 +4911,11 @@ async function main(){
   check('a rippled border takes the same connector from every side',
         r26.pocketFaults.length === 0, r26.pocketFaults.join(', '));
 
+  });
   /* ---- 27g. section 47: an About that scrolls, even ports that still
        drop straight, a border nothing crosses, and an export in standards
        mode ---- */
+  await scenario("an About that scrolls, even ports that still", async () => {
   const r27 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4879,8 +5038,10 @@ async function main(){
         r27.exportHasDoctype && r27.exportWrapsFragment,
         JSON.stringify({full:r27.exportHasDoctype, frag:r27.exportWrapsFragment}));
 
+  });
   /* ---- 27h. section 48: the review pass — nothing an entry draws may be
        filled by accident, and nothing may cover the connectors ---- */
+  await scenario("the review pass \u2014 nothing an entry draws may be", async () => {
   const r28 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -4955,8 +5116,10 @@ async function main(){
   check('so a connector still reaches under a rippled border',
         r28.endsInside);
 
+  });
   /* ---- 27j. section 49: a pocket's OTHER borders, scenery as tags,
        a comment that reads like everything else, and figures in it ---- */
+  await scenario("a pocket's OTHER borders, scenery as tags,", async () => {
   const r29 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -5121,8 +5284,10 @@ async function main(){
         JSON.stringify({on:r29.buttonOnNote, count:r29.buttonNowhereElse}));
   check('a figure may only come from the file or from the web', r29.linkRefused);
 
+  });
   /* ---- 27k. section 50: a callout with a card of its own, tags drawn as
        tags, figures placed and sized, and a save that says what failed ---- */
+  await scenario("a callout with a card of its own, tags drawn as", async () => {
   const r30 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -5354,9 +5519,11 @@ async function main(){
   });
   check('the fan-fiction weave is drawn in gold', /232|e8b21f|rgb\(232/.test(weave || ''), String(weave));
 
+  });
   /* ---- 27l. section 51: contained animations, a crossbar that stays put
        whichever end moves, a panel you can search and fold, a comment read
        at full size, and a callout that behaves like everything else ---- */
+  await scenario("contained animations, a crossbar that stays put", async () => {
   const r31 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -5660,8 +5827,10 @@ async function main(){
              !clip.typeHasComma && clip.accepted && clip.roundTripped && clip.plays,
              JSON.stringify(clip));
 
+  });
   /* ---- 27m. section 52: an entry that can still be carried, a loop that
        does not jump, a point that meets its label, and a clip that plays -- */
+  await scenario("an entry that can still be carried, a loop that", async () => {
   const r32 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -5771,8 +5940,10 @@ async function main(){
         r32.noExpandWhenEmpty && r32.expandWhenWritten,
         JSON.stringify({empty:r32.noExpandWhenEmpty, written:r32.expandWhenWritten}));
 
+  });
   /* ---- 27n. section 53: routes with no bend they do not need, anchors
        that stay put, and a panel that reads as two lists ---- */
+  await scenario("routes with no bend they do not need, anchors", async () => {
   const r33 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -5980,8 +6151,10 @@ async function main(){
   check('no connector on the chart carries a bend it does not need',
         straightAll.length === 0, straightAll.slice(0, 4).join(' '));
 
+  });
   /* ---- 27o. section 54: a portrait you can pick up, a weave that keeps
        up, a glow that follows its border, and arrows that do not route ---- */
+  await scenario("a portrait you can pick up, a weave that keeps", async () => {
   const r34 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -6268,8 +6441,10 @@ async function main(){
         ink.doubleIsTwo && ink.wavyIsAPath,
         JSON.stringify({double:ink.doubleIsTwo, wavy:ink.wavyIsAPath}));
 
+  });
   /* ---- 27p. section 55: a callout in its connector's colour, a portrait
        sized like everything else, a caption edited in its own card ---- */
+  await scenario("a callout in its connector's colour, a portrait", async () => {
   const r35 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -6476,8 +6651,10 @@ async function main(){
   check('and do not take all day about it',
         r35.sheetCycle > 0 && r35.sheetCycle <= 2, String(r35.sheetCycle));
 
+  });
   /* ---- 27q. section 56: a card that stays, a merge the entry cannot
        drag about, and a remark written in its connector's ink ---- */
+  await scenario("a card that stays, a merge the entry cannot", async () => {
   const r36 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -6680,7 +6857,9 @@ async function main(){
   check('so there is never a moment with nothing on its way out',
         r36.noPause, r36.dimmest);
 
+  });
   /* ---- 27r. section 57: what the entry decides and what it does not ---- */
+  await scenario("what the entry decides and what it does not", async () => {
   const r37 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -6977,7 +7156,9 @@ async function main(){
         JSON.stringify({painted:r37.heldPainted, value:r37.heldValue,
                         cleared:r37.heldCleared}));
 
+  });
   /* ---- 27s. section 58: what follows what ---- */
+  await scenario("what follows what", async () => {
   const r38 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -7130,7 +7311,9 @@ async function main(){
         r38.hasHandle && r38.handleLive,
         JSON.stringify({handle:r38.hasHandle, live:r38.handleLive}));
 
+  });
   /* ---- 27t. section 59: properties, not archetypes ---- */
+  await scenario("properties, not archetypes", async () => {
   const r39 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -7314,7 +7497,9 @@ async function main(){
         JSON.stringify({head:r39.foundHead, inPlace:r39.editableInPlace, done:r39.renamed}));
   check('a note plate stands on the ground its connector names', r39.plateGround);
 
+  });
   /* ---- 27u. section 60: a card that keeps up, a line bent by hand ---- */
+  await scenario("a card that keeps up, a line bent by hand", async () => {
   const r40 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -7643,7 +7828,9 @@ async function main(){
                         boxes:r40.ignoresBoxes, removed:r40.bendRemoved,
                         straight:r40.straightened, gone:r40.handlesGoneWithPanel}));
 
+  });
   /* ---- 27v. section 61: words written where they are drawn ---- */
+  await scenario("words written where they are drawn", async () => {
   const r41 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -7980,7 +8167,9 @@ async function main(){
   check('scenery does not flash while another entry is being written',
         r41.steady, 'at rest ' + r41.dimAtRest + ' -> ' + r41.seen);
 
+  });
   /* ---- 27w. section 62: one field, two grounds, a square to grab ---- */
+  await scenario("one field, two grounds, a square to grab", async () => {
   const r42 = await page.evaluate(async ()=>{
     const beforeNodes = workingNodes.slice();
     const beforeStyles = EDGE_STYLES.slice();
@@ -8233,7 +8422,9 @@ async function main(){
         JSON.stringify({clean:r42.noLeakedMarkup, both:r42.underlineBothLines,
                         back:r42.roundTrip}));
 
+  });
   /* ---- 27x. section 63: ids that cannot collide, keys that survive a rename ---- */
+  await scenario("ids that cannot collide, keys that survive a rename", async () => {
   const r43 = await page.evaluate(async ()=>{
     const out = {};
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
@@ -8359,7 +8550,9 @@ async function main(){
         JSON.stringify({copies:r43.restoreCopies, intact:r43.historyIntact,
                         undone:r43.undoRemovedIt}));
 
+  });
   /* ---- 27y. section 64: a note that rides, a ground that reads ---- */
+  await scenario("a note that rides, a ground that reads", async () => {
   const r44 = await page.evaluate(async ()=>{
     const out = {};
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
@@ -8569,7 +8762,9 @@ async function main(){
         JSON.stringify({opened:r44.tabEditorOpened, showed:r44.tabEditorShowsTab,
                         wrote:r44.tabTextWritten, label:r44.labelUntouched}));
 
+  });
   /* ---- 27z. section 65: one place to write, and it carries everything ---- */
+  await scenario("one place to write, and it carries everything", async () => {
   const r45 = await page.evaluate(async ()=>{
     const out = {};
     const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
@@ -8699,6 +8894,7 @@ async function main(){
         r45.amalgamHexHidden && r45.plainHexBack,
         JSON.stringify({merge:r45.amalgamHexHidden, plain:r45.plainHexBack}));
 
+  });
   /* ---- 28. the measured block cache is invisible ----
    *
    * More than half of what a rebuild cost was measureTextBlock, at exactly
@@ -8713,6 +8909,7 @@ async function main(){
    * one changes [1] to [11] and with it the width of every text that cites
    * it. These check both halves — that a remembered answer equals a
    * computed one, and that the answer still moves when that order does. */
+  await scenario("the measured block cache is invisible", async () => {
   const rCache = await page.evaluate(() => {
     const out = {};
     const opts = {fontSize: NODE_FS, family: fontFamilyFor(null)};
@@ -8775,11 +8972,35 @@ async function main(){
   check('a chart lays out identically with the cache cold and warm',
         rCache.geometrySame);
 
+  });
   /* ---- 29. nothing threw along the way ---- */
+  await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));
 
+  });
   await browser.close(); srv.close();
-  console.log(`\n${pass} passed, ${fail} failed\n`);
+  if(LIST){
+    console.log(`\n${sceneNo} scenarios\n`);
+    process.exit(0);
+  }
+  /* A filter that matched nothing exited 0, which reads exactly like a run
+     that passed — the worst possible answer to a mistyped scenario name,
+     because the mistake looks like success and the change looks tested. */
+  if(!sceneRan){
+    console.error(`\nno scenario matched ${ONLY ? `--only=${ONLY}` : 'the filter'}` +
+                  ` — nothing ran. node tests/regression.js --list names them.\n`);
+    process.exit(2);
+  }
+  /* The three slowest, every run. Which scenarios are worth putting in a
+     quick set is a question about where the time actually goes, and the
+     suite is the only thing that knows — naming them here is cheaper than
+     guessing, and keeps the answer current as scenarios are added. */
+  const slowest = sceneTimes.slice().sort((a, b) => b.ms - a.ms).slice(0, 3)
+    .map(s => `${s.name} ${(s.ms / 1000).toFixed(1)}s`).join(', ');
+  console.log(`\n${pass} passed, ${fail} failed` +
+              ` — ${sceneRan} scenario${sceneRan === 1 ? '' : 's'}` +
+              (sceneSkipped ? `, ${sceneSkipped} skipped` : '') +
+              (slowest ? `\nslowest: ${slowest}` : '') + '\n');
   process.exit(fail ? 1 : 0);
 }
 main().catch(e => { console.error('SUITE CRASHED', e); process.exit(1); });
