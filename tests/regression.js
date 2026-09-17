@@ -8475,18 +8475,21 @@ async function main(){
     out.fileName  = chartFileName();
     out.fileNamed = /^rhizome-project-\d{4}-\d{2}-\d{2}\.html$/.test(out.fileName);
 
-    /* The sticker library and the media shelf are snapshotted by structure,
-       not by text: an undo step costs a few small records and the base64 is
-       stored once however deep the stack goes. */
+    /* Every region is snapshotted with its long strings lifted out and held
+       by reference, so an undo step costs the small text that is left and
+       the base64 is stored once however deep the stack goes. */
     const bigSrc = 'data:image/png;base64,' + 'A'.repeat(4000);
     applyEdit(()=>{ STICKERS.push({key:'hv_probe', name:'heavy', src:bigSrc});
                     rebuildStickerMap(); });
     const snap = snapshotParts();
-    out.heavyIsStructural = !!(snap.s && snap.s.flat) && snap.s.json === undefined;
-    const rec  = snap.s.flat.find(x=> x.key === 'hv_probe');
     const live = STICKERS.find(x=> x.key === 'hv_probe');
-    // The very same string object, not a copy of it: that is the saving.
-    out.heavyShares = !!rec && !!live && rec.src === live.src && rec !== live;
+    // None of those four thousand characters is in the text that gets
+    // compared on every keystroke...
+    out.heavyIsStructural = snap.s.json.indexOf('A'.repeat(100)) < 0 &&
+                            snap.s.blobs.length >= 1;
+    // ...and what the snapshot holds is the very same string object, not a
+    // copy of it. That is the whole saving.
+    out.heavyShares = !!live && snap.s.blobs.indexOf(live.src) >= 0;
     out.cleanNow = !partsDiffer(snap);
     // An image replaced in place — which is how a sticker is replaced — is
     // still a change, and the structural form has to see it.
@@ -8498,15 +8501,20 @@ async function main(){
     // rewrites the history it was undone from.
     restoreSnapshot(snap);
     const after = STICKERS.find(x=> x.key === 'hv_probe');
-    out.restoreCopies = !!after && after !== rec && after.src === bigSrc;
+    out.restoreCopies = !!after && after !== live && after.src === bigSrc;
     after.src = 'touched';
-    out.historyIntact = rec.src === bigSrc;
-    // An item a shallow copy cannot speak for falls back to the text form,
-    // and the answer stays exact.
-    const odd = snapHeavy([{key:'k', meta:{deep:1}}]);
-    out.oddFallsBack = odd.json !== undefined && odd.flat === undefined;
-    out.oddCompares  = !heavyDiffers([{key:'k', meta:{deep:1}}], odd) &&
-                        heavyDiffers([{key:'k', meta:{deep:2}}], odd);
+    out.historyIntact = snap.s.blobs.indexOf(bigSrc) >= 0;
+    /* A shape a shallow copy could not have spoken for. The form this
+       replaced kept a flat record per item and fell back to text when an
+       item turned out to have an object inside it; there is nothing to fall
+       back to now, because lifting long strings out of a structure does not
+       care what the structure is. The claim to check is the one that
+       mattered either way: the answer is exact. */
+    const odd = snapRegion([{key:'k', meta:{deep:1}, src:bigSrc}]);
+    out.oddHoldsBytesOnce = odd.json.indexOf('A'.repeat(100)) < 0 &&
+                            odd.blobs.length === 1;
+    out.oddCompares  = !regionDiffers([{key:'k', meta:{deep:1}, src:bigSrc}], odd) &&
+                        regionDiffers([{key:'k', meta:{deep:2}, src:bigSrc}], odd);
 
     undoLastEdit();
     await wait(240);
@@ -8539,11 +8547,11 @@ async function main(){
   check('a sticker’s bytes are held once, not once per undo step',
         r43.heavyIsStructural && r43.heavyShares,
         JSON.stringify({structural:r43.heavyIsStructural, shared:r43.heavyShares}));
-  check('and comparing by structure stays exactly as exact as comparing text',
+  check('and lifting the bytes out stays exactly as exact as comparing text',
         r43.cleanNow && r43.seesInPlaceEdit && r43.seesItBack &&
-        r43.oddFallsBack && r43.oddCompares,
+        r43.oddHoldsBytesOnce && r43.oddCompares,
         JSON.stringify({clean:r43.cleanNow, sees:r43.seesInPlaceEdit,
-                        back:r43.seesItBack, fallback:r43.oddFallsBack,
+                        back:r43.seesItBack, nested:r43.oddHoldsBytesOnce,
                         exact:r43.oddCompares}));
   check('an undone library is restored as copies, leaving its history alone',
         r43.restoreCopies && r43.historyIntact && r43.undoRemovedIt,
@@ -8973,6 +8981,82 @@ async function main(){
         rCache.geometrySame);
 
   });
+  /* ---- 30. snapshots hold the bytes once ----
+   *
+   * takeSnapshot runs on every edit and isDirty on every keystroke. Both
+   * used to serialize entries whole, portraits and all: 60 entries carrying
+   * one each cost 2.05 ms a keystroke and 62 MB of undo stack, sixty copies
+   * of the same pictures. Lifting the long strings out and holding them by
+   * reference takes that to 0.07 ms and 2.6 MB.
+   *
+   * It is only allowed to do that if nothing is lost or confused on the way
+   * back, which is what these ask. */
+  await scenario("snapshots hold the bytes once", async () => {
+  const rSnap = await page.evaluate(() => {
+    const out = {};
+    const blob = 'data:image/jpeg;base64,' + 'Q'.repeat(20000);
+    const before = workingNodes;
+
+    // A chart with everything awkward in it: a portrait, a long note that
+    // is not base64, nested options, and two entries sharing one picture.
+    workingNodes = [
+      ['a', 'First', null, null, 'x'.repeat(900), 'ellipse',
+       {image: blob, tags: ['t'], colors: ['#123456'], pos: [10, 20]}],
+      ['b', 'Second', 'a', null, null, null, {image: blob, size: [90, 40]}],
+      ['c', 'Third', 'a', null, null, null, undefined]
+    ];
+    const original = JSON.stringify(workingNodes);
+
+    const snap = takeSnapshot();
+    workingNodes = [['z', 'wiped', null, null, null, null, {}]];
+    restoreSnapshot(snap);
+    out.roundTrips = JSON.stringify(workingNodes) === original;
+    out.portraitIntact = workingNodes[0][6].image === blob;
+    out.longNoteIntact = workingNodes[0][4] === 'x'.repeat(900);
+    out.nestedIntact = JSON.stringify(workingNodes[0][6].pos) === '[10,20]';
+
+    /* Every long string is lifted out, whatever it is — the two portraits
+       and the long note, three in all. A picture worn by two entries is
+       listed twice and that is right: both slots hold the SAME string
+       object, which costs a pointer, and deduplicating them would mean
+       hashing twenty thousand characters to save it. What matters is that
+       none of those characters is in the text that gets compared on every
+       keystroke, and that sixty undo steps share the one copy. */
+    const n = snap.n;
+    out.blobsLifted = n.blobs.length;
+    out.sharedByReference = n.blobs[0] === n.blobs[1] || n.blobs[1] === n.blobs[2];
+    out.textIsSmall = n.json.length < 1000;
+    out.textHasNoBase64 = n.json.indexOf('Q'.repeat(100)) < 0;
+
+    // Changing only the portrait still reads as a change.
+    savedParts = snapshotParts();
+    out.cleanAtRest = !isDirty();
+    workingNodes[0][6].image = blob.slice(0, -1) + 'R';
+    out.dirtyAfterPortraitEdit = isDirty();
+    workingNodes[0][6].image = blob;
+    out.cleanAgainWhenPutBack = !isDirty();
+
+    workingNodes = before;
+    rebuildChart();
+    savedParts = snapshotParts();
+    return out;
+  });
+  check('a snapshot restores exactly what it was given', rSnap.roundTrips);
+  check('a portrait comes back byte for byte', rSnap.portraitIntact);
+  check('so does a long note that is not a picture', rSnap.longNoteIntact);
+  check('and the nested options under an entry', rSnap.nestedIntact);
+  check('every long string is lifted out, a long note as well as a picture',
+        rSnap.blobsLifted === 3, String(rSnap.blobsLifted));
+  check('and a picture worn by two entries is the one string, twice named',
+        rSnap.sharedByReference);
+  check('what is left to compare per keystroke is small',
+        rSnap.textIsSmall && rSnap.textHasNoBase64,
+        JSON.stringify({small: rSnap.textIsSmall, noBase64: rSnap.textHasNoBase64}));
+  check('a chart that has not changed is not dirty', rSnap.cleanAtRest);
+  check('changing only a portrait is still noticed', rSnap.dirtyAfterPortraitEdit);
+  check('and putting it back is clean again', rSnap.cleanAgainWhenPutBack);
+  });
+
   /* ---- 29. nothing threw along the way ---- */
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

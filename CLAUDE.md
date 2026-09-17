@@ -182,6 +182,39 @@ Two things follow:
   those forced layouts into one, and measurement is now 1–2% of a rebuild.
   It would be invasive surgery on 1123 lines for something already spent.
 
+### What an edit cost before it was even drawn
+
+`takeSnapshot` runs on every edit and `isDirty` on every keystroke, and both
+used to serialize entries whole. Stickers and media had been dealt with —
+snapshotted as flat records so their base64 was held by reference — and the
+third place bytes live was left alone: a portrait hangs off an entry, and an
+entry is not a flat record, so that mechanism could not be pointed at it.
+
+| 60 entries | `isDirty` | undo stack |
+| --- | ---: | ---: |
+| no portraits | 0.01 ms | 0.2 MB |
+| with portraits, before | **2.05 ms** | **62.1 MB** |
+| with portraits, after | 0.07 ms | 2.6 MB |
+
+A megabyte of garbage per keystroke and sixty copies of the same pictures —
+exactly the fault the flat-record form was written to cure, in the region it
+could not reach. The lesson is in where it was fixed: `heavy` was a property
+of a REGION when what it is about is CONTENT.
+
+So there is one mechanism now, and it asks about content. A region is
+serialized with every string past `HEAVY_STRING` lifted out and replaced by
+its index, the strings kept beside the text. Nothing assumes a shape, so
+nothing falls back to a slower form it might have got wrong, and there is no
+counter for a write site to forget. The flat-record code is gone.
+
+Two things worth knowing before touching it: a picture worn by two entries is
+listed twice, and that is right — both slots hold the same string object, and
+deduplicating them would mean hashing twenty thousand characters to save a
+pointer. And a long note is lifted too; the rule is about length, not about
+whether something is a picture.
+
+### The cache, and why it may exist
+
 The cache is only allowed to exist because nothing can tell it is there, and
 that is checked rather than asserted: see the named checks in
 `tests/regression.js`. The one piece of state its arguments do not carry is

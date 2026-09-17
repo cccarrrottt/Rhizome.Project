@@ -73,112 +73,97 @@ const SAVED_REGIONS = [
   {k:'r', get: ()=> REFS,          set: v=> refill(REFS, v)},
   {k:'g', get: ()=> SETTINGS,      set: v=>{ Object.keys(SETTINGS).forEach(x=> delete SETTINGS[x]);
                                              Object.assign(SETTINGS, v); }},
-  // `heavy`: a library of forty small images is about a megabyte of base64,
-  // and an embedded clip is the largest single thing this chart can carry.
-  // Those two are snapshotted by structure rather than by text; see below.
-  {k:'s', get: ()=> STICKERS, heavy: true,
-          set: v=>{ refill(STICKERS, v); rebuildStickerMap(); }},
-  {k:'m', get: ()=> MEDIA,    heavy: true,
-          set: v=>{ refill(MEDIA, v); rebuildMediaMap(); }}
+  {k:'s', get: ()=> STICKERS, set: v=>{ refill(STICKERS, v); rebuildStickerMap(); }},
+  {k:'m', get: ()=> MEDIA,    set: v=>{ refill(MEDIA, v); rebuildMediaMap(); }}
 ];
 
 /* -------------------------------------------------------------------------
-   Snapshotting the two regions that carry the bytes.
+   Snapshotting, when some of what is in there is base64.
 
-   Everything above serializes to text, which is exact and, for entries and
-   comments and settings, cheap. For stickers and media it is neither cheap
-   nor, once you look at where it happens, defensible: takeSnapshot runs on
-   EVERY edit, so a chart with a modest sticker library re-encoded about a
-   megabyte of base64 per keystroke and then kept a separate copy of it in
-   each of sixty undo snapshots — a hundred and fifty megabytes of strings
-   that were, every one of them, byte-for-byte the string next to it.
+   takeSnapshot runs on EVERY edit and isDirty on every keystroke, and both
+   used to serialize whatever they were given. That is exact and, for text,
+   free. For the things this chart embeds it was neither: a sticker library
+   is about a megabyte of base64, an embedded clip is larger still, and a
+   portrait hangs off an entry.
 
-   What those two regions actually hold is a flat record per item —
-   {key, name, kind, src}, all primitives — and that is the whole reason a
-   structural snapshot works here. Copying the record copies the REFERENCE
-   to the base64, never the base64, so a snapshot costs a few dozen small
-   objects and the megabyte is stored exactly once no matter how deep the
-   undo stack goes. Comparison gets the same gift in reverse: an unchanged
-   sticker's `src` is the very same string object in the live array and in
-   the snapshot, so `===` settles it by identity without reading a byte.
+   Two of those three were dealt with by snapshotting stickers and media as
+   flat records, so the base64 was held by REFERENCE and compared with ===.
+   It worked, and it left the third alone. Entries kept going through
+   JSON.stringify whole, portraits and all — measured on a synthetic chart:
 
-   This is not a heuristic and nothing about it can go stale — no counter to
-   bump, no write site to remember. It is the same comparison the text form
-   made, done against values instead of against their spelling.
+       60 entries, no portraits    isDirty 0.01 ms    undo stack  0.2 MB
+       60 entries with portraits   isDirty 2.05 ms    undo stack 62.1 MB
 
-   The one assumption is flatness, and it is checked rather than trusted:
-   a chart hand-edited to put an object inside an item would compare wrong
-   under a shallow copy, so such a region falls back to the text form for
-   that snapshot. Both forms are exact; they differ only in cost.
+   a megabyte of garbage per keystroke, and sixty copies of the same
+   pictures, which is precisely the fault the flat-record snapshot was
+   written to cure. It was cured for two REGIONS when what it is about is
+   the CONTENT: bytes are heavy wherever they sit, and an entry is not a
+   flat record, so the old mechanism could not have been pointed at it.
+
+   So there is one mechanism now and it asks about content. A region is
+   serialized with every long string lifted out and replaced by its index,
+   and the strings are kept beside the text. What that buys is what the flat
+   record bought, for anything of any shape: the base64 is stored once and
+   compared by identity, and the text that remains is small enough that
+   comparing it is free.
+
+   Nothing here assumes a shape, so nothing falls back to a slower form it
+   might have got wrong, and there is no counter for a future write site to
+   forget. A restore parses fresh objects every time, so the history cannot
+   be rewritten by a later edit reaching into it — the reason the flat form
+   copied its records on the way out.
    ------------------------------------------------------------------------- */
-function flatRecord(o){
-  if(!o || typeof o !== 'object' || Array.isArray(o)) return null;
-  const out = {};
-  for(const k in o){
-    if(!Object.prototype.hasOwnProperty.call(o, k)) continue;
-    const v = o[k];
-    if(v !== null && typeof v === 'object') return null;
-    out[k] = v;
-  }
-  return out;
+/* Long enough that it is a payload rather than prose. An entry's label, a
+   note, a reference title are all far below it; a 240px portrait is about
+   eighteen thousand characters. */
+const HEAVY_STRING = 512;
+/* A marker no text can be. It opens with a NUL, which cannot be typed, and
+   the value it stands in for is looked up by index — so a string that
+   somehow read like one would still have to name a slot that exists. */
+const BLOB_MARK = '\u0000blob:';
+function snapRegion(value){
+  const blobs = [];
+  const json = JSON.stringify(value, (k, v)=>{
+    if(typeof v === 'string' && v.length >= HEAVY_STRING){
+      blobs.push(v);
+      return BLOB_MARK + (blobs.length - 1);
+    }
+    return v;
+  });
+  return {json, blobs};
 }
-function snapHeavy(list){
-  if(!Array.isArray(list)) return {json: JSON.stringify(list)};
-  const flat = [];
-  for(let i = 0; i < list.length; i++){
-    const rec = flatRecord(list[i]);
-    if(!rec) return {json: JSON.stringify(list)};
-    flat.push(rec);
-  }
-  return {flat};
-}
-function sameFlat(a, b){
-  const ka = Object.keys(a), kb = Object.keys(b);
-  if(ka.length !== kb.length) return false;
-  for(let i = 0; i < ka.length; i++){
-    const k = ka[i];
-    if(!Object.prototype.hasOwnProperty.call(b, k)) return false;
-    if(a[k] !== b[k]) return false;
-  }
-  return true;
-}
-function heavyDiffers(list, snap){
+function regionDiffers(value, snap){
   if(!snap) return true;
-  if(snap.json !== undefined) return JSON.stringify(list) !== snap.json;
-  const flat = snap.flat;
-  if(!Array.isArray(list) || list.length !== flat.length) return true;
-  for(let i = 0; i < list.length; i++){
-    const rec = flatRecord(list[i]);
-    // Shape that a shallow copy cannot speak for: answer by the text form
-    // rather than by guessing, which is what the fallback is there for.
-    if(!rec) return JSON.stringify(list) !== JSON.stringify(flat);
-    if(!sameFlat(rec, flat[i])) return true;
+  const now = snapRegion(value);
+  if(now.json !== snap.json) return true;
+  if(now.blobs.length !== snap.blobs.length) return true;
+  // By identity: an unchanged portrait is the very same string object in
+  // the live chart and in the snapshot, so this reads no bytes at all.
+  for(let i = 0; i < now.blobs.length; i++){
+    if(now.blobs[i] !== snap.blobs[i]) return true;
   }
   return false;
 }
-/* Restoring copies again, deliberately. An item is mutated in place in at
-   least one spot — replacing a sticker's image writes `s.src` — so handing
-   the live array the snapshot's own records would let a later edit reach
-   back and rewrite the history it was undone from. */
-function heavyValue(snap){
+function regionValue(snap){
   if(!snap) return [];
-  if(snap.json !== undefined) return JSON.parse(snap.json);
-  return snap.flat.map(r=> Object.assign({}, r));
+  return JSON.parse(snap.json, (k, v)=>{
+    if(typeof v === 'string' && v.indexOf(BLOB_MARK) === 0){
+      const i = +v.slice(BLOB_MARK.length);
+      if(Number.isInteger(i) && i >= 0 && i < snap.blobs.length) return snap.blobs[i];
+    }
+    return v;
+  });
 }
 
 function snapshotParts(){
   const out = {};
-  SAVED_REGIONS.forEach(r=>{
-    out[r.k] = r.heavy ? snapHeavy(r.get()) : JSON.stringify(r.get());
-  });
+  SAVED_REGIONS.forEach(r=>{ out[r.k] = snapRegion(r.get()); });
   return out;
 }
 function partsDiffer(saved){
   if(!saved) return false;
   for(const r of SAVED_REGIONS){
-    if(r.heavy){
-      if(heavyDiffers(r.get(), saved[r.k])) return true;
-    } else if(JSON.stringify(r.get()) !== saved[r.k]) return true;
+    if(regionDiffers(r.get(), saved[r.k])) return true;
   }
   return false;
 }
@@ -186,7 +171,7 @@ function takeSnapshot(){ return snapshotParts(); }
 function restoreSnapshot(s){
   SAVED_REGIONS.forEach(r=>{
     if(s[r.k] === undefined) return;
-    r.set(r.heavy ? heavyValue(s[r.k]) : JSON.parse(s[r.k]));
+    r.set(regionValue(s[r.k]));
   });
 }
 // Dirty is derived, never a flag that can drift: undoing back to exactly
