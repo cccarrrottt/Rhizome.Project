@@ -120,7 +120,7 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
   const pts = sinkEnds(
     hand.length ? bentRoute(q1, q2, hand)
       : style.routing === 'straight' ? [p1,p2]
-      : squareUp(orthPointsAvoiding(q1,q2,excludeIds,lane), q1, q2),
+      : squareUp(levelSlivers(orthPointsAvoiding(q1,q2,excludeIds,lane)), q1, q2),
     r1, r2);
   if(style.routing !== 'straight' || hand.length) registerRoutedSegments(pts);
   const d = style.sinusoid ? wavyPath(pts) : roundedPath(pts, EDGE_CORNER_R);

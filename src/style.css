@@ -51,19 +51,53 @@
       --canvas-tint: rgba(20,28,43,0.035);
     }
   }
+  /* Dark, when the reader asks for it — the moon button in the top bar.
+     The panels take these tokens directly. The CANVAS does not: the chart
+     is drawn in hundreds of colours chosen against white paper, and many
+     of them are written onto the drawing itself rather than read from a
+     token, so recolouring it token by token would leave black lines on a
+     black page. It is drawn exactly as on paper and then turned over as a
+     whole — see svg#canvas below. */
   :root[data-theme="dark"]{
-    --paper:#ffffff;
-    --panel:#ffffff;
-    --panel-2:#eef1f5;
+    --paper:#141920;
+    --panel:#1a2029;
+    --panel-2:#232b36;
+    --ink:#e4e8ee;
+    --ink-dim:#a7b1bf;
+    --ink-faint:#798496;
+    --line:#3a4453;
+    --accent:#e2573d;
+    --accent-ink:#ffffff;
+    --grid:#2c3441;
+    --shadow: 0 8px 24px rgba(0,0,0,0.45);
+    --canvas-tint: rgba(255,255,255,0.04);
+    color-scheme: dark;
+  }
+  /* The drawing, turned over. Inversion makes light dark and dark light;
+     the half-turn of hue that follows puts every colour back on its own
+     hue, so a red lineage is still red and a gold weave still gold. Inside
+     it the paper tokens are the light ones again, since they are about to
+     be inverted — and the paper is a shade off white, so what it turns
+     into is a soft dark rather than pure black. Pictures are turned over a
+     second time, which puts them back as they were. */
+  :root[data-theme="dark"] svg#canvas{
+    --paper:#e7eaef;
+    /* A little darker than the paper here, so that turned over an entry is
+       a little LIGHTER than the ground it stands on, as a card should be. */
+    --panel:#dce1e8;
+    --panel-2:#d2d8e1;
     --ink:#141c2b;
     --ink-dim:#4c586e;
     --ink-faint:#8291a8;
     --line:#c7cfdb;
     --accent:#c23b22;
     --accent-ink:#ffffff;
-    --grid:#d7dde6;
-    --shadow: 0 8px 24px rgba(20,28,43,0.12);
+    --grid:#cfd5de;
     --canvas-tint: rgba(20,28,43,0.035);
+    filter:invert(1) hue-rotate(180deg);
+  }
+  :root[data-theme="dark"] svg#canvas image{
+    filter:invert(1) hue-rotate(180deg);
   }
 
   *{box-sizing:border-box;}
@@ -452,12 +486,16 @@
      the light crossing it has something to brighten — at #7d8794 and a
      third of the opacity, the sweep was happening to a ruling nobody could
      see it happen to. */
-  .unreleased-line{stroke:#525c6b;stroke-width:2;fill:none;}
-  .unreleased-rule{opacity:0.42;}
-  /* The glare: see the lit pattern in 10-decor. Near-white ruling on a
-     near-white wash, so the band lightens the ground instead of tinting it. */
-  .unreleased-line-lit{stroke:#fbfdff;stroke-width:2.8;}
-  .unreleased-sheen{fill:#f4f8fd;opacity:0.78;}
+  /* The weave's own weight, at the weave's own strength: two rulings of
+     the same size drawn with the same pen, differing only in how they are
+     laid and in what colour. */
+  .unreleased-line{stroke:#525c6b;stroke-width:4;fill:none;}
+  .unreleased-rule{opacity:0.3;}
+  /* The glare: see the lit pattern in 10-decor. A paler ruling and a thin
+     wash, so the band lightens the ground a little rather than bleaching
+     it — on a white page a full white-out read as a hole in the chart. */
+  .unreleased-line-lit{stroke:#aab4c1;stroke-width:4.6;}
+  .unreleased-sheen{fill:#eef2f7;opacity:0.35;}
 
   /* ---- what a special tag does, performed ---------------------------
      Still at rest, and moving only while the entry is under the pointer
@@ -617,16 +655,17 @@
     opacity:0.5;
     animation:fanfic-sweep 3.4s linear infinite;
   }
-  /* The same sweep, at the strength a glare needs: at half strength a
-     near-white band over a pale grey ruling was barely a change at all. */
+  /* The same sweep, a little stronger than the weave's: a pale band over a
+     pale ruling needs more than half strength to be seen at all, and less
+     than full to stay a reflection rather than a blank. */
   @keyframes unreleased-sweep{
     0%   { -webkit-mask-position:center, 150% 50%; mask-position:center, 150% 50%; opacity:0; }
-    14%  { opacity:0.95; }
-    86%  { opacity:0.95; }
+    14%  { opacity:0.6; }
+    86%  { opacity:0.6; }
     100% { -webkit-mask-position:center, -50% 50%; mask-position:center, -50% 50%; opacity:0; }
   }
   .unreleased-glint.tag-lively{
-    opacity:0.95;
+    opacity:0.6;
     animation-name:unreleased-sweep;
   }
 
@@ -2198,7 +2237,14 @@
   .leader-aim{stroke:var(--accent);stroke-width:1.4;stroke-dasharray:5 3;
     vector-effect:non-scaling-stroke;pointer-events:none;}
   .leader-aim-tip{fill:var(--accent);stroke:none;}
-  .leader-snap{fill:var(--accent);opacity:0.55;}
+  /* Three kinds of place, three marks: the fine steps small and faint, the
+     middle of each straight run a quieter solid, and the middle of the
+     whole connector a ring that cannot be taken for either. The ring round
+     a bead is the place the note being moved is sitting on. */
+  .leader-snap{fill:var(--accent);opacity:0.45;}
+  .leader-snap-leg{fill:#2f6f9f;opacity:0.8;}
+  .leader-snap-mid{fill:var(--paper);stroke:var(--accent);stroke-width:1.8;opacity:1;}
+  .leader-snap-current{fill:none;stroke:var(--accent);stroke-width:1.4;opacity:0.9;}
   .style-callout-add{
     flex:1;cursor:pointer;padding:5px 8px;
     font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
@@ -2443,6 +2489,25 @@
     fill:var(--accent);stroke:var(--paper);stroke-width:1.2;
     stroke-dasharray:none;opacity:0.95;
   }
+  /* The places on a merge's bar, all of them, while Shift is held: the
+     middle as a ring like a connector's middle, the rest as small beads,
+     and a ring round the one the entry has taken. */
+  .bar-place{opacity:0.6;}
+  .bar-place-mid{fill:var(--paper);stroke:var(--accent);stroke-width:1.8;opacity:1;}
+  .bar-place-lineage{fill:#2f6f9f;}
+  .bar-place-taken{fill:none;stroke:var(--accent);stroke-width:1.4;}
+
+  /* Two parents of a merge, selected together, can change places. */
+  .swap-parents-btn{
+    position:absolute;z-index:30;transform:translateX(-50%);
+    width:28px;height:28px;border-radius:50%;padding:5px;
+    border:1px solid var(--accent);background:var(--panel);color:var(--accent);
+    box-shadow:var(--shadow);cursor:pointer;display:flex;align-items:center;justify-content:center;
+  }
+  .swap-parents-btn[hidden]{display:none;}
+  .swap-parents-btn:hover{background:var(--accent);color:var(--accent-ink);}
+  .swap-parents-btn svg{width:16px;height:16px;}
+  body.read-only .swap-parents-btn{display:none;}
 
   /* The version line and the history at the foot of the About panel. */
   .about-version{font-family:'IBM Plex Mono',monospace;font-size:11.5px;

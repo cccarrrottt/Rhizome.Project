@@ -130,6 +130,7 @@ function paintMultiSelection(){
   qNodes('.node').forEach(g=>{
     g.classList.toggle('multi', multiSelection.size > 1 && multiSelection.has(g.dataset.id));
   });
+  if(typeof positionSwapButton === 'function') positionSwapButton();
 }
 function setSelection(ids, primary){
   multiSelection.clear();
@@ -295,6 +296,7 @@ function deselect(){
      menu up left a live Delete button — and a text field that still
      committed — pointing at something the reader had just let go of. */
   if(typeof closeFreeMenu === 'function') closeFreeMenu();
+  if(typeof positionSwapButton === 'function') positionSwapButton();
   updateZoomCtlPosition();
 }
 document.getElementById('detailClose').onclick = (e)=>{ e.stopPropagation(); deselect(); };

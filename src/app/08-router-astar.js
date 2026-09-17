@@ -58,7 +58,7 @@ function segmentBlocked(x1, y1, x2, y2, obstacles){
    matter to the route between them. Generous, so a connector can still be
    sent well around an obstruction, but finite. */
 const LATTICE_CORRIDOR = 240;
-function latticeRoute(s1, s2, allObstacles){
+function latticeRoute(s1, s2, allObstacles, endNormal){
   /* Only the boxes anywhere near this pair take part.
 
      This is not merely an economy. The lattice is capped at LATTICE_MAX
@@ -195,7 +195,42 @@ function latticeRoute(s1, s2, allObstacles){
     if(k === startI) break;
   }
   path.reverse();
-  return path.length ? path : null;
+  if(!path.length) return null;
+  /* The lattice is laid on whole units, and the two ends are not.
+   *
+   * A port sits at its share of a side, and a box a hundred and twenty-nine
+   * units wide has its middle on a half — so the search started from 65
+   * where the run-out was at 64.5, and the route came out of the entry,
+   * stepped half a unit sideways on a slant, and went on. Half a unit is
+   * a visible kink at the first corner, and the arrowhead at the far end
+   * took its angle from the slant. Every lattice line that stands for one
+   * of the two ends is put back on that end's true coordinate. */
+  path[0] = {x: s1.x, y: s1.y};
+  if(path.length > 1) path[path.length-1] = {x: s2.x, y: s2.y};
+  const n = path.length;
+  // Inward from each end, every lattice line within a unit of its
+  // neighbour is taken to BE its neighbour's line.
+  for(let i = 1; i < n - 1; i++){
+    if(Math.abs(path[i].x - path[i-1].x) < 1) path[i].x = path[i-1].x;
+    if(Math.abs(path[i].y - path[i-1].y) < 1) path[i].y = path[i-1].y;
+  }
+  for(let i = n - 2; i > 0; i--){
+    const q = path[i], r = path[i+1];
+    const slant = Math.abs(q.x - r.x) > 0.01 && Math.abs(q.y - r.y) > 0.01;
+    if(!slant) continue;
+    if(Math.abs(q.x - r.x) < 1) q.x = r.x;
+    else if(Math.abs(q.y - r.y) < 1) q.y = r.y;
+  }
+  /* Two ends with nothing between them, less than a unit out of line: the
+     far run-out is lengthened or shortened by that much, along its own
+     normal, rather than drawn as a slant. Only along the normal — sliding
+     it sideways would take it off its port. */
+  if(n === 2 && endNormal){
+    const a = path[0], b = path[1];
+    if(endNormal.y && Math.abs(a.y - b.y) < 1 && Math.abs(a.x - b.x) > 1) b.y = a.y;
+    if(endNormal.x && Math.abs(a.x - b.x) < 1 && Math.abs(a.y - b.y) > 1) b.x = a.x;
+  }
+  return path;
 }
 
 // p1/p2 carry a .side; lane is a small per-edge offset that keeps sibling
@@ -362,7 +397,7 @@ function orthPointsAvoiding(p1, p2, excludeIds, lane){
   // full obstacle set, so the route it finds already goes around both
   // endpoint boxes rather than needing to be checked for it afterwards.
   if(!bestClear){
-    const routed = latticeRoute(s1, s2, midObstacles);
+    const routed = latticeRoute(s1, s2, midObstacles, SIDE_NORMAL[p2.side]);
     if(routed){
       const pts = tidyPoints([p1, ...routed, p2]);
       // Take it whenever it actually clears the boxes, however long or
@@ -440,8 +475,13 @@ function unfoldEnds(pts, p1, p2){
    reconcile. The old version faded a sampled sine in and out with an
    envelope and then smoothed the samples, which is where its softness and
    its faint kinks at the corners came from. */
-// One dial: how long each semicircle is. Its height follows.
-const EDGE_WAVE_LEN = 5.4;
+/* Two dials now: how long each half-wave is, and how far it swings. They
+   used to be one — the height followed the length, which is what a
+   semicircle needs — but the squiggle is a sine, and a sine's height is
+   its own. Matched to the pocket border's, so a wavy connector leaving a
+   pocket reality is visibly the same line as the edge it leaves. */
+const EDGE_WAVE_LEN = 4.5;
+const EDGE_WAVE_PEAK = 1.9;
 /* The wave goes quiet well before a bend and only picks up again well
    after it. A corner is where the eye reads the line's direction, and a
    crest sitting on it hides that; a plain elbow with the ripple resuming

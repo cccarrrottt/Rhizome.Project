@@ -401,7 +401,15 @@ function drawAmalgam(list, ports){
        is not a seam and marking it says nothing — but it is exactly what
        the hand is aiming at while the entry is being centred, and a line
        crossing the bar does not say WHICH point on the bar it means. */
-    cross: ux ? cy : cx
+    cross: ux ? cy : cx,
+    /* Where each lineage lands, and where it would land if nothing were
+       crowding it — its port. The first is what the bar's guides are laid
+       out from; the second is how far a parent's port stands from its
+       own middle, which is what a parent being carried along the bar is
+       really positioning. */
+    landings: members.map((e, i)=> ({from: e.from,
+                                     at: (ux ? cx : cy) + landings[i],
+                                     port: (ux ? cx : cy) + wanted[i]}))
   });
   /* The bar is STRAIGHT. It was straight before two rounds of trying to
      give it a shape, and neither shape was ever the point: a bow away from
@@ -736,3 +744,162 @@ function edgeShortened(from, to, back){
 
 redrawEdges();
 
+
+/* ---------------------------------------------------------------------
+   The places on a merge's bar.
+
+   Held Shift while carrying an amalgam or one of its parents shows where
+   on the bar the thing in the hand can go, the way it does along a
+   connector: the middle of the bar, drawn so it cannot be mistaken, and
+   the places halfway between the lineages already on it. The amalgam can
+   also stand under any lineage. Every parent added to the merge adds its
+   own places.
+   ------------------------------------------------------------------ */
+function amalgamsFedBy(id){
+  const out = [];
+  nodes.forEach(b=>{
+    if((b.shape || '') !== 'amalgam') return;
+    if(!(b.parents || []).includes(id)) return;
+    if(amalgamBars.get(b.id)) out.push(b);
+  });
+  return out;
+}
+function barPlacesFor(barRec, excludeFrom, withLandings){
+  const others = (barRec.landings || []).filter(l=> l.from !== excludeFrom)
+                                        .map(l=> l.at).sort((a, b)=> a - b);
+  if(!others.length) return [];
+  const places = [];
+  const put = (at, kind)=>{
+    const same = places.find(p=> Math.abs(p.at - at) < 1);
+    if(same){ if(kind === 'mid') same.kind = 'mid'; return; }
+    places.push({at, kind});
+  };
+  put((others[0] + others[others.length - 1]) / 2, 'mid');
+  for(let i = 1; i < others.length; i++) put((others[i-1] + others[i]) / 2, 'between');
+  if(withLandings) others.forEach(at=> put(at, 'lineage'));
+  return places.sort((a, b)=> a.at - b.at);
+}
+/* What a single carried entry can line up with on a bar, if anything:
+   the bar, the places on it, and which point of the entry is being placed
+   — its middle for the amalgam, its port for a parent. */
+function barTargetsFor(st){
+  if(!st || !st.members || st.members.length !== 1) return [];
+  const m = st.members[0], n = m.node;
+  if(!n) return [];
+  const out = [];
+  const own = amalgamBars.get(m.id);
+  if(own && (n.shape || '') === 'amalgam'){
+    out.push({bar: own, places: barPlacesFor(own, null, true), portOff: 0});
+  }
+  amalgamsFedBy(m.id).forEach(b=>{
+    const bar = amalgamBars.get(b.id);
+    const mine = (bar.landings || []).find(l=> l.from === m.id);
+    if(!mine) return;
+    const leash = st.barLeash && st.barLeash.find(l=> l.amalgam === b.id);
+    out.push({bar, places: barPlacesFor(bar, m.id, false),
+              portOff: leash ? leash.portOff : 0});
+  });
+  return out;
+}
+/* The parent's leash along its bar, taken when the drag starts.
+ *
+ * A parent carried along the bar stays between the lineages either side of
+ * it and inside the bar's own length: past a neighbour the lineages would
+ * cross and the colours the bar is divided into would change hands, and
+ * past the end the bar would have to grow to follow — which is exactly the
+ * construction being rearranged by accident rather than on purpose. Two
+ * parents that really are meant to change places are swapped with the
+ * button that appears when both are selected (see the swap below). The
+ * junction the merged arrow leaves from is not a neighbour; a lineage may
+ * pass over it. */
+function barLeashFor(id, originCentre){
+  const out = [];
+  amalgamsFedBy(id).forEach(b=>{
+    const bar = amalgamBars.get(b.id);
+    const list = (bar.landings || []).slice().sort((a, c)=> a.at - c.at);
+    const i = list.findIndex(l=> l.from === id);
+    if(i < 0) return;
+    const centre = bar.axis === 'x' ? originCentre.x : originCentre.y;
+    const lo = i > 0 ? list[i-1].at + AMALGAM_PITCH : bar.lo;
+    const hi = i < list.length - 1 ? list[i+1].at - AMALGAM_PITCH : bar.hi;
+    out.push({amalgam: b.id, axis: bar.axis, portOff: list[i].port - centre,
+              lo: Math.min(lo, list[i].at), hi: Math.max(hi, list[i].at)});
+  });
+  return out;
+}
+function applyBarLeash(st, offX, offY){
+  if(!st || !st.barLeash || !st.barLeash.length || st.members.length !== 1) return null;
+  const m = st.members[0], n = m.node;
+  let x = offX, y = offY, held = false;
+  st.barLeash.forEach(l=>{
+    const along = l.axis === 'x';
+    const centre = along ? m.originX + x + n.w/2 : m.originY + y + n.h/2;
+    const port = centre + l.portOff;
+    const kept = Math.max(l.lo, Math.min(l.hi, port));
+    if(Math.abs(kept - port) < 1e-6) return;
+    held = true;
+    if(along) x += kept - port; else y += kept - port;
+  });
+  return held ? {x, y} : null;
+}
+/* Two parents swap places.
+ *
+ * Offered only when exactly two entries are selected and each of them
+ * feeds a merge — the same merge or two different ones. Each takes the
+ * other's MIDDLE, so two boxes of different sizes still trade the places
+ * their lineages came down from. */
+function swappableParents(){
+  if(readOnlyView || multiSelection.size !== 2) return null;
+  const ids = [...multiSelection];
+  if(!ids.every(id=> nodes.has(id) && amalgamsFedBy(id).length)) return null;
+  return ids;
+}
+function swapParents(ids){
+  if(!ids || ids.length !== 2) return;
+  const [a, b] = ids.map(id=> nodes.get(id));
+  if(!a || !b) return;
+  const ca = {x: a.x + a.w/2, y: a.y + a.h/2}, cb = {x: b.x + b.w/2, y: b.y + b.h/2};
+  applyEdit(()=>{
+    [[a, cb], [b, ca]].forEach(([n, c])=>{
+      const found = workingEntry(n.id);
+      if(!found) return;
+      const opts = entryOpts(found.entry);
+      const x = c.x - n.w/2, y = c.y - n.h/2;
+      opts.pos = [+x.toFixed(2), +(y + (n.growShift || 0)).toFixed(2)];
+      putEntry(found.index, found.entry, opts);
+    });
+  });
+  setSelection(ids, ids[0]);
+}
+const swapParentsBtn = (()=>{
+  const b = document.createElement('button');
+  b.type = 'button';
+  b.className = 'swap-parents-btn';
+  b.title = 'Swap these two lineages on their bar';
+  b.innerHTML = '<svg viewBox="0 0 24 24" fill="currentColor"><path d="M13.6 2.6 7.9 8.3l5.7 5.7V10.6c3.4.2 5.9 2 7.4 5.2.3-4.8-2.6-8.7-7.4-9.1z"/><path d="M10.4 21.4l5.7-5.7-5.7-5.7v3.4c-3.4-.2-5.9-2-7.4-5.2-.3 4.8 2.6 8.7 7.4 9.1z"/></svg>';
+  b.hidden = true;
+  b.addEventListener('mousedown', ev=> ev.stopPropagation());
+  b.addEventListener('click', ev=>{
+    ev.stopPropagation();
+    const ids = swappableParents();
+    if(ids) swapParents(ids);
+  });
+  const host = document.querySelector('.main');
+  if(host) host.appendChild(b);
+  return b;
+})();
+function positionSwapButton(){
+  const ids = swappableParents();
+  if(!ids || (typeof nodeDragState !== 'undefined' && nodeDragState && nodeDragState.moved)){
+    swapParentsBtn.hidden = true;
+    return;
+  }
+  const [a, b] = ids.map(id=> nodes.get(id));
+  const host = document.querySelector('.main').getBoundingClientRect();
+  const sr = svg.getBoundingClientRect();
+  const top = Math.min(a.y, b.y);
+  const cx = ((a.x + a.w/2) + (b.x + b.w/2)) / 2;
+  swapParentsBtn.hidden = false;
+  swapParentsBtn.style.left = (sr.left - host.left + cx * vs + vx) + 'px';
+  swapParentsBtn.style.top = (sr.top - host.top + top * vs + vy - 34) + 'px';
+}

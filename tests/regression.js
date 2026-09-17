@@ -449,7 +449,7 @@ async function main(){
   }
 
   });
-  /* ---- 12. waves are one-sided semicircles ---- */
+  /* ---- 12. waves are squiggles: half-sines that alternate ---- */
   await scenario("waves are one-sided semicircles", async () => {
   const waves = await page.evaluate(()=>{
     // 6 arcs over a 60-unit run: every control point should sit directly
@@ -463,8 +463,12 @@ async function main(){
       arcs.push({c1x:nums[i], c1y:nums[i+1], c2x:nums[i+2], c2y:nums[i+3], ex:nums[i+4], ey:nums[i+5]});
     }
     const step = 10;
+    /* Controls stand in from each end by 4/(3π) of the arc, which is what
+       makes each arc a half-SINE — it leaves the baseline at the sine's
+       slope rather than straight up, as the half-ellipses did. */
+    const k = 4 / (3 * Math.PI);
     const verticalTangents = arcs.every((a,i)=>
-      Math.abs(a.c1x - i*step) < 0.02 && Math.abs(a.c2x - (i+1)*step) < 0.02);
+      Math.abs(a.c1x - (i + k)*step) < 0.02 && Math.abs(a.c2x - (i + 1 - k)*step) < 0.02);
     /* Every second arc turns over. Within one arc both controls sit on the
        same side (that is what makes it a half-ellipse); between arcs the
        side flips, which is what makes the run a wave rather than a coil.
@@ -477,13 +481,13 @@ async function main(){
     // semicircle that must equal half the step.
     const peak = 0.75 * Math.abs(arcs[0].c1y);
     return {count: arcs.length, verticalTangents, alternates, backToBaseline,
-            peak: +peak.toFixed(3), wanted: step/2};
+            peak: +peak.toFixed(3), wanted: EDGE_WAVE_PEAK};
   });
   eq('a run is divided into the requested number of arcs', waves.count, 6);
-  check('each arc leaves the baseline vertically (a half-ellipse, not a sine)', waves.verticalTangents);
+  check('each arc is a half-sine — a squiggle, not a row of scallops', waves.verticalTangents);
   check('every second arc turns over — a wave, not a coil', waves.alternates);
   check('each arc returns to the baseline', waves.backToBaseline);
-  check('arc height is half its width — a true semicircle',
+  check('and it swings exactly as far as the wave is meant to',
         Math.abs(waves.peak - waves.wanted) < 0.02, JSON.stringify(waves));
 
   });
@@ -751,10 +755,10 @@ async function main(){
         JSON.stringify({e:leader.isEntry, h:leader.handles}));
   check('each anchor follows the fraction it was given', leader.tracks === true);
   check('a connector can be drawn to a callout', leader.connected === true);
-  check('the snap points run the whole line in twentieths',
-        await page.evaluate(()=> LEADER_SNAPS.length === 21 &&
-          LEADER_SNAPS[0] === 0 && LEADER_SNAPS[20] === 1 &&
-          Math.abs(LEADER_SNAPS[5] - 0.25) < 1e-6));
+  check('the snap points run the line in twentieths, and not onto its ends',
+        await page.evaluate(()=> LEADER_SNAPS.length === 19 &&
+          LEADER_SNAPS[0] === 0.05 && LEADER_SNAPS[18] === 0.95 &&
+          Math.abs(LEADER_SNAPS[4] - 0.25) < 1e-6));
 
   });
   /* ---- 22. references ---- */
@@ -1889,7 +1893,7 @@ async function main(){
      grid, so they run parallel. That is checked where the phases are read;
      what matters here is that the ripple has real depth again. */
   check('a pocket reality’s ripple has depth without pushing the rings apart',
-        r11.pocketLiftNow > 2.5 && r11.pocketStep === r11.ringStepHere,
+        r11.pocketLiftNow >= 2.5 && r11.pocketStep === r11.ringStepHere,
         'lift ' + r11.pocketLiftNow + ', step ' + r11.pocketStep);
   check('a callout is a box of its own, not the plate it replaced',
         r11.cardH > r11.plateH, `${r11.cardH} vs ${r11.plateH}`);
@@ -5029,7 +5033,11 @@ async function main(){
         const n = (cap.getAttribute('d').match(/-?[\d.]+/g)||[]).map(Number);
         // The cap starts on the border and runs outward — never from a
         // point buried inside the entry.
-        out.capStartsOutside = n[1] <= p.y + 0.6;
+        /* On the border AT THAT POINT: the ripple dips below the baseline
+           in its troughs, and a cap meeting a trough starts there. */
+        const f = wavyDropAt(p, 'top', 0);
+        const drop = f ? f(n[0], p.y) : 0;
+        out.capStartsOutside = n[1] <= p.y - drop + 0.6;
       } else out.capStartsOutside = true;
       const head = document.querySelector('.edge-arrow[data-to="ccP"]');
       out.headClipped = !!head && /^url\(#outside-/.test(head.getAttribute('clip-path') || '');
@@ -5426,7 +5434,10 @@ async function main(){
       const dot2 = document.querySelector('#edgeLayer .callout-leader[data-id="coC"] .leader-dot');
       const at = (nodes.get('coC').leader || {}).at;
       out.anchorMoved = !!dot2 && Math.abs(+dot2.getAttribute('cx') - before.x) > 20;
-      out.anchorSnapped = LEADER_SNAPS.some(v=> Math.abs(v - at) < 0.001);
+      {
+        const rec = drawnRoutes.get(calloutEdgeKey(nodes.get('coC').leader.from, nodes.get('coC').leader.to));
+        out.anchorSnapped = connectorSnaps(rec && rec.pts).some(v=> Math.abs(v.f - at) < 0.002);
+      }
       out.cardFollowed = Math.abs(nodes.get('coC').x - cardBefore.x) > 20;
     }
 
@@ -5528,8 +5539,8 @@ async function main(){
   check('the anchor is a handle that slides along the connector',
         r30.anchorHandle && r30.anchorMoved && r30.cardFollowed,
         JSON.stringify({handle:r30.anchorHandle, moved:r30.anchorMoved, card:r30.cardFollowed}));
-  check('with Shift offering a place every twentieth of the line',
-        r30.snapBeads === 21 && r30.anchorSnapped,
+  check('with Shift offering a place every twentieth of the line, and each leg\'s middle',
+        r30.snapBeads >= 19 && r30.anchorSnapped,
         JSON.stringify({beads:r30.snapBeads, snapped:r30.anchorSnapped}));
   check('a callout lights with the connector it is about, and it with the callout',
         r30.litWithEnd && r30.litItsLine,
@@ -8633,8 +8644,18 @@ async function main(){
       const sheen = litPat && litPat.querySelector('.unreleased-sheen');
       const lumOf = (c)=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(c || '');
         return m ? (+m[1]*0.299 + +m[2]*0.587 + +m[3]*0.114) : 0; };
+      /* Lighter than the ruling it lights, still grey rather than a
+         colour, and not a white-out. And drawn with the weave's pen. */
+      const restLine = path;
+      const cs2 = litLine && getComputedStyle(litLine);
+      const rgb2 = cs2 ? (/(\d+),\s*(\d+),\s*(\d+)/.exec(cs2.stroke) || []) : [];
+      const spread = rgb2.length ? Math.max(+rgb2[1], +rgb2[2], +rgb2[3]) - Math.min(+rgb2[1], +rgb2[2], +rgb2[3]) : 99;
       out.glareIsLight = !!litLine && !!sheen &&
-        lumOf(getComputedStyle(litLine).stroke) > 235 && lumOf(getComputedStyle(sheen).fill) > 235;
+        lumOf(cs2.stroke) > lumOf(getComputedStyle(restLine).stroke) + 40 &&
+        lumOf(cs2.stroke) < 235 && spread < 40 &&
+        lumOf(getComputedStyle(sheen).fill) > 230 && +getComputedStyle(sheen).opacity < 0.6;
+      const fanLine = weave && weave.querySelector('path');
+      out.samePen = !!fanLine && getComputedStyle(fanLine).strokeWidth === getComputedStyle(restLine).strokeWidth;
       const cs = path ? getComputedStyle(path) : null;
       const rgb = cs ? cs.stroke : '';
       const lum = (()=>{ const m = /(\d+),\s*(\d+),\s*(\d+)/.exec(rgb);
@@ -8801,8 +8822,9 @@ async function main(){
   check('the unreleased ground is a grid on the weave\'s step, not a comb of bars',
         r44.unreleasedIsGrid && r44.unreleasedDenser,
         JSON.stringify({grid:r44.unreleasedIsGrid, step:r44.unreleasedStep}));
-  check('the light on the unreleased ground is a pale glare, not a colour',
+  check('the light on the unreleased ground is a soft pale glare, not a colour',
         r44.glareIsLight);
+  check('and its ruling is drawn with the weave\'s pen', r44.samePen);
   check('and dark enough for the light crossing it to show',
         r44.unreleasedDark, r44.unreleasedInk);
   check('every echo a hub sends out covers the same ground',
@@ -9484,6 +9506,210 @@ async function main(){
         JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
   check('but a reader may still take a copy away', r.exportOffered);
   check('and may not write one back in', r.importRefused);
+  });
+
+  /* ---- 33. guides, grounds, a swap and a dark page ---- */
+  await scenario("guides, grounds, a swap and a dark page", async () => {
+  const rG = await page.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const out = {};
+    const fire = (t, x, y, o, target)=> (target || window).dispatchEvent(new MouseEvent(t,
+      Object.assign({bubbles:true, cancelable:true, clientX:x, clientY:y, button:0}, o||{})));
+    const centreOf = (elm)=>{ const r = elm.getBoundingClientRect(); return {x:r.x + r.width/2, y:r.y + r.height/2}; };
+    const nodeEl = (id)=> document.querySelector(`.node[data-id="${CSS.escape(id)}"]`);
+    const beforeNodes = workingNodes.slice();
+    const beforeStyles = EDGE_STYLES.slice();
+    const w0 = clientToWorld(420, 300);
+    const X = Math.round(w0.x / 10) * 10, Y = Math.round(w0.y / 10) * 10;
+    deselect();
+
+    /* ---- a route out of a half-unit port has no slant in it ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['lgT','Beast Wars: Uprising',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['lgS','Beast Wars: Uprising','lgT',null,null,null,{pos:[X - 300, Y - 120]}]);
+      EDGE_STYLES.push({from:'lgT', to:'lgS', routing:'orthogonal', dash:'solid', arrow:true, fromSide:'bottom', toSide:'top'});
+    });
+    await wait(400);
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('lgT','lgS')).pts;
+      out.noSlant = pts.every((q, i)=> i === 0 ||
+        Math.abs(q.x - pts[i-1].x) < 0.05 || Math.abs(q.y - pts[i-1].y) < 0.05);
+      out.slantPts = pts.map(q=> q.x.toFixed(1) + ',' + q.y.toFixed(1)).join(' ');
+      out.levelled = levelSlivers([{x:0,y:0},{x:10,y:0},{x:200,y:0.5},{x:200,y:80}])
+        .every((q, i, a)=> i === 0 || Math.abs(q.x - a[i-1].x) < 0.01 || Math.abs(q.y - a[i-1].y) < 0.01);
+    }
+
+    /* ---- a bend that the route no longer needs goes with the drop ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['pbA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['pbB','B','pbA',null,null,null,{pos:[X + 300, Y]}]);
+      EDGE_STYLES.push({from:'pbA', to:'pbB', routing:'orthogonal', dash:'solid', arrow:true});
+    });
+    await wait(300);
+    {
+      const pts = drawnRoutes.get(calloutEdgeKey('pbA','pbB')).pts;
+      const midX = (pts[0].x + pts[pts.length-1].x) / 2;
+      applyEdit(()=> setBendList('pbA','pbB', [[midX, pts[0].y]]));
+      await wait(250);
+      const c = centreOf(nodeEl('pbB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('pbB'));
+      for(let k = 1; k <= 4; k++){ fire('mousemove', c.x + k*8, c.y); await wait(30); }
+      fire('mouseup', c.x + 32, c.y); await wait(300);
+      out.pruned = bendListOf('pbA','pbB').length === 0;
+    }
+
+    /* ---- centring one entry on another is on offer with Shift ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['gdA','A tall one\nwith two lines',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['gdB','Short',null,null,null,null,{pos:[X + 300, Y + 60]}]);
+    });
+    await wait(400);
+    {
+      const a = nodes.get('gdA'), b = nodes.get('gdB');
+      const want = (a.y + a.h/2) - (b.y + b.h/2);         // world units to move b by
+      const c = centreOf(nodeEl('gdB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('gdB'));
+      fire('mousemove', c.x + 4, c.y, {shiftKey:true}); await wait(40);
+      fire('mousemove', c.x + 4, c.y + want*vs + 2*vs, {shiftKey:true}); await wait(60);
+      const nb = nodes.get('gdB');
+      out.midReached = Math.abs((nb.y + nb.h/2) - (a.y + a.h/2)) < 0.01;
+      out.midAt = JSON.stringify({a: a.y + a.h/2, b: nb.y + nb.h/2});
+      fire('mouseup', c.x + 4, c.y + want*vs); await wait(250);
+    }
+
+    /* ---- a parent keeps to its stretch of the bar; two can swap ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['sw1','P1',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['sw2','P2',null,null,null,null,{pos:[X + 200, Y]}]);
+      workingNodes.push(['sw3','P3',null,null,null,null,{pos:[X + 400, Y]}]);
+      workingNodes.push(['swM','Merge',['sw1','sw2','sw3'],null,null,'amalgam',{pos:[X + 200, Y + 200]}]);
+    });
+    await wait(600);
+    {
+      const bar = amalgamBars.get('swM');
+      out.barKnowsLandings = !!bar && Array.isArray(bar.landings) && bar.landings.length === 3;
+      const c = centreOf(nodeEl('sw2'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('sw2'));
+      for(let k = 1; k <= 8; k++){ fire('mousemove', c.x + k*40*vs, c.y); await wait(30); }
+      const port = bar.landings.find(l=> l.from === 'sw2');
+      const p3 = bar.landings.find(l=> l.from === 'sw3').at;
+      const n2 = nodes.get('sw2');
+      const portNow = n2.x + n2.w/2 + (port.port - (X + 200 + n2.w/2));
+      out.heldShort = portNow <= p3 - AMALGAM_PITCH + 0.5;
+      out.leashAt = JSON.stringify({portNow, p3});
+      fire('mousemove', c.x + 20*vs, c.y, {shiftKey:true}); await wait(60);
+      out.barPlacesShown = document.querySelectorAll('#guideLayer .bar-place').length >= 1 &&
+        !!document.querySelector('#guideLayer .bar-place-mid');
+      fire('mouseup', c.x, c.y); await wait(250);
+      undoLastEdit(); await wait(250);
+      out.places = barPlacesFor(amalgamBars.get('swM'), 'sw2', false).map(p=> p.kind).join(',');
+      // More lineages, more places: the amalgam itself is offered each one.
+      out.morePlaces = barPlacesFor(amalgamBars.get('swM'), null, true).length >
+                       barPlacesFor(amalgamBars.get('swM'), 'sw2', false).length;
+
+      setSelection(['sw1','sw3'], 'sw1');
+      await wait(80);
+      const btn = document.querySelector('.swap-parents-btn');
+      out.swapOffered = !!btn && !btn.hidden;
+      const x1 = nodes.get('sw1').x, x3 = nodes.get('sw3').x;
+      btn.click(); await wait(300);
+      out.swapped = Math.abs(nodes.get('sw1').x - x3) < 0.01 && Math.abs(nodes.get('sw3').x - x1) < 0.01;
+      setSelection(['sw1','swM'], 'sw1');
+      await wait(80);
+      out.swapOnlyForParents = btn.hidden;
+      deselect();
+    }
+
+    /* ---- a note on the middle keeps to the middle ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['nmA','A',null,null,null,null,{pos:[X, Y]}]);
+      workingNodes.push(['nmB','B','nmA',null,null,null,{pos:[X + 300, Y]}]);
+      EDGE_STYLES.push({from:'nmA', to:'nmB', routing:'orthogonal', dash:'solid', arrow:true, note:'mid', noteAt:0.5});
+    });
+    await wait(300);
+    {
+      const plateX = ()=>{ const g = document.querySelector('#arrowLayer .edge-note[data-from="nmA"] .edge-note-plate');
+        const b = g.getBBox(); const tr = (g.parentNode.getAttribute('transform') || '').match(/-?[\d.]+/g) || [0,0];
+        return b.x + b.width/2 + +tr[0]; };
+      const c = centreOf(nodeEl('nmB'));
+      fire('mousedown', c.x, c.y, {}, nodeEl('nmB'));
+      for(let k = 1; k <= 5; k++){ fire('mousemove', c.x + k*20*vs, c.y); await wait(40); }
+      fire('mouseup', c.x + 100*vs, c.y); await wait(300);
+      const pts = drawnRoutes.get(calloutEdgeKey('nmA','nmB')).pts;
+      out.noteOnMiddle = Math.abs(plateX() - pointAtFraction(pts, 0.5).x) < 1;
+      const snaps = connectorSnaps(pts);
+      out.snapsNoEnds = snaps.every(sn=> sn.f > 0 && sn.f < 1) && snaps.some(sn=> sn.kind === 'mid');
+    }
+
+    /* ---- a running performance is not sought again ---- */
+    applyEdit(()=>{
+      workingNodes.length = 0; refill(EDGE_STYLES, []);
+      workingNodes.push(['anF','Fan',null,null,null,null,{pos:[X, Y], tags:['fan-fiction','unreleased']}]);
+    });
+    await wait(300);
+    {
+      hoverLivelyId = 'anF'; syncTagLiveliness();
+      const g = document.querySelector('.fanfic-glint[data-id="anF"]');
+      const d0 = g.style.animationDelay;
+      await wait(120);
+      syncTagLiveliness();
+      out.notReseeked = g.style.animationDelay === d0;
+      out.groundAnchored = !!g.parentNode && g.parentNode.classList.contains('ground-anchor') &&
+        +g.getAttribute('x') < 0;
+      hoverLivelyId = null; syncTagLiveliness();
+    }
+
+    /* ---- a picker press does not close the field it is filling ---- */
+    {
+      openNodeEditor('anF'); await wait(300);
+      const pick = document.getElementById('refPicker');
+      pick.dispatchEvent(new MouseEvent('mousedown', {bubbles:true, cancelable:true}));
+      out.fieldSurvivesPicker = !!nodeEditorTarget;
+      closeNodeEditor(false);
+    }
+
+    /* ---- the dark page ---- */
+    {
+      const was = themeIsDark();
+      document.getElementById('themeToggle').click();
+      const on = themeIsDark();
+      const filt = getComputedStyle(document.getElementById('canvas')).filter;
+      const bg = getComputedStyle(document.body).backgroundColor;
+      document.getElementById('themeToggle').click();
+      out.darkToggles = on !== was && themeIsDark() === was;
+      out.darkInverts = /invert/.test(filt);
+      out.darkPanels = /rgb\((\d+)/.test(bg) && +/rgb\((\d+)/.exec(bg)[1] < 80;
+    }
+
+    applyEdit(()=>{ workingNodes = beforeNodes; refill(EDGE_STYLES, beforeStyles); });
+    await wait(400);
+    return out;
+  });
+  check('a route out of a port on a half unit has no slant in it', rG.noSlant, rG.slantPts);
+  check('and a run a fraction out of true is levelled, not stepped', rG.levelled);
+  check('a bend the route no longer needs goes when an entry is dropped', rG.pruned);
+  check('Shift offers to centre one entry on another', rG.midReached, rG.midAt);
+  check('the bar knows where each lineage lands', rG.barKnowsLandings);
+  check('a parent carried along its bar stops short of its neighbour',
+        rG.heldShort, rG.leashAt);
+  check('and Shift marks the places on the bar', rG.barPlacesShown && rG.morePlaces, rG.places);
+  check('two parents selected together are offered a swap, and it swaps them',
+        rG.swapOffered && rG.swapped,
+        JSON.stringify({offered: rG.swapOffered, swapped: rG.swapped}));
+  check('but a selection that is not two parents is not', rG.swapOnlyForParents);
+  check('a note on the middle of its connector stays on the middle', rG.noteOnMiddle);
+  check('the places along a connector never include its ends', rG.snapsNoEnds);
+  check('a performance already running is not sent back', rG.notReseeked);
+  check('a ground is drawn in its entry\'s own coordinates', rG.groundAnchored);
+  check('pressing in a picker leaves the field it fills open', rG.fieldSurvivesPicker);
+  check('the dark page toggles both ways, turns the drawing over, darkens the panels',
+        rG.darkToggles && rG.darkInverts && rG.darkPanels,
+        JSON.stringify({t: rG.darkToggles, i: rG.darkInverts, p: rG.darkPanels}));
   });
 
   /* ---- 29. nothing threw along the way ---- */

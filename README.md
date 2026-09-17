@@ -1,6 +1,6 @@
 # Rhizome Project
 
-**Version 0.9.24** — see `CHANGELOG.md`, and the version history at the foot of
+**Version 0.9.25** — see `CHANGELOG.md`, and the version history at the foot of
 the chart's own About panel (both are generated from `VERSION_LOG` in
 `src/app/20-about.js`, which is the single source of truth).
 

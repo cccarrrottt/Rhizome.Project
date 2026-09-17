@@ -11,9 +11,20 @@
    was built without version numbers, so the history starts here rather
    than pretending to earlier releases it cannot name.
    ------------------------------------------------------------------ */
-const APP_VERSION = '0.9.24';
+const APP_VERSION = '0.9.25';
 const APP_NAME = 'Rhizome Project';
 const VERSION_LOG = [
+  {v:'0.9.25', date:'2026-09-17', title:'Places to put things', notes:[
+'The drawing can be dark. The moon in the top bar turns the page over: the panels take a dark palette, and the chart is drawn exactly as on paper and then inverted with its hues turned back, so a red lineage is still red and a portrait still looks like itself. The choice is remembered in the browser.',
+'Shift along a connector offers three kinds of place, drawn three ways: the twentieths, the middle of each straight leg, and the middle of the whole connector as a ring. The two ends are no longer offered. A note being slid shows which place it has taken, and a note on the middle stays on the middle however long the connector grows.',
+'Shift on a merge marks the places on its bar — its middle, the points halfway between lineages, and for the amalgam itself each lineage — and the entry in the hand snaps to them. A parent carried along its bar stops short of its neighbours and of the bar’s ends, and passes over callouts and notes without moving them. Two parents selected together get a swap button, even when they feed different merges.',
+'Centring one entry on another works. Shift put the entry back on the ruled grid before the alignments were weighed, and two boxes of different heights have their middles between grid lines — so only the tops and bottoms were ever on offer. The alignments are weighed at the pointer now. A connector’s own offer was also read from routes a frame old, which put its guide where nothing had been aligned.',
+'No more half-unit kinks. The search router works on whole units and a port on a box of odd width sits on a half, so a searched route left its entry on a slant; its ends are put back on their true coordinates, and any run a unit or less out of true is levelled rather than stepped.',
+'A hand-set bend that the route no longer needs is removed when an entry is dropped, not only when the bend itself is let go: if the connector without its bends would be the line already drawn, the bends go.',
+'The unreleased ruling is drawn with the weave’s pen, and its glare is softer. Both grounds are drawn in their entry’s own coordinates, so the pattern no longer jumps when a carried entry is dropped; their light no longer restarts on the drop or skips when the entry is pressed — a running animation was being sought again on every selection change and every frame of a drag.',
+'A sticker or a citation can be put into an entry’s words from the toolbar. The press on the picker closed the field first, because the pickers were excused by class names nothing on the page carried.',
+'The wavy line is a squiggle: short, shallow half-sines, on connectors and on a pocket reality’s border alike, instead of a row of half-ellipses.',
+  ]},
   {v:'0.9.24', date:'2026-09-17', title:'Nothing moves that was not touched', notes:[
 'Nothing moves because something else was moved. That is the whole of this release, found nine ways.',
 'Sliding one lineage of a merge along its bar leaves the others where they land. Two lineages closer than a pitch were spread apart and the whole row was then shifted back onto its mean — so the moment a carried parent came near a neighbour, every drop on the bar stepped sideways and the callouts hanging off them went too. Only the lineages that actually crowd each other are spread now, and among them the one in the hand is the one that gives way.',

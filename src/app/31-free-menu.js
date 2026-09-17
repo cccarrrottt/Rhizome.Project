@@ -391,6 +391,72 @@ if(styleNoteBgInput){
  * along a line and coarse enough that two readers pointing at the same
  * place land on the same value. */
 const LEADER_SNAP_STEPS = 20;
-const LEADER_SNAPS = Array.from({length: LEADER_SNAP_STEPS + 1},
-                                (_, i)=> +(i / LEADER_SNAP_STEPS).toFixed(4));
+/* …without the two ends. A remark at the very end of a connector sits on
+   the port, under the arrowhead or inside the entry's border — nobody aims
+   there, and two beads standing on the boxes only got in the way of the
+   ones that mattered. */
+const LEADER_SNAPS = Array.from({length: LEADER_SNAP_STEPS - 1},
+                                (_, i)=> +((i + 1) / LEADER_SNAP_STEPS).toFixed(4));
+/* Every place Shift offers on one connector, each with the kind of place
+ * it is.
+ *
+ *   step — the twentieths, the fine rhythm along the whole line;
+ *   mid  — the middle of the connector, the place a remark most often
+ *          belongs, drawn so it cannot be mistaken for a step;
+ *   leg  — the middle of each straight run of an orthogonal route. The
+ *          twentieths are measured along the whole line and so land on a
+ *          leg wherever they happen to; the middle of a leg is where the
+ *          eye puts a label on it, and it was not on offer at all.
+ *
+ * A leg too short to carry a remark offers nothing, and a leg whose middle
+ * IS the connector's middle is the connector's middle. A step within a
+ * unit of a leg's middle gives way to it. */
+const SNAP_LEG_MIN = GRID * 4;   // a run-out from a port is not a leg worth labelling
+function connectorSnaps(pts){
+  const out = LEADER_SNAPS.map(f=> ({f, kind: Math.abs(f - 0.5) < 1e-9 ? 'mid' : 'step'}));
+  if(!pts || pts.length < 2) return out;
+  const legs = [];
+  let total = 0;
+  for(let i = 1; i < pts.length; i++){
+    const L = Math.hypot(pts[i].x - pts[i-1].x, pts[i].y - pts[i-1].y);
+    const horiz = Math.abs(pts[i].y - pts[i-1].y) < 0.5;
+    const last = legs[legs.length - 1];
+    if(last && L > 0 && last.horiz === horiz) last.len += L;
+    else if(L > 0) legs.push({start: total, len: L, horiz});
+    total += L;
+  }
+  if(!total) return out;
+  legs.forEach(leg=>{
+    if(leg.len < SNAP_LEG_MIN) return;
+    const f = (leg.start + leg.len / 2) / total;
+    if(Math.abs(f - 0.5) * total < 1) return;
+    for(let i = out.length - 1; i >= 0; i--){
+      if(out[i].kind === 'step' && Math.abs(out[i].f - f) * total < 1) out.splice(i, 1);
+    }
+    out.push({f: +f.toFixed(4), kind: 'leg'});
+  });
+  return out.sort((a, b)=> a.f - b.f);
+}
+function nearestConnectorSnap(pts, f){
+  let best = null;
+  connectorSnaps(pts).forEach(sn=>{
+    if(!best || Math.abs(sn.f - f) < Math.abs(best.f - f)) best = sn;
+  });
+  return best ? best.f : f;
+}
+/* The beads, drawn into the picking layer. `current`, when given, is the
+   fraction the thing being placed is attached to right now; the bead it
+   sits on is ringed, so the reader can see which place it has taken. */
+const SNAP_BEAD_R = {step: 2.2, leg: 3.2, mid: 4.2};
+function paintConnectorSnaps(pts, current){
+  connectorSnaps(pts).forEach(sn=>{
+    const q = pointAtFraction(pts, sn.f);
+    el('circle', {class:`leader-snap leader-snap-${sn.kind}`,
+                  cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:SNAP_BEAD_R[sn.kind]}, leaderPickLayer);
+    if(typeof current === 'number' && Math.abs(current - sn.f) < 1e-4){
+      el('circle', {class:'leader-snap-current', cx:q.x.toFixed(2), cy:q.y.toFixed(2),
+                    r:SNAP_BEAD_R[sn.kind] + 3}, leaderPickLayer);
+    }
+  });
+}
 let leaderPick = null;   // {from, to, pts} while picking

@@ -6,6 +6,32 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.9.25 — "Places to put things" — 2026-09-17
+
+- **Dark page.** A theme button in the top bar; panels get a dark palette, the
+  canvas is inverted with a half-turn of hue (pictures inverted back).
+  Remembered in `localStorage` (`rhizome.theme`).
+- **Connector snap places** (`connectorSnaps`): twentieths, the middle of each
+  orthogonal leg, and the connector's middle, drawn distinctly; no ends. A
+  dragged note rings the place it has taken; a note at 0.5 follows the middle.
+- **Merge bar places** (`barPlacesFor`, `barAlignment`): Shift shows and snaps
+  to the bar's middle and the points between lineages (and each lineage, for
+  the amalgam). A single carried parent is leashed between its neighbours and
+  inside the bar (`barLeashFor`). Two selected parents get a swap button.
+- **Centre alignment fixed.** Shift guides are weighed at the pointer rather
+  than at the grid-snapped position; connector offers allow for the frame-old
+  routes (`drawnOff`).
+- **No half-unit kinks**: lattice routes keep their true end coordinates, and
+  `levelSlivers` levels runs ≤1 unit out of true.
+- **Redundant bends pruned on entry drop** (`pruneHandBends`).
+- **Grounds**: unreleased uses the weave's stroke and a softer glare; both
+  grounds are drawn inside a group translated to the entry; running
+  animations are not re-sought (`syncTagLiveliness`), and a short grace
+  (`LIVELY_GRACE`) survives the rebuild on drop.
+- **Pickers no longer close the in-node field** (`NODE_EDITOR_SATELLITES`).
+- **Wavy style**: half-sine squiggles (`WAVE_CTRL`), `POCKET_WAVELEN` 4.5,
+  `EDGE_WAVE_LEN` 4.5, `EDGE_WAVE_PEAK` 1.9.
+
 ## 0.9.24 — "Nothing moves that was not touched" — 2026-09-17
 
 - **Sliding one lineage of a merge leaves the others where they land.**

@@ -380,11 +380,7 @@ function beginAnchorDrag(ev, id, pts){
 function anchorFractionAt(ev, st){
   const p = clientToWorld(ev.clientX, ev.clientY);
   let f = fractionNearest(st.pts, p.x, p.y);
-  if(ev.shiftKey){
-    let best = LEADER_SNAPS[0];
-    LEADER_SNAPS.forEach(v=>{ if(Math.abs(v - f) < Math.abs(best - f)) best = v; });
-    return best;
-  }
+  if(ev.shiftKey) return nearestConnectorSnap(st.pts, f);
   if(ev.ctrlKey || ev.metaKey) return f;
   /* A plain drag steps. The step is the ruled grid's, measured along the
      line, so a point placed by hand lands on the same rhythm everything
@@ -424,12 +420,7 @@ window.addEventListener('mousemove', ev=>{
   n.pos = {x: n.x, y: n.y + (n.growShift || 0)};
   document.body.classList.toggle('leader-snapping', !!ev.shiftKey);
   while(leaderPickLayer.firstChild) leaderPickLayer.removeChild(leaderPickLayer.firstChild);
-  if(ev.shiftKey){
-    LEADER_SNAPS.forEach(v=>{
-      const q = pointAtFraction(st.pts, v);
-      el('circle', {class:'leader-snap', cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:2.6}, leaderPickLayer);
-    });
-  }
+  if(ev.shiftKey) paintConnectorSnaps(st.pts);
   renderNodes();
   redrawEdges();
   applyVisibility();
@@ -535,12 +526,8 @@ window.addEventListener('mousemove', ev=>{
   setEdgeStyleOverride(st.from, st.to, Object.assign({}, kept, {noteAt: st.at}));
   document.body.classList.toggle('leader-snapping', !!ev.shiftKey);
   while(leaderPickLayer.firstChild) leaderPickLayer.removeChild(leaderPickLayer.firstChild);
-  if(ev.shiftKey){
-    LEADER_SNAPS.forEach(v=>{
-      const q = pointAtFraction(st.pts, v);
-      el('circle', {class:'leader-snap', cx:q.x.toFixed(2), cy:q.y.toFixed(2), r:2.6}, leaderPickLayer);
-    });
-  }
+  // A note says which place it has taken; see paintConnectorSnaps.
+  if(ev.shiftKey) paintConnectorSnaps(st.pts, st.at);
   redrawEdges();
   applyVisibility();
 });
@@ -617,7 +604,11 @@ function drawEdgeNote(text, pts, pos, from, to, at, paint, bg){
   let sliding = false;
   try{ sliding = !!(noteDrag && noteDrag.from === from && noteDrag.to === to); }catch(e){}
   let f = stored;
-  if(held && !sliding && Math.abs(held.at - stored) < 1e-6 && pts.length > 1){
+  /* Except at the MIDDLE. A note put on the middle of its connector is
+     about the connector as a whole, and it stays on the middle however the
+     connector's length changes — which the fraction does by itself. */
+  const onMiddle = Math.abs(stored - 0.5) < 1e-9;
+  if(held && !sliding && !onMiddle && Math.abs(held.at - stored) < 1e-6 && pts.length > 1){
     const shift = routeShift(held.pts, pts);
     f = fractionNearest(pts, held.x + (shift ? shift.dx : 0), held.y + (shift ? shift.dy : 0));
     if(Math.abs(f - stored) > 1e-4){

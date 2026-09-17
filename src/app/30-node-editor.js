@@ -355,12 +355,19 @@ setRichEnter('nodeEditorText', ()=> closeNodeEditor(true));
   });
 })();
 /* Anywhere else settles it — the toolbar and its pickers excepted, since
-   pressing a button on the field's own toolbar is working IN the field. */
+   pressing a button on the field's own toolbar is working IN the field.
+ *
+ * The pickers are not inside the field: they are placed against the
+ * viewport and live at the end of the page. They were excused here by
+ * class names nothing on the page carries, so the press that chose a
+ * sticker or a citation closed the field first — and the insert then
+ * landed in a field that was no longer open. The names are the ones the
+ * pickers actually wear. */
+const NODE_EDITOR_SATELLITES = '#nodeEditor, .sticker-picker, #stickerPicker, #refPicker, #mediaPicker, .mini-toolbar';
 document.addEventListener('mousedown', ev=>{
   if(!nodeEditorTarget) return;
   const t = ev.target;
-  if(t && t.closest && (t.closest('#nodeEditor') || t.closest('.tb-pop') ||
-                        t.closest('.sticker-pop') || t.closest('.tb-menu'))) return;
+  if(t && t.closest && t.closest(NODE_EDITOR_SATELLITES)) return;
   closeNodeEditor(true);
 }, true);
 function positionCalloutPopover(evt){

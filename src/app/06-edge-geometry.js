@@ -170,13 +170,7 @@ function wavyDropAt(n, side, ring){
     const j = Math.min(bumps - 1, Math.floor(u / W));
     const local = (u - j*W) / W;
     const lift = ((j + phase) % 2 === 0) ? POCKET_LIFT : -POCKET_LIFT;
-    let t = local;
-    for(let k = 0; k < 6; k++){
-      const hh = t*t*(3 - 2*t), dh = 6*t*(1 - t);
-      if(Math.abs(dh) < 1e-6) break;
-      t = Math.max(0, Math.min(1, t - (hh - local)/dh));
-    }
-    return 3 * lift * t * (1 - t);
+    return 3 * lift * waveParamAt(local) * (1 - waveParamAt(local));
   };
 }
 function portOnSide(n, side, i, count, ring){
@@ -383,6 +377,33 @@ const EDGE_CORNER_R = 6;
  * and shallow, which is what was asked for — a true half-circle's height
  * is locked to half its width and would be far too tall. */
 const WAVE_K = 4/3;
+/* …and from a coil back to a squiggle.
+ *
+ * The half-ellipses read as a row of scallops, which on a box looked like a
+ * jigsaw piece and on a line like a string of beads. What was asked for is
+ * the hand-drawn squiggle: short, shallow, and SMOOTH through the baseline.
+ * That is a sine, and a cubic makes a very good half-sine when its two
+ * controls stand in from the ends by 4/(3π) of the arc — the slope it then
+ * leaves the baseline at is exactly the sine's, and the peak is still 3/4
+ * of the control height. The phase grid, the alternation and the whole
+ * arcs are unchanged; only where the controls stand along the run is. */
+const WAVE_CTRL = 4 / (3 * Math.PI);
+/* Where along its own arc a point of the wave is, given how far along the
+   run it is — the inverse of the cubic's x(t), which with inset controls
+   is no longer a simple smoothstep. Newton from the identity; six steps
+   land well inside a hundredth of a unit. */
+function waveParamAt(u){
+  const k = WAVE_CTRL;
+  let t = Math.max(0, Math.min(1, u));
+  for(let i = 0; i < 6; i++){
+    const mt = 1 - t;
+    const x = 3*k*t*mt*mt + 3*(1 - k)*t*t*mt + t*t*t;
+    const dx = 3*k*mt*mt + 6*(1 - 2*k)*t*mt + 3*k*t*t;
+    if(Math.abs(dx) < 1e-6) break;
+    t = Math.max(0, Math.min(1, t - (x - u)/dx));
+  }
+  return t;
+}
 /* Amplitude is DERIVED from the spacing unless a caller says otherwise. A
    semicircle's height is half its width, so once the spacing is chosen the
    radius follows — and letting the two be set independently at every call
@@ -410,16 +431,15 @@ const WAVE_K = 4/3;
 function waveRun(ax, ay, ux, uy, nx, ny, from, bumps, step, phase, liftOverride){
   const at = (dist, off)=>
     `${(ax + ux*dist + nx*off).toFixed(2)},${(ay + uy*dist + ny*off).toFixed(2)}`;
-  const lift = (typeof liftOverride === 'number') ? liftOverride : (step / 2) * WAVE_K;
+  const lift = (typeof liftOverride === 'number') ? liftOverride : EDGE_WAVE_PEAK * WAVE_K;
   const start = phase || 0;
+  const inset = step * WAVE_CTRL;
   let d = '';
   for(let j=0; j<bumps; j++){
     const s = from + j*step, e = s + step;
-    // Every second arc turns over. Half-circles all bulging the same way
-    // read as a coil; alternating them reads as a wave, and the line keeps
-    // the same pitch and the same amplitude either way.
+    // Every second arc turns over, so the run is a wave and not a coil.
     const side = ((j + start) % 2 === 0) ? lift : -lift;
-    d += ` C${at(s, side)} ${at(e, side)} ${at(e, 0)}`;
+    d += ` C${at(s + inset, side)} ${at(e - inset, side)} ${at(e, 0)}`;
   }
   return d;
 }
@@ -435,7 +455,9 @@ function waveBumps(len, target){
 
 // Many small scallops rather than a few big ones: a fine ripple reads as
 // a deliberate frame, where a long slow wave just looks like a wobbly box.
-const POCKET_WAVELEN = 8;
+/* A squiggle, not a scallop: half-waves about as long as a stroke is wide
+   a few times over. See WAVE_CTRL. */
+const POCKET_WAVELEN = 4.5;
 // How far a ripple stands off its own baseline — the height of one
 // half-wave, and so how deep a pocket reality's border really is. Declared
 // here rather than up beside the other border constants because it is
@@ -449,7 +471,10 @@ const POCKET_WAVELEN = 8;
  * there. This sits between the two, and is only possible because the rings
  * share one phase grid (see wavySideCommands) and so stay exactly the ring
  * spacing apart however deep the ripple is. */
-const POCKET_LIFT = 3.1;
+/* The height of the CONTROLS; the ripple itself peaks at three quarters of
+   it — a little under two units, which is the hand-drawn look, and keeps
+   two rings four units apart well clear of each other. */
+const POCKET_LIFT = 2.5;
 /* The frame borrows the connector's arrangement: a short flat stretch at
    each corner, an even row of scallops between them. Running the wave all
    the way into the corner put a crest exactly where two sides meet, which
