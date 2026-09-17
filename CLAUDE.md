@@ -126,12 +126,28 @@ the scenario it belongs to. When a claim turns out to be wrong — including
 one this file makes — the fix is a check that would have caught it, not a
 note.
 
-## The two published copies
+## The four builds, and which goes where
 
-`dist/nexus.html` is published **with** the `artifact` capability, which is
-what makes Save work. `dist/nexus-share.html` is the same chart built with
-`capabilities: {}` so it can be shared to a public link; `build.py` makes it
-by injecting `markReadOnly(false);` before `function isReadOnlyError(e){`.
+Two questions decide a build and they are **independent**: may it be edited,
+and is it a whole document or a fragment the artifact host wraps itself?
+
+| | fragment | whole document |
+| --- | --- | --- |
+| editable | `nexus.html` — published WITH the `artifact` capability, which is what makes Save work | `nexus-standalone.html` — to keep, to host, or to open off a disk |
+| read-only | `nexus-share.html` — built with `capabilities: {}` so it can be shared to a public link | `nexus-share-standalone.html` — **what Pages serves** |
+
+`build.py` makes a read-only copy by replacing the `/* @@SHARE:READONLY@@ */`
+marker in `22-file-comments.js` with a call to `markReadOnly(false)`, and a
+whole document by wrapping a fragment in the skeleton the host would
+otherwise supply. The fourth file is those two things at once, and for a
+while it did not exist — so Pages, which has to have a document, was given
+the editable one. Anybody who opened the published site got the full editor,
+and because a page with no host to publish to saves into the reader's own
+browser, their edit survived a reload. Nothing they did reached anyone else;
+nothing told them so either.
+
+The grid is pinned in `tests/build_guard.py` and the published copy is driven
+in the suite, so neither half can drift again.
 
 Read-only is a flag, not a second program: `body.read-only` hides every
 writing control and nearly every mutating function opens with a `readOnlyView`

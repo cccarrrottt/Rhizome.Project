@@ -9431,6 +9431,61 @@ async function main(){
         Math.abs(parseFloat(rMv.sheetStagger) + 0.85) < 1e-6, rMv.sheetStagger);
   });
 
+  /* ---- 32. the copy the public site is ----
+   *
+   * There are two independent questions about a build — may it be edited,
+   * and is it a whole document — and for a while only three of the four
+   * answers had a file. GitHub Pages needs a document, so it got the
+   * editable one: anybody who opened the published site got the full
+   * editor, and since a page with no host to publish to saves into the
+   * reader's own browser, their edit survived a reload. Nothing they did
+   * could reach anyone else, but nothing told them so either.
+   *
+   * Driven against the built file itself rather than against a claim in a
+   * workflow, because the workflow copies whatever it is pointed at. */
+  await scenario("the copy the public site is", async () => {
+  if(MODE === 'src'){
+    check('the published copy is built, so there is nothing to check from src', true);
+    return;
+  }
+  const site = await ctx.newPage();
+  await site.goto(`http://127.0.0.1:${PORT}/nexus-share-standalone.html`, {waitUntil:'load'});
+  await site.waitForFunction(() => typeof rebuildChart === 'function');
+  const r = await site.evaluate(async () => {
+    const out = {
+      wholeDocument: document.doctype !== null && document.documentElement.tagName === 'HTML',
+      readOnly: readOnlyView,
+      bodySaysSo: document.body.classList.contains('read-only'),
+      drew: document.querySelectorAll('#nodeLayer .node').length,
+      saveHidden: getComputedStyle(document.getElementById('saveBtn')).display === 'none',
+      // Read-only stops writing to THIS chart; taking a copy away is not
+      // writing, and a reader who wants to build on it should be able to.
+      exportOffered: ['fileToggle', 'fileExport', 'fileExportData'].every(id => {
+        const b = document.getElementById(id);
+        return !!b && getComputedStyle(b).display !== 'none';
+      }),
+      // …and importing INTO it is writing, so that one is refused.
+      importRefused: getComputedStyle(document.getElementById('fileImport')).display === 'none' ||
+                     readOnlyView
+    };
+    const was = workingNodes[0][1];
+    applyEdit(() => { workingNodes[0][1] = 'A VISITOR WROTE THIS'; });
+    out.editRefused = workingNodes[0][1] === was;
+    out.stillClean = !isDirty();
+    return out;
+  });
+  await site.close();
+  check('what Pages serves is a whole document', r.wholeDocument);
+  check('and it knows it is read-only on the first frame',
+        r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
+  check('it draws the chart', r.drew > 0, `${r.drew} nodes`);
+  check('it offers no Save', r.saveHidden);
+  check('an edit made in it does nothing', r.editRefused && r.stillClean,
+        JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
+  check('but a reader may still take a copy away', r.exportOffered);
+  check('and may not write one back in', r.importRefused);
+  });
+
   /* ---- 29. nothing threw along the way ---- */
   await scenario("nothing threw along the way", async () => {
   check('no uncaught page errors', errors.length === 0, errors.slice(0, 4).join(' | '));

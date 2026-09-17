@@ -157,8 +157,27 @@ def main():
     check('and every region is reported with its count',
           all(n in r.stdout for n in ('NODES', 'STICKERS', 'MEDIA', 'SETTINGS')),
           r.stdout)
-    for name in ('nexus.html', 'nexus-share.html', 'nexus-standalone.html'):
+    for name in ('nexus.html', 'nexus-share.html', 'nexus-standalone.html',
+                 'nexus-share-standalone.html'):
         check(f'dist/{name} was written', (tmp / 'dist' / name).exists())
+
+    # Two independent questions — may it be edited, is it a whole document —
+    # and all four answers have to have a file. Three of them did, and the
+    # missing one was read-only-and-a-document: so GitHub Pages, which needs
+    # a document, was given the editable build and anybody who opened the
+    # published site got an editor.
+    grid = {'nexus.html':                   (False, False),
+            'nexus-share.html':             (True,  False),
+            'nexus-standalone.html':        (False, True),
+            'nexus-share-standalone.html':  (True,  True)}
+    for name, (want_ro, want_doc) in grid.items():
+        body = (tmp / 'dist' / name).read_text(encoding='utf-8')
+        is_ro = body.count('markReadOnly(false);') == 1
+        is_doc = body.lstrip().lower().startswith('<!doctype html>')
+        check(f'{name} is {"read-only" if want_ro else "editable"} and '
+              f'{"a whole document" if want_doc else "a fragment"}',
+              is_ro == want_ro and is_doc == want_doc,
+              f'read-only {is_ro}, document {is_doc}')
 
     # 7. Nothing that holds the chart's contents is written over without the
     #    previous copy being put aside first.
