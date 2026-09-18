@@ -1,3 +1,73 @@
+/* The corner badge that opens an entry's linked page. The same height as a
+   language chip (see the chip row below), because they are the same kind of
+   thing and sit a few pixels apart on the same edge. */
+const LINK_BADGE_R = 5.5;
+/* The card whose PICTURE is being edited, if any.
+ *
+ * A card is two things in one box — words and a picture — and a double
+ * click has to mean one of them. On the words it opens the text where the
+ * text is; on the picture it opens the picture, which means showing the
+ * picture's own corners and letting them be pulled. Nothing else about the
+ * entry changes while this is open, and a click anywhere else closes it. */
+let cardImgEditId = null;
+function cardImageEditable(n){
+  return !!(n && n.card && n.image && !readOnlyView);
+}
+function repaintAfterCardImageEdit(){
+  renderNodes();
+  redrawEdges();
+  applyVisibility();
+  if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
+  paintMultiSelection();
+}
+function openCardImageEdit(id){
+  const n = nodes.get(id);
+  if(!cardImageEditable(n)) return false;
+  if(cardImgEditId === id) return true;
+  cardImgEditId = id;
+  repaintAfterCardImageEdit();
+  return true;
+}
+function closeCardImageEdit(){
+  if(!cardImgEditId) return;
+  cardImgEditId = null;
+  repaintAfterCardImageEdit();
+}
+/* Whether a point is over a card's picture band — which is what decides
+   what a double click on a card means. */
+function overCardPicture(n, px, py){
+  if(!cardImageEditable(n)) return false;
+  const band = n.cardTop || 0;
+  return band > 0.5 && py >= n.y && py <= n.y + band && px >= n.x && px <= n.x + n.w;
+}
+/* How tall a picture is for its width, remembered per source.
+ *
+ * A card's picture band is drawn synchronously, and the one thing that
+ * decides its depth — the picture's own proportions — is not known until
+ * the browser has decoded the picture. So the first draw uses the default
+ * band and a probe is sent off; when it answers, the ratio is remembered
+ * and the chart is drawn again. One extra draw per NEW picture, never per
+ * render: a source that has been asked about is never asked again, and a
+ * source that fails to load answers 0 and is left alone thereafter. */
+const imgAspects = new Map();
+function imageAspect(src){
+  if(!src) return 0;
+  if(imgAspects.has(src)) return imgAspects.get(src);
+  imgAspects.set(src, 0);
+  try{
+    const probe = new Image();
+    probe.onload = ()=>{
+      const r = (probe.naturalWidth && probe.naturalHeight)
+        ? probe.naturalHeight / probe.naturalWidth : 0;
+      if(!r || imgAspects.get(src) === r) return;
+      imgAspects.set(src, r);
+      requestAnimationFrame(()=>{ try{ rebuildChart(); }catch(e){} });
+    };
+    probe.onerror = ()=>{};
+    probe.src = src;
+  }catch(e){}
+  return 0;
+}
 function renderNodes(){
 while(nodeDefs.firstChild) nodeDefs.removeChild(nodeDefs.firstChild);
 while(nodeLayer.firstChild) nodeLayer.removeChild(nodeLayer.firstChild);
@@ -65,7 +135,7 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const fontScale = fontSize / NODE_FS;
   const lineH = LINE_H * fontScale;
   n.chipLeft = null; n.chipRight = null;
-  let chipGroup = null;
+  let chipGroup = null, linkWrap = null;
   /* The chip row belongs to the SETTING, not to the tabs: switching
      multi-language on shows the default text's own chip straight away, so
      the row is visibly there to add tabs to rather than appearing out of
@@ -85,13 +155,20 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      opts.size overrules all of it: a node dragged by its corner keeps
      exactly the size it was given. */
   const manual = n.size;
-  /* Whether this entry's text was written as one line.
+  /* An entry's text is NEVER folded by the measurer.
    *
-     If none of its texts carries a break the author typed, the box widens
-     to hold the longest of them rather than folding it at a character
-     count — see wrapLabel. A text with breaks in it is a small paragraph
-     and keeps the wrapping it always had. */
-  const noWrap = allTexts.every(t=> String(t == null ? '' : t).indexOf('\n') < 0);
+     Where the author typed a break, the text breaks; nowhere else. The box
+     widens to hold the longest line it is given, up to the width a box is
+     allowed to reach, and past that the text is clipped at the border —
+     the bargain a spreadsheet cell makes.
+   *
+     This used to hold only for a text with no breaks in it at all: one
+     Shift+Enter anywhere turned wrapping back on for every line of that
+     entry, so adding a second line silently re-folded the first at
+     whatever character the box happened to end on. Wrapping belongs to
+     prose, and the one thing on this chart that is prose is a comment
+     card, which keeps it. */
+  const noWrap = !isCalloutShape;
   /* A portrait is a circle, so its two sides are one number: whichever of
      a hand-set width and height is smaller, which is what a corner drag
      naturally produces. */
@@ -123,10 +200,18 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     n.x = n.slotX + (n.slotW - w)/2;
   }
   n.w = w;
-  const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - NODE_PAD_X*2) / (fontSize*0.55)));
+  /* How much of each side the border takes before the words may start.
+   *
+     A rippled border is not where its baseline is: it swings a whole
+     amplitude either side of the box and is stroked on top of that, so
+     the last two or three pixels inside the box belong to the border.
+     With the ordinary padding the longest line ran straight into the
+     ripple and the letters sat on the wave. */
+  const inkPad = NODE_PAD_X + (isWavy ? POCKET_AMP + 1 : 0);
+  const maxChars = noWrap ? Infinity : Math.max(8, Math.round((w - inkPad*2) / (fontSize*0.55)));
   // Hard pixel ceiling for a line of this node's text, so no script's
   // glyph widths can push a label past the border (see wrapLabel's `fit`).
-  const fit = { maxWidth: w - NODE_PAD_X*2, fontSize, family: fontFamily, noWrap };
+  const fit = { maxWidth: w - inkPad*2, fontSize, family: fontFamily, noWrap };
   // Height is sized to fit the TALLEST of every text this node can show
   // (main label + every language tab) so switching tabs never needs a
   // relayout of the rest of the chart — only whichever text is showing
@@ -153,20 +238,32 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        a box may become, which is how an empty box came out three hundred
        pixels across. With no ink it takes the ordinary minimum instead,
        which is the size an empty box should be. */
-    const want = maxInkW > 0 ? Math.ceil(maxInkW) + NODE_PAD_X*2 : NODE_MINW;
+    const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : NODE_MINW;
     n.w = w = Math.max(NODE_FIT_MINW, Math.min(w, want));
     if(!n.pos && typeof n.slotX === 'number') n.x = n.slotX + (n.slotW - w)/2;
+  }
+  /* A card closes on its ink too, but by GROWING to it rather than only
+     shrinking: its width starts at the card minimum and the heading is
+     never folded, so without this a long heading was clipped in a box
+     that had room to spare on the chart. Between the card's own two
+     bounds, and no further. */
+  if(isCard && !manual){
+    const want = maxInkW > 0 ? Math.ceil(maxInkW) + inkPad*2 : CARD_MINW;
+    n.w = w = Math.max(CARD_MINW, Math.min(CARD_MAXW, want));
   }
   /* Whether what is about to be drawn is wider than what will hold it.
      Only then is the text clipped — a clip path on every entry would cost
      the chart a few hundred of them for nothing, and would quietly shave
      the overhang off any glyph that legitimately leans past its advance. */
-  const clipText = maxInkW > (w - NODE_PAD_X*2) + 0.5;
+  const clipText = maxInkW > (w - inkPad*2) + 0.5;
   // A bio circle is a fixed size that owes nothing to its text — the text
   // isn't drawn in it at all.
-  /* A card's height is the three bands added up: the fixed picture, the
-     heading as it wraps, and the note as it wraps at the smaller body size.
-     With no note there is no third band and the card is simply shorter. */
+  /* A card's height is its bands added up: the picture, the heading as it
+     wraps, and the note as it wraps at the smaller body size. With no note
+     there is no third band and the card is simply shorter — and with no
+     PICTURE there is no first band either. A card is a stack of the parts
+     it actually has; an empty frame reserving a third of the box for a
+     picture nobody chose is scenery standing in for content. */
   const cardBodyFS = fontSize * CARD_BODY_SCALE;
   const cardBodyScale = cardBodyFS / NODE_FS;
   const cardBodyLineH = LINE_H * cardBodyScale;
@@ -174,14 +271,38 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
   const cardBodyFit = { maxWidth: w - 14, fontSize: cardBodyFS, family: fontFamily };
   const cardBodyChars = Math.max(8, Math.round((w - 14) / (cardBodyFS*0.55)));
   const cardHeadH = isCard ? Math.max(22, CARD_PAD_Y + maxTotalH) : 0;
+  /* The picture band, which a card without a picture does not have — and
+     which is as deep as the picture needs rather than a fixed slab. A
+     fixed band can only be honoured by cropping, and cropping a picture
+     nobody asked to crop is how a wide one arrived with both ends gone.
+     The picture's own proportions set the depth; a depth set by hand
+     overrides them; and a card asked to CROP keeps the old fixed band,
+     because that is what cropping is for. */
+  const cardImgH = (isCard && n.image)
+    ? (n.cardImgH != null ? n.cardImgH
+       : n.cardCrop ? CARD_IMG_H
+       : (()=>{ const r = imageAspect(n.image);
+                return r ? Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, Math.round(w * r)))
+                         : CARD_IMG_H; })())
+    : 0;
   const cardBodyH = cardBody
     ? CARD_PAD_Y + wrapAndMeasure(cardBody, cardBodyChars, cardBodyLineH, cardBodyScale, cardBodyFit).totalH
+    : 0;
+  /* The middle band, between the heading and the note. */
+  const cardMedFS = fontSize * CARD_MEDIUM_SCALE;
+  const cardMedScale = cardMedFS / NODE_FS;
+  const cardMedLineH = LINE_H * cardMedScale;
+  const cardMedium = isCard ? String(n.medium || '').trim() : '';
+  const cardMedFit = { maxWidth: w - 14, fontSize: cardMedFS, family: fontFamily };
+  const cardMedChars = Math.max(8, Math.round((w - 14) / (cardMedFS*0.55)));
+  const cardMedH = cardMedium
+    ? CARD_PAD_Y + wrapAndMeasure(cardMedium, cardMedChars, cardMedLineH, cardMedScale, cardMedFit).totalH
     : 0;
 
   const h = isBio ? bioSide
           : isImage ? (manual ? manual.h : IMAGE_DEFAULT_H)
           : isTextbox ? (manual ? manual.h : Math.max(16, Math.ceil(maxTotalH) + NODE_PAD_Y*2))
-          : isCard ? (manual ? manual.h : CARD_IMG_H + cardHeadH + cardBodyH)
+          : isCard ? (manual ? manual.h : cardImgH + cardHeadH + cardMedH + cardBodyH)
           : (manual ? manual.h : Math.max(NODE_FIT_MINH, Math.ceil(maxTotalH) + NODE_PAD_Y*2));
   n.h = h;
   /* A hand-placed entry grows about its MIDDLE, not downward from its top.
@@ -227,13 +348,34 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     n.growShift = snapToGrid(Math.max(0, h - NODE_GROW_REF) / 2);
     n.y = n.pos.y - n.growShift;
   }
-  // Where the two rules across the card fall, once its height is settled.
-  // Recorded on the node because the connector router reads it: see
-  // portOnSide, which keeps side ports off the picture.
-  const cardImgB = isCard ? n.y + (manual ? Math.min(CARD_IMG_H, h*0.5) : CARD_IMG_H) : 0;
-  const cardHeadB = isCard
-    ? (cardBody ? Math.min(h + n.y - 14, cardImgB + Math.max(22, h - (cardImgB - n.y) - cardBodyH)) : n.y + h)
+  /* Where the rules across the card fall, once its height is settled.
+     The picture's rule is only there when there is a picture. */
+  /* Where the picture band ends. A card sized by hand gives the room it
+     gained to the PICTURE, not to the words.
+   *
+     It used to keep the picture at whatever depth it already had and hand
+     every pixel of the extra height to the heading band — so dragging a
+     card's corner produced a small photograph sitting on a vast empty
+     panel of text ground, which is nothing anybody was asking for. The
+     words take the room they need; the picture takes what is left. */
+  const cardTextH = cardHeadH + cardMedH + cardBodyH;
+  const cardImgB = isCard
+    ? n.y + ((manual && n.image && n.cardImgH == null) ? Math.max(0, h - cardTextH) : cardImgH)
     : 0;
+  /* Each band below the picture takes the height its own words need, in
+     order, and the heading takes whatever is left over — so a card given
+     more room by hand grows where the room was given rather than
+     redistributing every band. */
+  const cardHeadB = isCard
+    ? ((cardMedium || cardBody)
+        ? Math.min(h + n.y - 14, cardImgB + Math.max(22, h - (cardImgB - n.y) - cardMedH - cardBodyH))
+        : n.y + h)
+    : 0;
+  const cardMedB = isCard ? (cardBody ? cardHeadB + cardMedH : n.y + h) : 0;
+  /* How deep the picture band is. Nothing about ROUTING reads it any
+     more: a card is one box, and where a connector may meet it is decided
+     by that box and nothing inside it — see portOnSide. Kept because the
+     drawing measures its own bands from it. */
   n.cardTop = isCard ? cardImgB - n.y : 0;
 
   /* The grounds are drawn in the ENTRY'S coordinates, not the chart's.
@@ -547,38 +689,94 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        no second border colour here — the rules already divide the card, and
        nested rings on top of them would be noise. */
     const c = ringColors[0];
+    /* The card's outline is whatever the border style draws, and its
+       picture is clipped to that same outline — so a rippled card's
+       picture stops at the ripple instead of squaring off inside it. One
+       shape, asked for once: see cardShape below, which the ground, the
+       clip and the border all take. */
+    const cardShape = (i)=> isWavy
+      ? {tag:'path', attrs:{d: wavyRectPath(n.x+i, n.y+i, w-i*2, h-i*2)}}
+      : {tag:'rect', attrs:{x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:Math.max(0, 5-i)}};
     const clipId = defId('cardclip-', n.id);
     const clip = el('clipPath', {id:clipId}, nodeDefs);
-    el('rect', {x:n.x, y:n.y, width:w, height:h, rx:5}, clip);
-    // The card's own ground, under the three bands.
-    el('rect', {x:n.x, y:n.y, width:w, height:h, rx:5,
-                style:(bgFillStyle || 'fill:var(--panel);') + 'stroke:none;'}, g);
+    { const sh = cardShape(0); el(sh.tag, sh.attrs, clip); }
+    // The card's own ground, under its bands.
+    { const sh = cardShape(0);
+      el(sh.tag, Object.assign({}, sh.attrs,
+        {style:(bgFillStyle || 'fill:var(--panel);') + 'stroke:none;'}), g); }
 
+    /* The picture, when there is one. There used to be an empty slot here
+       — a grey band with a little mountain-and-sun in it — for a card
+       without one, which is a third of the entry given over to saying
+       that nothing has been put there yet. A card with no picture simply
+       has no picture band: its own geometry says it, and the moment one
+       is chosen the band appears. */
+    /* A rippled border does not follow the box: it swings a wave's depth
+       either side of it, so the card's real outline reaches further out
+       than the rectangle everything inside it was drawn to. The picture
+       stopped at the rectangle and the rules stopped at the rectangle,
+       and the ground — which IS the outline — did not: a rippled card
+       showed a crescent of its background between the picture and the
+       border at every crest, and the same again at both ends of every
+       rule. The card was not airtight.
+     *
+       So the bands are drawn OVER the ripple and cut back to the card's
+       own outline by the clip they already had. The clip is the one
+       authority on where the card ends, which is what makes the seal
+       exact whatever the border does next. */
+    const bleed = isWavy ? POCKET_AMP + 1 : 0;
+    /* How wide the picture is drawn. A picture pulled in from the sides
+       stands in the middle of its band with the card's own ground either
+       side of it; one at full width reaches the border, and only that one
+       is allowed to bleed past it into the ripple. */
+    const imgW = Math.max(0, Math.min(w, n.cardImgW == null ? w : n.cardImgW));
+    const imgFull = imgW >= w - 0.5;
+    const imgX = n.x + (w - imgW)/2;
+    const imgBleed = imgFull ? bleed : 0;
     if(n.image){
       const img = el('image', {
-        x:n.x, y:n.y, width:w, height:cardImgB - n.y,
+        x:imgX - imgBleed, y:n.y - bleed, width:imgW + imgBleed*2,
+        height:(cardImgB - n.y) + bleed,
         'clip-path': `url(#${clipId})`,
-        preserveAspectRatio: 'xMidYMid slice'
+        /* Fit the whole picture unless this card has asked for the
+           other thing. `slice` fills the band and throws the rest away;
+           `meet` keeps the picture entire, and the band above was sized
+           from the picture's own proportions so that keeping it entire
+           leaves no empty margin to fill. */
+        preserveAspectRatio: n.cardCrop ? 'xMidYMid slice' : 'xMidYMid meet'
       }, g);
       img.setAttributeNS('http://www.w3.org/1999/xlink', 'href', n.image);
       img.setAttribute('href', n.image);
-    } else {
-      // An empty slot still reads as a slot, so a card without a picture
-      // yet looks unfinished rather than broken.
-      el('rect', {x:n.x, y:n.y, width:w, height:cardImgB - n.y,
-                  'clip-path': `url(#${clipId})`, class:'card-slot'}, g);
-      const midX = n.x + w/2, midY = n.y + (cardImgB - n.y)/2;
-      el('path', {d:`M${midX-15},${midY+8} L${midX-4},${midY-3} L${midX+3},${midY+3} `+
-                     `L${midX+9},${midY-2} L${midX+16},${midY+8} z`, class:'card-slot-mark'}, g);
-      el('circle', {cx:midX-9, cy:midY-7, r:3, class:'card-slot-mark'}, g);
     }
 
-    borderRing('rect', (i)=>({x:n.x+i, y:n.y+i, width:w-i*2, height:h-i*2, rx:Math.max(0,5-i)}),
-               c, 'fill:none;');
-    el('line', {x1:n.x, y1:cardImgB, x2:n.x+w, y2:cardImgB, stroke:c, class:'card-rule'}, g);
-    if(cardBody){
-      el('line', {x1:n.x, y1:cardHeadB, x2:n.x+w, y2:cardHeadB, stroke:c, class:'card-rule'}, g);
+    borderRing(isWavy ? 'path' : 'rect', (i)=> cardShape(i).attrs, c, 'fill:none;');
+    const rule = (yy)=> el('line', {x1:n.x - bleed, y1:yy, x2:n.x + w + bleed, y2:yy,
+                                    stroke:c, class:'card-rule',
+                                    'clip-path': `url(#${clipId})`}, g);
+    /* The picture's own corners, while it is the thing being edited: four
+       grips on the box the picture is drawn in. Free by default — the
+       picture takes the shape you pull it into — and proportional with
+       Shift held, which is the one thing a picture usually wants. */
+    if(cardImgEditId === n.id && n.image && cardImgB > n.y + 0.5){
+      const gy0 = n.y, gy1 = cardImgB;
+      [[imgX, gy0, 'nw'], [imgX + imgW, gy0, 'ne'],
+       [imgX, gy1, 'sw'], [imgX + imgW, gy1, 'se']].forEach(([gx, gyy, key])=>{
+        const grip = el('g', {class:'card-img-grip card-img-grip-' + key,
+                              transform:`translate(${gx.toFixed(2)},${gyy.toFixed(2)})`}, g);
+        el('rect', {x:-4.5, y:-4.5, width:9, height:9, rx:1.5, class:'card-img-grip-mark'}, grip);
+        grip.addEventListener('mousedown', ev=> beginCardImageResize(ev, n));
+        grip.addEventListener('click', ev=> ev.stopPropagation());
+        el('title', {}, grip).textContent =
+          'Drag to resize the picture; hold Shift to keep its proportions';
+      });
+      el('rect', {x:imgX, y:gy0, width:imgW, height:gy1 - gy0,
+                  class:'card-img-frame'}, g);
     }
+    if(cardImgB > n.y + 0.5) rule(cardImgB);
+    if(cardMedium || cardBody) rule(cardHeadB);
+    // …and a rule between the middle band and the note only when there
+    // are two bands down there to divide.
+    if(cardMedium && cardBody) rule(cardMedB);
   } else if(isImage){
     /* A picture with nothing around it: no box, no border, no words. It is
        a thing you place on the chart, not an entry in the continuity. */
@@ -737,11 +935,19 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
                    centerX, maxChars, lineH, fontScale, fontOpts, fit);
   }
 
+  // The card's middle band, between the heading and the note.
+  if(isCard && cardMedium){
+    const medEl = el('text', {x:centerX, y:0, 'font-size':cardMedFS,
+      class:'card-medium', style:`font-family:${fontFamily};`}, g);
+    renderNodeText(medEl, cardMedium, (cardHeadB + cardMedB)/2, centerX,
+                   cardMedChars, cardMedLineH, cardMedScale,
+                   {fontSize:cardMedFS, family:fontFamily}, cardMedFit);
+  }
   // The card's body: the note, set smaller and quieter than the heading.
   if(isCard && cardBody){
     const bodyEl = el('text', {x:centerX, y:0, 'font-size':cardBodyFS,
       class:'card-body', style:`font-family:${fontFamily};`}, g);
-    renderNodeText(bodyEl, cardBody, (cardHeadB + n.y + h)/2, centerX,
+    renderNodeText(bodyEl, cardBody, (cardMedB + n.y + h)/2, centerX,
                    cardBodyChars, cardBodyLineH, cardBodyScale,
                    {fontSize:cardBodyFS, family:fontFamily}, cardBodyFit);
   }
@@ -767,9 +973,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
        collided, and the default chip looked permanently selected. A flag
        names the language the way every other chip does. */
     const chipLabels = [DEFAULT_LANG_CHIP, ...langTabList.map(t=>t.tag)];
-    // On a card they belong to the heading they switch, so they sit on the
-    // rule above it rather than at the top of the whole card.
-    const chipY = isCard ? cardImgB : n.y;
+    /* At the top-left corner, on a card as on anything else. They used to
+       sit on the rule above the heading, which put them in a different
+       place on two entries standing side by side — and moved them the
+       moment a picture was added or taken away. An entry's badges belong
+       to the entry, so they are where the entry's corner is. */
+    const chipY = n.y;
     let cursorX = n.x + 3;
     // One group, so the whole row can be raised above the edge handles.
     chipGroup = el('g', {class:'lang-chips'}, g);
@@ -790,11 +999,23 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
       chipLabelEl.textContent = lbl;
       el('title',{},chipG).textContent = idx===0 ? 'Show the default text' : `Show the "${lbl}" text`;
       chipG.addEventListener('click', ev=>{
+        /* Another entry's chips are out of play while one is open — see
+           the link badge below and liveRefMark. The press is left alone
+           rather than swallowed, so it reaches the box underneath and
+           does what a press on that box does: opens it. */
+        if(selectedId && selectedId !== n.id) return;
         ev.stopPropagation();
         activeLangTab.set(n.id, tabIdx);
         /* The chips change SIZE with the selection, so switching has to
            re-lay them out — toggling a class is no longer enough. */
         renderNodes();
+        /* …and a full re-render builds every entry's group from scratch,
+           which loses the wash that says which one is being looked at.
+           Switching a language tab therefore lit the whole chart back up
+           behind the panel that was still open in front of it. */
+        if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
+        paintMultiSelection();
+        applyVisibility();
       });
       cursorX += chipW + CHIP_GAP;
     });
@@ -822,8 +1043,8 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      worse, one that steals the click from the thing they were aiming at —
      so a covered corner simply has no grip, and its neighbours still do. */
   {
-    const linkTopRight = !!(n.link && safeUrl(n.link) && !isFree && !isCard);
-    const linkTopLeft  = !!(n.link && safeUrl(n.link) && !isFree && isCard);
+    const linkTopRight = !!(n.link && safeUrl(n.link) && !isFree);
+    const linkTopLeft  = false;
     /* How far along the top edge the language chips actually run, or
        nothing when there are none.
      *
@@ -931,16 +1152,30 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     // renders this page inside a sandboxed iframe, which silently blocks
     // script-initiated window.open() but allows a genuine user-clicked
     // hyperlink through, so the link only works reliably as one.
-    const linkWrap = el('a', {href:safeUrl(n.link), target:'_blank', rel:'noopener'}, g);
+    linkWrap = el('a', {href:safeUrl(n.link), target:'_blank', rel:'noopener'}, g);
     // A plain entry wears the badge at its top-right corner; a card wears
     // it at the top-left of its picture, where it reads as belonging to the
     // picture rather than hovering over the heading.
+    // The top-right corner, whatever the entry is — see the chips above.
     const lg = el('g',{class:'node-link',
-      transform: isCard ? `translate(${n.x+9},${n.y+9})` : `translate(${n.x+n.w},${n.y})`}, linkWrap);
-    el('circle',{r:7, cx:0, cy:0}, lg);
-    el('path',{d:'M-2.4,2.4 L2.4,-2.4 M-0.8,-2.4 L2.4,-2.4 L2.4,0.8', fill:'none'}, lg);
+      transform: `translate(${n.x+n.w},${n.y})`}, linkWrap);
+    /* The same size as a language chip. The two are the entry's only
+       corner badges and they sit within a few pixels of each other along
+       the same edge, so a link drawn half as big again as the chip beside
+       it read as a different order of thing — and it covered rather more
+       of the border than a badge on a corner has any business covering. */
+    el('circle',{r:LINK_BADGE_R, cx:0, cy:0}, lg);
+    el('path',{d:'M-1.9,1.9 L1.9,-1.9 M-0.6,-1.9 L1.9,-1.9 L1.9,0.6', fill:'none'}, lg);
     el('title',{},lg).textContent = 'Open linked page ↗';
-    linkWrap.addEventListener('click', ev=>{ ev.stopPropagation(); });
+    /* And while another entry is open this one's link does not fire: the
+       page it would open belongs to a box the reader has stepped away
+       from. The press falls through to the box instead, which opens it —
+       and then the link is live, because now it is the entry being looked
+       at. */
+    linkWrap.addEventListener('click', ev=>{
+      if(selectedId && selectedId !== n.id){ ev.preventDefault(); return; }
+      ev.stopPropagation();
+    });
   }
 
   // Grab a SIDE, not a point: hovering a node lights up whichever edge the
@@ -1001,6 +1236,12 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
      under them. Moving them to the end puts them back on top: the edge's
      highlight sweeps behind the chips, and the chips stay clickable. */
   if(chipGroup && chipGroup.parentNode === g) g.appendChild(chipGroup);
+  /* And the link badge, for exactly the same reason. It stands ON the
+     corner, so the two edge strips that meet there lay across most of it:
+     the circle looked like one button and behaved like a crescent, with
+     the half nearest the border quietly starting a connector drag
+     instead. Raised to the top it is a button all the way round. */
+  if(linkWrap && linkWrap.parentNode === g) g.appendChild(linkWrap);
 
   /* A tag that DOES something to its entry says so when you look at the
      entry. The decorations are still, and still is right for a chart being
@@ -1072,6 +1313,34 @@ while(auraLayer.firstChild) auraLayer.removeChild(auraLayer.firstChild);
     // The pending single-click panel never happens: this was a double.
     clearTimeout(nodeClickTimer); nodeClickTimer = null;
     if(document.body.classList.contains('read-only')) return;
+    /* …and neither does the one the FIRST click already opened.
+     *
+       A double click is one gesture, and its first half had already run:
+       the entry drawer was open behind whatever the double click went on
+       to open, so every double click on the chart left a panel of
+       settings and comments standing beside the thing being edited. The
+       entry stays selected — that half of the click is right — and the
+       drawer it would have shown is put away. */
+    {
+      const drawer = document.getElementById('detail');
+      if(drawer && drawer.classList.contains('open')){
+        drawer.classList.remove('open');
+        if(typeof updateZoomCtlPosition === 'function') updateZoomCtlPosition();
+      }
+    }
+    /* A card's picture is its own thing to edit. A double click on the
+       picture band opens the picture — its corners, to be pulled — rather
+       than dropping a text cursor into a band that has no text in it. */
+    if(isCard && cardImageEditable(n)){
+      const at = clientToWorld(ev.clientX, ev.clientY);
+      if(overCardPicture(n, at.x, at.y)){
+        selectNode(n.id, {quiet:true});
+        paintMultiSelection();
+        openCardImageEdit(n.id);
+        return;
+      }
+    }
+    closeCardImageEdit();
     /* A free-standing element is edited in its OWN card, not in the
        entry drawer.
      *

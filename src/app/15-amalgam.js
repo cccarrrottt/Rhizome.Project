@@ -395,6 +395,15 @@ function drawAmalgam(list, ports){
      clamped to the bar it has to leave from, and travels along the bar as
      the entry is dragged. Nothing else on the merge depends on it. */
   const seam = (landings[0] + landings[n-1]) / 2;
+  /* Where the merged arrow leaves the bar — in front of the entry, and on
+     a LANDING when it is nearly on one.
+   *
+     What the entry hangs from is the bar in front of it, so the stem
+     leaves from in front of the entry and from nowhere else. An attempt to
+     have it settle onto the nearest lineage's landing — so that the two
+     would share one bead — is reverted: it moved the foot of the merged
+     arrow away from the entry it belongs to, which is a worse thing than
+     the doubled mark it was chasing. */
   const junction = Math.max(landings[0], Math.min(landings[n-1], 0));
   /* Where the bar is, kept for the drag that wants to centre the entry on
      it — see alignGuides. In chart coordinates, along the bar's own axis. */
@@ -478,7 +487,19 @@ function drawAmalgam(list, ports){
     const a = nodes.get(e.from);
     const recM = ports.get(e);
     if(!a || !recM || !recM.p1) return;
-    const style = edgeStyleFor(e.from, e.to);
+    /* …and it keeps no hand-set bends.
+     *
+       A bend is a route somebody drew by hand, and a merged lineage has no
+       route of its own to draw: where it leaves, where it comes down and
+       where it turns onto the bar are all decided by the merge, and the
+       bar moves with the parents every time one of them is touched. A
+       point pinned in chart coordinates through that has nothing to hold
+       on to — it dragged the line out of the fan and put a kink in it a
+       stub away from the bar. The bends stay in the file, so breaking the
+       merge brings back the route that was drawn; while the merge stands
+       they are simply not part of it (see drawBendHandles, which offers
+       no handles here either). */
+    const style = Object.assign({}, edgeStyleFor(e.from, e.to), {bends: undefined});
     const color = amalgamMemberColor(e);
     const dash = DASH_PATTERNS[style.dash];
     const o = landings[i];
@@ -509,30 +530,14 @@ function drawAmalgam(list, ports){
     const inward = (o < seam) ? hi : lo;
     const land = barPt(o);
 
-    /* It leaves its entry by the side amalgamFromSide chose, at the slot
-       the shared port assignment gave it — the same assignment every other
-       connector on that side went through, which is what keeps a merged
-       lineage and an ordinary connector leaving the same edge from lining
-       up as one row instead of one taking the middle and the other being
-       placed beside a neighbour it could not see. */
+    /* It leaves its entry by the MIDDLE of the side amalgamFromSide chose
+       — see resolvePorts, which seats a merged lineage at the centre of
+       its side and moves the ordinary connectors sharing that side out of
+       its way. The port is therefore already where it belongs, and the
+       landing is placed under it (see alongOf) rather than the other way
+       round: the lineage comes down in one straight run, and nothing of
+       the merge depends on which slot of a fan it happened to be given. */
     const p1 = recM.p1 || portOnSide(a, amalgamFromSide(a, geo, style), 0, 1, style.fromRing || 0);
-    /* And it comes down STRAIGHT onto its landing where it can.
-     *
-       A lineage's landing on the bar is set by the order the parents lie
-       in, and the port it leaves by is set by the spacing along its own
-       edge. The two agree to within a few pixels far more often than they
-       agree exactly — and those few pixels became a step: down, four
-       across, down again, right at the top of the line, which is the bend
-       marked on the chart as unwanted. The port has a little room along
-       its own side (see nudgePortAlong), so it is spent lining the lineage
-       up with the landing it is going to; past that room the step stays,
-       because then the landing really is somewhere else. */
-    {
-      const axis = sideIsVertical(p1.side) ? 'x' : 'y';
-      nudgePortAlong(p1, land[axis] - p1[axis]);
-      const rest = land[axis] - p1[axis];
-      if(Math.abs(rest) > 0.01 && Math.abs(rest) <= PORT_SQUEEZE) movePortAlong(p1, rest);
-    }
     // Approached head-on, from the side the lineages are on.
     const target = {x: land.x, y: land.y, side, ring: 0, stub: AMALGAM_APPROACH};
     const { pts } = pathFromPorts(p1, target, style, new Set([a.id, b.id]), recM.lane || 0);
@@ -558,7 +563,7 @@ function drawAmalgam(list, ports){
                    'data-from':e.from, 'data-to':e.to};
     if(dash) attrs['stroke-dasharray'] = dash;
     edgePath(attrs, style, edgeLayer);
-    drawRingCap(pts[0], color, dash, e.from, e.to, isDoubleDash(style));
+    drawRingCap(pts[0], color, dash, e.from, e.to, isDoubleDash(style), d);
     /* The note is anchored on the line the reader actually sees, bar leg
        and all. It used to be anchored on the routed part alone, so a point
        picked halfway along a merged lineage landed halfway along a shorter
@@ -708,7 +713,7 @@ function drawStraightAmalgam(members, ports, b, port, ring, meet, ux, uy, nrm, s
                    'data-from':e.from, 'data-to':e.to};
     if(dash) attrs['stroke-dasharray'] = dash;
     edgePath(attrs, style, edgeLayer);
-    drawRingCap(p1, color, dash, e.from, e.to, isDoubleDash(style));
+    drawRingCap(p1, color, dash, e.from, e.to, isDoubleDash(style), d);
     /* Asked unconditionally: whether there is anything to draw is one
        question with one answer, and drawEdgeNote is where it lives — an
        empty note is still drawn while it is being started. */

@@ -416,14 +416,14 @@ function refOrderKey(){
 }
 function blockCacheKey(text, maxChars, lineH, fontScale, fontOpts, fit){
   const t = String(text == null ? '' : text);
-  return t + ' ' + maxChars + ' ' + lineH + ' ' + fontScale +
-    ' ' + ((fontOpts && fontOpts.fontSize) || '') +
-    ' ' + ((fontOpts && fontOpts.family) || '') +
-    ' ' + ((fit && fit.maxWidth) || '') +
-    ' ' + ((fit && fit.fontSize) || '') +
-    ' ' + ((fit && fit.family) || '') +
-    ' ' + (fit && fit.noWrap ? 1 : 0) +
-    ' ' + (t.indexOf('{{r:') < 0 ? '' : refOrderKey());
+  return t + '\u0000' + maxChars + '\u0000' + lineH + '\u0000' + fontScale +
+    '\u0000' + ((fontOpts && fontOpts.fontSize) || '') +
+    '\u0000' + ((fontOpts && fontOpts.family) || '') +
+    '\u0000' + ((fit && fit.maxWidth) || '') +
+    '\u0000' + ((fit && fit.fontSize) || '') +
+    '\u0000' + ((fit && fit.family) || '') +
+    '\u0000' + (fit && fit.noWrap ? 1 : 0) +
+    '\u0000' + (t.indexOf('{{r:') < 0 ? '' : refOrderKey());
 }
 /* How much room a block of text actually takes, measured rather than
    estimated.

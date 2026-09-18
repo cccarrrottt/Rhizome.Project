@@ -90,6 +90,7 @@ function redrawEdges(){
   while(edgeDefs.firstChild) edgeDefs.removeChild(edgeDefs.firstChild);
   // The clips live in edgeDefs, so the cache goes with them.
   outsideClips.clear();
+  ringCapClips.clear();
 
   // Routing is order-sensitive: each connector avoids the ones already
   // drawn (see scorePath), so the record of what's been drawn has to start
@@ -219,17 +220,32 @@ function redrawEdges(){
     /* The PORT records, not the drawn endpoints. The two differ on a
        rippled border — the drawn end is carried under the fill — and it is
        the border the cap has to start from. */
-    drawRingCap(rec.p1 || {x:first.x, y:first.y}, paint, dash, e.from, e.to, dbl);
-    drawRingCap(rec.p2 || {x:last.x, y:last.y}, paint, dash, e.from, e.to, dbl);
+    /* The DRAWN path, not the geometry it was cut from.
+     *
+       A connector carrying an arrowhead gives up its last few pixels to
+       that head — `drawD` is the line as it actually appears, `d` is the
+       full route before the head was allowed for. The cap was handed the
+       full one, so above the rings it redrew the stretch the head is
+       standing on: a headless line poking out from under every arrow on
+       every entry with more than one border. It is handed what the reader
+       sees, and redraws exactly that. */
+    drawRingCap(rec.p1 || {x:first.x, y:first.y}, paint, dash, e.from, e.to, dbl, drawD);
+    drawRingCap(rec.p2 || {x:last.x, y:last.y}, paint, dash, e.from, e.to, dbl, drawD);
     const tipOut = rec.p2 ? portTip(Object.assign({}, rec.p2, {x:last.x, y:last.y})) : last;
     const tipIn  = rec.p1 ? portTip(Object.assign({}, rec.p1, {x:first.x, y:first.y})) : first;
+    /* A head is cut to the entry's outline only where it is drawn ABOVE
+       the entry — an inner ring's. Under the entry the fill and the border
+       do that job themselves, which is the whole point of putting it
+       there. */
+    const clipHead = (port)=> (arrowLayerFor(port && port.ring, port) === arrowLayer
+                               && port && port.wavy);
     if(headOut) drawArrowHead(arrowLayerFor(last.ring, rec.p2), tipOut.x, tipOut.y,
                               angleDeg, paint, e.from, e.to,
-                              rec.p2 && rec.p2.wavy ? e.to : null,
+                              clipHead(rec.p2) ? e.to : null,
                               rec.p2 ? rec.p2.ring : 0);
     if(headIn) drawArrowHead(arrowLayerFor(first.ring, rec.p1), tipIn.x, tipIn.y,
                              startAngleDeg(pts), paint, e.from, e.to,
-                             rec.p1 && rec.p1.wavy ? e.from : null,
+                             clipHead(rec.p1) ? e.from : null,
                              rec.p1 ? rec.p1.ring : 0);
     /* Asked unconditionally: whether there is anything to draw is one
        question with one answer, and drawEdgeNote is where it lives — an

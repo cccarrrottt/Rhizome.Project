@@ -23,9 +23,21 @@ const multiSelection = new Set();
  * chart came back to full strength on every keystroke and dimmed again a
  * moment later when the edit settled. From the outside: the chart flashing
  * at you while you type. */
+/* Whether ANY entry is open, written on the page itself.
+ *
+ * The stylesheet needs it: what an entry wears — its link badge, its
+ * language chips, its citations — stops answering the pointer while a
+ * different entry is being looked at, and a rule can only say that if it
+ * can tell the difference between "nothing is open" and "something else
+ * is". A class on the body is the one place both states are visible to
+ * every rule at once. */
+function markEntryOpen(on){
+  try{ document.body.classList.toggle('entry-open', !!on); }catch(e){}
+}
 function paintSelectionHighlight(id){
   const n = nodes.get(id);
   if(!n) return;
+  markEntryOpen(id);
   /* A picture or a loose caption belongs to no lineage, so there is
      nothing for it to light and nothing that should step back for it.
    *
@@ -46,6 +58,7 @@ function paintSelectionHighlight(id){
       g.classList.remove('dim');
     });
     auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
+    fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
     qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
     if(typeof paintBioCardDim === 'function') paintBioCardDim();
     syncTagLiveliness();
@@ -88,6 +101,18 @@ function paintSelectionHighlight(id){
     g.classList.toggle('dim', !related.has(g.dataset.id));
   });
   auraLayer.querySelectorAll('.node-aura').forEach(g=>{
+    g.classList.toggle('dim', !related.has(g.dataset.id));
+  });
+  /* The GROUND steps back with everything else.
+   *
+     A tag's scenery comes in two halves that live in two different layers
+     — the echo and the stack in the aura layer above the entries, the
+     weave and the comb in the ground layer under them — and only the
+     first half was being faded. So picking out an entry stepped the whole
+     chart back except for the gold lattice and the grey comb under other
+     people's entries, which stayed exactly as bright as they had been and
+     became the loudest thing on a page that was supposed to be quiet. */
+  fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=>{
     g.classList.toggle('dim', !related.has(g.dataset.id));
   });
   /* EVERY piece of a connector, not only its line. The arrowheads, the
@@ -186,6 +211,9 @@ function selectNode(id, opts){
     paintSelectionHighlight(id);
     return;
   }
+  /* …and so does moving to a different entry. */
+  if(typeof cardImgEditId !== 'undefined' && cardImgEditId && cardImgEditId !== id
+     && typeof closeCardImageEdit === 'function') closeCardImageEdit();
   // A plain selection replaces the set; the multi-select paths add to it
   // themselves before calling in here.
   if(!(opts && opts.keepSelection)){
@@ -241,26 +269,16 @@ function selectNode(id, opts){
   if(detailNoteEditing && detailNoteOwner && detailNoteOwner !== id) flushDetailNoteCommit();
   if(!(detailNoteEditing && detailNoteOwner === id)) showDetailNote(n.note || '');
 
-  const parentsWrap = document.getElementById('detailParents');
-  const childrenWrap = document.getElementById('detailChildren');
-  parentsWrap.innerHTML = '<h3>Derives from</h3>';
-  childrenWrap.innerHTML = '<h3>Leads to</h3>';
-
-  function addRow(wrap, targetId, note, arrow){
-    const t = nodes.get(targetId);
-    if(!t) return;
-    const row = document.createElement('div');
-    row.className='conn-row';
-    row.innerHTML = `<div class="conn-arrow">${arrow}</div><div class="conn-text"><span class="conn-label">${inlineToHtml(t.label)}</span>${note?`<div class="conn-note">${escapeHtml(note)}</div>`:''}</div>`;
-    row.addEventListener('click',()=>{ selectNode(targetId); flyToNode(targetId); });
-    wrap.appendChild(row);
-  }
-  const edgeLabelFor = (a,b) => { const e = structEdges.find(e=>e.from===a&&e.to===b); return e?e.label:null; };
-
-  if(n.parents.length===0){ parentsWrap.innerHTML += '<div class="conn-empty">Root node</div>'; }
-  n.parents.forEach(p=> addRow(parentsWrap, p, edgeLabelFor(p,id), '←'));
-  if(n.children.length===0){ childrenWrap.innerHTML += '<div class="conn-empty">No known continuation</div>'; }
-  n.children.forEach(c=> addRow(childrenWrap, c, edgeLabelFor(id,c), '→'));
+  /* The two lineage lists are gone.
+   *
+     They repeated, as a list of names, exactly what the reader is looking
+     at: the lines on the chart already say what this entry came out of and
+     what came out of it, and they say it in the place where it means
+     something — beside the entries themselves, in the colours of the
+     lineages. The panel's copy could only ever be a worse version of that,
+     and it took the bottom third of a narrow panel to be worse in.
+     Jumping to a neighbour is what the chart, the search box and the
+     Management panel are for. */
 
   /* The entry panel describes ONE entry. With several selected there is no
      single subject for it to describe, and it would only be in the way of
@@ -282,10 +300,15 @@ svg.addEventListener('click', ()=>{
 });
 function deselect(){
   selectedId=null;
+  markEntryOpen(false);
+  /* A picture being resized belongs to the entry that was open; letting
+     go of the entry lets go of the picture. */
+  if(typeof closeCardImageEdit === 'function') closeCardImageEdit();
   multiSelection.clear();
   qNodes('.node.multi').forEach(g=>g.classList.remove('multi'));
   qNodes('.node').forEach(g=>{ g.classList.remove('selected'); g.classList.remove('dim'); });
   auraLayer.querySelectorAll('.node-aura').forEach(g=> g.classList.remove('dim'));
+  fanLayer.querySelectorAll(GROUND_PARTS).forEach(g=> g.classList.remove('dim'));
   qEdges(DIMMABLE_EDGE_PARTS).forEach(p=>{ p.classList.remove('lit'); p.classList.remove('dim'); });
   if(typeof paintBioCardDim === 'function') paintBioCardDim();
   syncTagLiveliness();

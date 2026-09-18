@@ -198,7 +198,15 @@ function commitNodeEdit(){
   }
   const newBorder = editBorderStyle.value;
   const newShape = editShapeInput.value==='rect' ? undefined : editShapeInput.value;
-  const newImage = (newShape==='ellipse' || newShape==='image') ? editImageInput.value.trim() : '';
+  /* A CARD keeps a picture too — that is the whole of its first band.
+     It was left off this list, so the field offered a picture, embedded
+     the file, showed it on the entry while the form was open, and then
+     dropped it on the first commit: choosing a picture for a card did
+     nothing at all, twice over (see the form-open order below, which had
+     the field hidden as well). */
+  const cardNow = editCardCheck.checked && CARD_CAPABLE.has(editShapeInput.value || 'rect');
+  const newImage = (newShape==='ellipse' || newShape==='image' || cardNow)
+    ? editImageInput.value.trim() : '';
   /* …less whatever this archetype cannot wear. Changing an entry INTO a
      portrait is the other way the two scenery tags can arrive on one. */
   const newTags = keepAllowedTags(parseTagsField(editTagsInput.value), newShape);
@@ -215,18 +223,28 @@ function commitNodeEdit(){
       return;
     }
   }
-  const newCard = editCardCheck.checked && CARD_CAPABLE.has(newShape || 'rect');
+  const newCard = cardNow;
   const newMultiLang = editMultiLangCheck.checked;
+  /* The chips carry each tab's WORDS as well as its name, and the words
+     are typed somewhere else — on the entry, with that tab chosen. So what
+     the entry holds is read back into the chips before the form is
+     collected; without it, saving anything at all in this form would put
+     back whatever the tab said when the form was opened. */
+  if(typeof syncLangTabTexts === 'function') syncLangTabTexts(nodes.get(id));
   const newLangTabs = newMultiLang ? collectLangTabs(editLangTabList) : [];
-  // Turning multi-language on before filling in a tab is a normal
-  // half-finished state, not an error to shout about — the tabs simply do
-  // not exist until one has both a tag and some text.
+  // Turning multi-language on before naming a tab is a normal
+  // half-finished state, not an error to shout about — an unnamed chip is
+  // not a tab yet.
   pushNodeEditUndoOnce();
   let dropped = 0;
   commitEntry(()=>{
     const found = workingEntry(id);
     if(!found) return;
     const entry = found.entry;
+    /* …and if the words changed, the box goes back to the size they ask
+       for — see commitNodeEditorText, which says why. Asked BEFORE the
+       new label is written, or the answer is always no. */
+    const labelChanged = (entry[1] !== newLabel);
     entry[1] = newLabel;
     entry[5] = newShape;   // the note has its own editor in the drawer
     const opts = entryOpts(entry);
@@ -239,6 +257,24 @@ function commitNodeEdit(){
     if(newFontSize) opts.fontSize = newFontSize; else delete opts.fontSize;
     if(newImage) opts.image = newImage; else delete opts.image;
     if(newCard) opts.card = true; else delete opts.card;
+    if(labelChanged) delete opts.size;
+    /* Both belong to a card that HAS a picture: they are answers about
+       one, and an entry that is no longer a card should not carry the
+       answer back if it becomes one again with something else in it. */
+    const cardImg = (typeof cardImageOptsFromForm === 'function')
+      ? cardImageOptsFromForm() : {crop:false};
+    if(newCard && newImage && cardImg.crop) opts.cardCrop = true; else delete opts.cardCrop;
+    /* The picture's own size is set on the picture, by dragging its
+       corners, so this form carries whatever it already had rather than
+       asking a control about it — and lets it go with the card or the
+       picture it belonged to. */
+    if(!newCard || !newImage) delete opts.cardImgH;
+    /* The card's middle line. */
+    {
+      const med = (typeof editMediumInput !== 'undefined' && editMediumInput)
+        ? editMediumInput.value.trim() : '';
+      if(newCard && med) opts.medium = med; else delete opts.medium;
+    }
     /* Only a portrait keeps a card, so the choice goes with the archetype
        rather than lingering on an entry that has no card at all. */
     if(newShape === 'ellipse' && editBioCardCheck && editBioCardCheck.checked)

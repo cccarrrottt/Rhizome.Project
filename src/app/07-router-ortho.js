@@ -18,11 +18,19 @@
    ones instead of stacking on them.
    ------------------------------------------------------------------ */
 const STUB = 18;               // how far a connector runs straight out of its port
-// A connector needs room to actually be a line: a stub out of each node,
-// plus enough between them to read as a connection and carry an arrowhead.
-// A gap narrower than this can't hold one, and autoSides routes around
-// instead of cramming a stub into it.
-const MIN_SIDE_GAP = STUB*2 + 16;
+/* A connector needs room to actually be a line: a stub out of each node,
+   plus enough between them to read as a connection and carry an arrowhead.
+   A gap narrower than this cannot hold one, and autoSides routes around
+   the outside instead of cramming a stub into it.
+
+   It used to be two full stubs and a corner apiece — fifty-two — which is
+   how much room a connector would LIKE, not how much it needs. Two
+   entries half that far apart are joined by a perfectly plain step with
+   its stubs squeezed to thirteen each, and being sent round the outside
+   instead is exactly the loop that reads as a broken connector. Halved,
+   and measured: at twenty-six the step is drawn, at twenty-four the wrap
+   comes back. */
+const MIN_SIDE_GAP = 26;
 const PENALTY_NODE = 1000;     // crossing a node box: never acceptable if avoidable
 const PENALTY_OVERLAP = 240;   // sharing a lane with an already-drawn connector
 const PENALTY_BEND = 22;       // each extra corner
@@ -140,7 +148,7 @@ const POCKET_BITE = 1.5;
  * the real amplitude, and it is what anything that has to clear the wave —
  * a line ending under it, a cap crossing it — has to be measured against.
  * Using the lift instead left every such thing about a pixel short. */
-const POCKET_DEEP = POCKET_LIFT * 0.75;
+const POCKET_DEEP = POCKET_AMP;
 /* How far under an OUTER ring a headless line is carried.
  *
  * A border is a stroke 1.6 wide, so it covers eight tenths of a pixel
@@ -182,12 +190,34 @@ function sinkEnds(pts, p1, p2){
        Outside ring 0 it stops just under the border instead: far enough
        that no phase of the ripple can leave it short of contact, and well
        inside the border's own stroke, which is drawn over it. */
-    const off = port.wavy
-      ? (port.head ? (typeof port.headDrop === 'number' ? port.headDrop : (port.drop || 0))
-         : ((port.ring || 0) > 0
-            ? (port.drop || 0) - POCKET_UNDERLAP
-            : -(POCKET_DEEP + POCKET_BITE)))
-      : (port.drop || 0);
+    /* Both questions are answered from where the border actually is.
+     *
+       A headless line used to be sent to the DEEPEST the ripple ever
+       reaches, plus a bite, because the offset worked out for its own
+       point could not be trusted — and it could not, while it was a
+       second implementation of the wave's arithmetic with a sign chosen
+       by argument. It is read off the drawn line now (see pocketOutline),
+       so the end goes where the border is and a little further in: under
+       the entry's own fill on ring 0, under the border's own stroke on
+       any ring outside it, and no phase of any ripple can leave it short.
+       A border that does not wander at all asks for neither, and stops
+       exactly where it always did. */
+    /* …and a HEAD goes where the border is at its own point, not where the
+       border is at its highest anywhere under the head's width.
+     *
+       It used to be lowered onto the ripple the way a real triangle would
+       come to rest on it — the tip standing off far enough that no crest
+       beside it could push into a flank. Geometrically unimpeachable, and
+       wrong on the paper: beside a trough the head stopped an amplitude
+       short of the border directly beneath it, with clear paper in the
+       gap, which reads as an arrow that has not arrived. What it was
+       avoiding no longer needs avoiding — the head is drawn over the
+       entry and cut off at the entry's own outline (see outsideClipId),
+       so the wave takes back whatever the head puts across it, exactly as
+       a plain entry's fill does. The arrow meets the border at its own
+       point and the border is drawn over its tip. */
+    const bite = port.band > 0 ? ((port.ring || 0) > 0 ? POCKET_UNDERLAP : POCKET_BITE) : 0;
+    const off = port.head ? (port.drop || 0) : (port.drop || 0) - bite;
     if(!off) return;
     out[idx] = Object.assign({}, out[idx],
       {x: out[idx].x + nrm[0]*off, y: out[idx].y + nrm[1]*off});
@@ -451,7 +481,11 @@ function stubLength(p, other){
      arrowhead: not a drawing fault but a run-out too short to hold the
      head that was put on it. */
   const headRoom = p.head ? ARROW_LEN + EDGE_CORNER_R : 0;
-  const floor = Math.max(headRoom,
+  /* …and, on a round entry, however far the port stands inside the square
+     the router reasons with. Everything below is measured from the port,
+     and on a circle the port is not on the box — see portOnSide. */
+  const sunk = Math.max(0, p.sunk || 0);
+  const floor = sunk + Math.max(headRoom,
     rings ? dec + EDGE_CORNER_R + ARROW_LEN : Math.max(STUB_MIN, dec + 1));
   if(!other) return Math.max(STUB, floor);
   const nrm = SIDE_NORMAL[p.side];

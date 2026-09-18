@@ -451,6 +451,10 @@
   .node > rect.card-slot{fill:var(--panel-2);}
   .node > .card-slot-mark{fill:var(--ink-faint);stroke:none;opacity:0.5;}
   .node text.card-body{fill:var(--ink-dim);}
+  /* The middle band sits between the heading and the note in size, so it
+     sits between them in weight too: the entry's own ink, a shade quieter
+     than the heading and plainly louder than the citation under it. */
+  .node text.card-medium{fill:var(--ink-dim);opacity:0.92;}
 
   /* The fan-fiction weave. Faint enough to sit under an entry without
      competing with it, and drawn in the ink colour so it reads on either
@@ -472,6 +476,10 @@
      it. Short of opaque either way: an entry has to stay the thing you
      read first. */
   .fanfic-weave{opacity:0.36;}
+  /* Stepped back with its entry — the same fraction of its own strength
+     that .dim takes off a box, since the ground is only ever as loud as
+     the thing standing on it. */
+  .fanfic-weave.dim{opacity:0.05;}
   /* The same lattice as it looks where the light falls on it. */
   .fanfic-line-lit{stroke:#ffcf3d;stroke-width:4.6;}
 
@@ -491,6 +499,7 @@
      laid and in what colour. */
   .unreleased-line{stroke:#525c6b;stroke-width:4;fill:none;}
   .unreleased-rule{opacity:0.3;}
+  .unreleased-rule.dim{opacity:0.04;}
   /* The glare: see the lit pattern in 10-decor. A paler ruling and a thin
      wash, so the band lightens the ground a little rather than bleaching
      it — on a white page a full white-out read as a hole in the chart. */
@@ -773,6 +782,14 @@
   .node-resize-ne, .node-resize-sw{cursor:nesw-resize;}
   .node:hover .node-resize{opacity:1;pointer-events:auto;}
   body.read-only .node-resize{display:none;}
+  /* The picture's own corners, shown only while the picture is the thing
+     being edited — so they are not four more handles competing with the
+     box's own on every card on the chart. */
+  .card-img-grip{cursor:nwse-resize;}
+  .card-img-grip-ne, .card-img-grip-sw{cursor:nesw-resize;}
+  .card-img-grip-mark{fill:var(--panel);stroke:var(--accent);stroke-width:1.4;}
+  .card-img-frame{fill:none;stroke:var(--accent);stroke-width:1;
+                  stroke-dasharray:4 3;pointer-events:none;opacity:0.8;}
   .node-resize-hit{fill:transparent;stroke:none;}
   .node-resize-mark{stroke:var(--ink-faint);stroke-width:1.4;fill:none;stroke-linecap:round;}
   .node-resize:hover .node-resize-mark{stroke:var(--accent);}
@@ -1287,30 +1304,18 @@
   .detail-note-btn.active{color:var(--accent);}
   .detail-note-actions{display:flex;gap:8px;justify-content:flex-end;margin-top:7px;}
 
-  /* One row per language tab: tag, text, remove. */
-  .lang-tab-list{display:flex;flex-direction:column;gap:6px;}
-  .lang-tab-row{display:flex;gap:6px;align-items:stretch;}
-  .lang-tab-row .lang-tab-tag{
-    flex:0 0 58px;width:58px;
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:11px;text-align:center;
-    background:var(--panel-2);color:var(--ink);border:1px solid var(--line);border-radius:5px;
-    padding:6px 4px;
+  /* A language tab is a chip in the Tags row's clothes — see the field in
+     index.html. The one difference is that its name is TYPED, so the chip
+     holds a field rather than a word; it is set in the same face, at the
+     same size, with no frame of its own, so the chip reads as one thing. */
+  .lang-tab-chip .lang-tab-name{
+    background:none;border:none;padding:0;margin:0;outline:none;
+    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10px;
+    color:var(--ink-dim);min-width:16px;
   }
-  .lang-tab-row .lang-tab-tag:focus{outline:none;border-color:var(--accent);}
-  .lang-tab-row .lang-tab-text{flex:1 1 auto;min-width:0;min-height:32px;max-height:120px;}
-  .lang-tab-del{
-    flex:0 0 26px;
-    background:var(--panel-2);border:1px solid var(--line);color:var(--ink-faint);
-    border-radius:5px;cursor:pointer;font-size:15px;line-height:1;padding:0;
-  }
-  .lang-tab-del:hover{color:var(--accent);border-color:var(--accent);}
-  .lang-tab-add{
-    margin-top:7px;
-    background:var(--panel-2);border:1px dashed var(--line);color:var(--ink-dim);
-    font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';font-size:10.5px;letter-spacing:0.4px;
-    padding:6px 12px;border-radius:5px;cursor:pointer;
-  }
-  .lang-tab-add:hover{color:var(--accent);border-color:var(--accent);}
+  .lang-tab-chip:focus-within{border-color:var(--accent);}
+  .lang-tab-chip .lang-tab-name::placeholder{color:var(--ink-faint);}
+  .lang-tab-chips:empty::before{content:'No tabs';}
   /* Locked is a state of the FIELD, not of the words in it.
    *
      This used to set the text in a dimmed italic of its own, so an entry's
@@ -1339,18 +1344,6 @@
     text-transform:uppercase;letter-spacing:0.8px;color:var(--ink-faint);
   }
   .detail-section h3:first-child{margin-top:0;}
-  .conn-row{
-    display:flex;align-items:flex-start;gap:7px;padding:6px 0;
-    border-bottom:1px solid var(--grid);cursor:pointer;
-  }
-  .conn-row:hover .conn-label{color:var(--accent);}
-  .conn-row:last-child{border-bottom:none;}
-  .conn-arrow{font-family:'IBM Plex Mono',monospace,'Noto Color Emoji';color:var(--ink-faint);font-size:11px;flex:0 0 auto;margin-top:1px;}
-  .conn-text{flex:1;min-width:0;}
-  .conn-label{font-size:12.5px;color:var(--ink);display:block;}
-  .conn-note{font-size:11px;color:var(--ink-faint);font-style:italic;margin-top:2px;line-height:1.4;}
-  .conn-empty{font-size:12px;color:var(--ink-faint);font-style:italic;}
-
   .detail-edit-btn{
     background:none;border:none;color:var(--ink-faint);cursor:pointer;
     font-size:14px;line-height:1;padding:2px;margin-top:3px;flex:0 0 auto;
@@ -2273,6 +2266,23 @@
     pointer-events:auto;cursor:pointer;
   }
   .ref-mark:hover{opacity:1;}
+  /* …and nothing an entry wears answers the pointer while ANOTHER entry is
+     open. The badge, the chips and the citations are controls that belong
+     to their own entry; with the reader looking at a different one they are
+     part of the picture, not part of the page, and the pointer says so —
+     no hand, no highlight, no press. A press lands on whatever is under
+     them, which is the box itself where they overlap it. */
+  body.entry-open .node:not(.selected) .ref-mark,
+  body.entry-open .node:not(.selected) .lang-chips,
+  body.entry-open .node:not(.selected) .node-link,
+  /* The grips and the rotation arm are the same kind of thing: they are
+     handles ON an entry, and an entry nobody is looking at does not offer
+     to be resized or turned. They are drawn for every box, so without this
+     a stray press near a faded corner reshaped a box away from the one
+     being read — the one case where the wrong target is not just clicked
+     but permanently changed. */
+  body.entry-open .node:not(.selected) .node-resize,
+  body.entry-open .node:not(.selected) .node-rotate{pointer-events:none;}
   .ref-missing{fill:var(--danger,#c23b22);opacity:0.75;}
 
   /* The two lists share one panel, so each gets a heading that reads as a

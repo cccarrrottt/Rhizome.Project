@@ -6,6 +6,168 @@ chart's own About panel; both are generated from `VERSION_LOG` in
 
 Releases before 0.9.0 were not numbered.
 
+## 0.9.31 — "A card with four bands" — 2026-09-18
+
+- **Heads under the entry** (`arrowLayerFor` in `12-ports-draw.js`): only
+  `outside > 0` — an inner ring — puts a head in `arrowLayer`, and only
+  those are clipped to the outline (`14-edges-draw.js`).
+- **`MIN_SIDE_GAP` 52 → 26**, measured (`07-router-ortho.js`), and
+  `PUSH_MIN_GAP = MIN_SIDE_GAP` (`18-canvas-gestures.js`). `pushCandidates`
+  skips a merged lineage only when the PARENT is the one being carried, so
+  a merge pushes its parents and they do not push it.
+- **`noWrap` is `!isCalloutShape`** (`13-render-nodes.js`): an entry's text
+  breaks only where the author broke it. A card closes on its ink by
+  growing as well as shrinking, between `CARD_MINW` and `CARD_MAXW`.
+- **`inkPad`** — `NODE_PAD_X + POCKET_AMP + 1` on a rippled entry — is what
+  the width, the fit, the ink-close and the clip are all measured with.
+- **A text edit drops `opts.size`** (`30-node-editor.js`, `29-editors.js`).
+- **The double click**: closes `#detail` before it opens anything, and on a
+  card's picture band opens the picture (`openCardImageEdit`,
+  `overCardPicture`, `cardImgEditId` in `13-render-nodes.js`;
+  `beginCardImageResize` in `18-canvas-gestures.js`). `opts.cardImgW` joins
+  `opts.cardImgH`; the band-height slider is gone from `index.html`.
+- **A hand-sized card's picture takes the slack**: `cardImgB` is
+  `h - (head + medium + body)` when the card carries a hand-set size and
+  the picture no depth of its own.
+- **The medium band**: `opts.medium`, `CARD_MEDIUM_SCALE`, `.card-medium`,
+  a field in the entry panel, and the card switch moved to the top of it.
+- **Checks**: a new scenario, "a picture with corners of its own, and words
+  that keep their line" (nine checks). The two head-layer checks and the
+  wrap checks now say the opposite of what they said, and the one check
+  that reads the whole chart restores the pristine chart first — it was
+  reading whatever the scenario before it had left on the page.
+
+## 0.9.30 — "Fastened ends" — 2026-09-18
+
+- **Ports do not move** (`06-edge-geometry.js`, `09-bends-ports.js`):
+  `portSlack` returns 0 and the alignment pass is deleted outright —
+  `alignFacingPorts`, `portAlignMax`, `PORT_ALIGN_CEILING`, `PORT_SQUEEZE`,
+  `PORT_NUDGE_MAX`, `nudgePortAlong`, `movePortAlong` and `wavyDropAt` with
+  them. An end is fastened where the spacing put it.
+- **The ring cap redraws `drawD`, not `d`** (`14-edges-draw.js`): the path
+  as drawn, with the arrowheads' trim already in it.
+- **A head meets a rippled border at its own point** (`07-router-ortho.js`):
+  `sinkEnds` sends a headed end to `drop`, the same offset a headless one
+  uses, and `wavyHeadDrop`/`BORDER_HALF_W` are gone. The head is clipped to
+  the entry's outline (`outsideClipId`), which is what keeps it out of the
+  box.
+- **No carrying another entry while one is open** (`18-canvas-gestures.js`):
+  `beginNodeDrag` returns early for an entry that is neither the selection
+  nor part of a multi-selection while `body.entry-open` is set. The press
+  still selects.
+- **The push is for entries in the way** (`18-canvas-gestures.js`):
+  `pushBlockers` requires an overlap on one axis and measures the gap on
+  the other, instead of growing the carried box on all four sides; and
+  `PUSH_MIN_GAP` is `MIN_SIDE_GAP`, the router's own threshold for a pair
+  of facing sides.
+- **Reverted**: the merged stem settling onto a landing (`15-amalgam.js`).
+- **Checks**: the two "the ports take up a small offset" checks now say the
+  opposite and are named for it; `a port stands where the spacing put it`,
+  `an arrowhead meets a rippled border at its own point`, `another entry
+  cannot be carried while one is open` and `both ends sit exactly on their
+  ports when the drag is over` are new.
+
+## 0.9.29 — "Room to be a line" — 2026-09-18
+
+- **A ring cap is the connector, not a stub** (`drawRingCap`, `ringCapClipId`,
+  `ringOutlinePath` in `12-ports-draw.js`): the edge's own `d` is drawn a
+  second time into `arrowLayer`, clipped to an annulus between the ring it
+  meets and the outside of the entry. The call sites in `14-edges-draw.js`
+  and `15-amalgam.js` pass the drawn path; `ringCapClips` is cleared beside
+  `outsideClips`.
+- **`portSlack` gives a shared side nothing** (`06-edge-geometry.js`): the
+  0.9.28 loan of `span/2 * 0.45` to a crowded side is what made connectors
+  slide along both entries during a drag and swallowed the knees a merge's
+  neighbour needs.
+- **The merged stem settles on a landing** (`15-amalgam.js`): where the
+  entry stands within a quarter of the ground between a landing and its
+  neighbours, `junction` takes that landing exactly, so the stem and the
+  lineage share one bead.
+- **`.node-resize` and `.node-rotate` join the `body.entry-open` inert set**
+  (`src/style.css`), and `closeEdgePopover` repaints the selection
+  highlight (`33-leader.js`) — without it the close wiped `dim` off every
+  connector and the same click opened the one under it.
+- **Card pictures are fitted, not cropped** (`02-model.js`,
+  `13-render-nodes.js`, `23-quick-edit.js`, `28-media-ui.js`,
+  `29-editors.js`, `src/index.html`): `imageAspect` probes a picture once
+  and remembers it, the band takes `w × ratio` clamped to
+  `CARD_IMG_MINH`/`CARD_IMG_MAXH`, and `cardCrop` / `cardImgH` are the two
+  answers a card can give. The picture and the rules are drawn a `bleed`
+  past the box and clipped to `cardclip-`, which seals a rippled card.
+- **A drag pushes what it runs into** (`18-canvas-gestures.js`):
+  `pushCandidates` gathers the entries joined to the carried ones,
+  `pushBlockers` shoves them out to `PUSH_MIN_GAP` (`STUB*2 +
+  EDGE_CORNER_R*2 + 4` — measured: at 51 the router draws a U, at 52 the
+  plain step), ratcheting so nothing springs back, and the shove is saved
+  and undone with the move.
+- **Named checks**: a new scenario, "handles that step back, a picture kept
+  whole, and room to be a line" — nine checks over all six.
+
+## 0.9.28 — "One border, asked once" — 2026-09-18
+
+- **The border query reads the drawing** (`waveOffsetPoints`, `pocketOutline`):
+  the offsets are taken from the points the wave is drawn from and looked up
+  by position along the side, not from a second copy of the wave's arithmetic
+  and an assumed corner length. `borderProfileOf` is the one table every
+  archetype answers from — a ripple (the port stays, the drawn end moves) or
+  a structural offset (the port moves), with `amp` for how far a ripple swings.
+- **Smoother waves**: `smoothPath` (Catmull-Rom cubics) replaces the polyline;
+  `POCKET_WAVELEN` 10, `EDGE_WAVE_LEN` 14, `WAVE_STEP_DIV` 6.
+- **`sinkEnds`** puts a headless end at `drop − bite` (`POCKET_BITE` on ring 0,
+  `POCKET_UNDERLAP` outside it) instead of the deepest possible ripple;
+  **`pathFromPorts` routes at head clearance always**, so an arrowhead never
+  changes a route.
+- **Port alignment** (`portAlignMax`, `portSlack`): the limit is the two ports'
+  own slack plus `PORT_SQUEEZE` (ceiling 64); a shared side gives three tenths
+  of the gap to a neighbour rather than nothing.
+- **Card layout**: the picture band exists only with a picture (`cardImgH`), no
+  placeholder slot; the outline follows the border style (`cardShape`, rippled
+  cards included) and clips the picture; chips top-left and the link badge
+  top-right as on any entry; `portOnSide` spreads side ports over the whole
+  side (the `cardTop` skip is gone); the picture field is synced after the card
+  switch is set, and `newImage` is kept for a card.
+- **Language tabs** are chips in the Tags field's clothes (`makeLangTabRow`,
+  `collectLangTabs`, `syncLangTabTexts`); a named tab with no words yet is a tab.
+- **Removed**: the entry panel's two lineage lists (`#detailParents`,
+  `#detailChildren`, `.conn-row` and friends).
+- **Focus**: `body.entry-open` turns off pointer events for another entry's
+  `.ref-mark`, `.lang-chips` and `.node-link`.
+
+## 0.9.27 — "What belongs to what" — 2026-09-18
+
+- **Merged lineages are centred** (`resolvePorts`): an amalgam member takes the
+  middle of its parent's side; ordinary connectors on that side take the slots
+  furthest from the middle. `drawAmalgam` no longer spends port slack chasing a
+  landing — the landing follows the centred port.
+- **No hand bends on a merged lineage**: ignored by `drawAmalgam`, no handles
+  from `drawBendHandles`, `styleBendsClear` greyed. The stored points survive.
+- **Amalgam drag clamp** (`amalgamBarClamp`): clearance is
+  `AMALGAM_GAP + AMALGAM_APPROACH` rather than `+ AMALGAM_LEAD`; the wall never
+  pushes an entry past where it already stood, and shifts compose with the
+  clamps above instead of doubling them.
+- **Bent routes keep out of their own two entries** (`ownEndBoxes`, `legVia`):
+  the L turns the other way round where it can, otherwise a Z on a lane taken
+  from the box's own edge (`BEND_DODGE`). `usableHandBends` drops a bend inside
+  either entry.
+- **Sides follow a bend that is behind them** (`sideAheadOf`, `sideFacing`):
+  the automatic guess is kept while the bend is in front of it, so a bent
+  connector is stable as its entries are pulled apart.
+- **Idle bends** (`routeWithBends`, `dropIdleBends`): a bend is idle when the
+  connector drawn without it is the line already drawn — not when the route
+  happens to pass straight through it.
+- **A portrait is never wavy** (`isWavyBorder`, `WAVY_BORDER_SHAPES`), and a
+  port on a rim carries how far it stands inside the box (`sunk`), which
+  `stubLength` adds to the run-out.
+- **Focus rules**: `liveRefMark` (citations of other entries inert, the click
+  swallowed so a citation does not open its entry), language chips and link
+  badges inert on other entries, `GROUND_PARTS` dimmed by
+  `paintSelectionHighlight`, `syncTagLiveliness` performs only for the
+  selected entry.
+- **Panel**: the language rows' `mini-toolbar` removed (with
+  `LANG_TAB_TOOLBARS` and `langTabActiveSurface`); a tab switch repaints the
+  selection wash; `LINK_BADGE_R` 5.5 and the badge raised above the edge
+  handles; the "Derives from" / "Leads to" headings dropped.
+
 ## 0.9.26 — "Remarks that ride their legs" — 2026-09-17
 
 - **Leg-relative anchors** (`settleAnchor`, `legPlace`, `routeLegs`): callouts

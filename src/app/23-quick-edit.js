@@ -205,6 +205,33 @@ const editTagsInput = document.getElementById('editTagsInput');
    untouched instead of asking a control that cannot be used. */
 const editCardCheck = document.getElementById('editCardCheck');
 const editCardField = document.getElementById('editCardField');
+/* What a card's picture may be told from this panel: whether to fill its
+   band or be fitted whole into it. Its SIZE is not asked here any more —
+   a slider for a height is a poor way to say something the picture itself
+   can be shown saying: double-click it and drag its corners. */
+const editCardCropCheck = document.getElementById('editCardCropCheck');
+const editMediumInput = document.getElementById('editMediumInput');
+const editMediumField = document.getElementById('editMediumField');
+function fillCardImageOpts(n){
+  if(editCardCropCheck) editCardCropCheck.checked = !!(n && n.cardCrop);
+  if(editMediumInput) editMediumInput.value = (n && n.medium) || '';
+}
+function cardImageOptsFromForm(){
+  return { crop: !!(editCardCropCheck && editCardCropCheck.checked) };
+}
+function syncMediumFieldVisibility(){
+  if(!editMediumField) return;
+  const isCardNow = typeof editCardCheck !== 'undefined' && editCardCheck.checked
+    && CARD_CAPABLE.has((editShapeInput && editShapeInput.value) || 'rect');
+  editMediumField.style.display = isCardNow ? '' : 'none';
+}
+if(editCardCropCheck){
+  editCardCropCheck.addEventListener('change', ()=> queueNodeEditCommit(0));
+}
+if(editMediumInput){
+  editMediumInput.addEventListener('input', ()=> queueNodeEditCommit());
+  editMediumInput.addEventListener('blur', ()=> flushNodeEditCommit());
+}
 /* Card layout only means something for an entry that IS a box. A character
    bio is a portrait circle and the free-standing elements are a bare
    picture and a bare line of text — none of them has anything to divide
@@ -246,9 +273,9 @@ function syncTextColorVisibility(){
   const on = shape !== 'amalgam';
   /* The in-node field is on this list now that it is the only place an
      entry's words are typed — an amalgam offers no say in its ink there
-     either. `__editLangTabs__` is the language rows' toolbar, which names
-     itself that because it acts on whichever row was last touched. */
-  ['nodeEditorText', '__editLangTabs__', 'detailNoteInput'].forEach(t=> setTextColorControls(t, on));
+     either. The language rows' own toolbar used to be on it as well, and
+     went with the toolbar. */
+  ['nodeEditorText', 'detailNoteInput'].forEach(t=> setTextColorControls(t, on));
 }
 /* An amalgam has no border colour of its own to set: it wears the colours
    of the lineages that merged into it, and a field offering a second
@@ -260,7 +287,12 @@ function syncColorFieldVisibility(){
 const editMultiLangCheck = document.getElementById('editMultiLangCheck');
 const editLangTabsField = document.getElementById('editLangTabsField');
 const editLangTabList = document.getElementById('editLangTabList');
-document.getElementById('editLangTabAdd').onclick = (ev)=>{ ev.stopPropagation(); makeLangTabRow(editLangTabList, null); };
+document.getElementById('editLangTabAdd').onclick = (ev)=>{
+  ev.stopPropagation();
+  const chip = makeLangTabRow(editLangTabList, null);
+  const field = chip.querySelector('.lang-tab-name');
+  if(field) field.focus();
+};
 const detailEditStatusEl = document.getElementById('detailEditStatus');
 editMultiLangCheck.addEventListener('change', ()=>{
   editLangTabsField.style.display = editMultiLangCheck.checked ? '' : 'none';
@@ -293,118 +325,111 @@ function parseTagsField(raw){
   return raw.trim() ? raw.split(',').map(s=>s.trim()).filter(Boolean) : [];
 }
 /* ---------------------------------------------------------------------
-   Language-tab editor.
+   Language-tab chips.
 
-   One row per tab: a short tag on the left, the tab's own text on the
-   right, and a button to drop the row. "+ Add tab" appends an empty one.
-   The text side is a formatting-capable surface like the Label box, so a
-   translation can carry its own bold/italic/ruby; the B/I/Ruby buttons in
-   the toolbar above act on whichever row's text you last had the cursor
-   in, which is why the active row is tracked.
+   The same field as Tags, drawn the same way: one chip per tab, an × on
+   each to take it out, and a + to add one. A chip carries the tab's NAME,
+   which is short and is the only thing about a tab that has to be typed
+   in a form; the tab's words are written on the entry itself, with that
+   tab chosen, where they can be seen in the face and size they will be
+   read in.
+
+   The words are not lost while the chip is being renamed: each chip
+   carries the text it belongs to, so rewriting "EN" to "ENG" renames the
+   tab and nothing else. A tab with no words yet is still a tab — that is
+   how one is started.
    ------------------------------------------------------------------ */
-const langTabActiveSurface = new Map();   // list element -> the row surface last focused
-
+function langTabChipsHost(){ return editLangTabList; }
 function makeLangTabRow(list, tab){
-  const row = document.createElement('div');
-  row.className = 'lang-tab-row';
+  const chip = document.createElement('span');
+  chip.className = 'tag-chip lang-tab-chip';
+  chip.dataset.text = (tab && tab.text) || '';
 
-  const tagInput = document.createElement('input');
-  tagInput.type = 'text';
-  tagInput.className = 'lang-tab-tag';
-  tagInput.placeholder = 'EN';
-  tagInput.maxLength = 8;
-  tagInput.value = (tab && tab.tag) || '';
+  const name = document.createElement('input');
+  name.type = 'text';
+  name.className = 'lang-tab-name';
+  name.placeholder = 'EN';
+  name.maxLength = 8;
+  name.value = (tab && tab.tag) || '';
+  name.size = 3;
 
-  const text = document.createElement('div');
-  text.className = 'lang-tab-text rich-surface';
-  text.contentEditable = 'true';
-  text.spellcheck = false;
-  text.dataset.placeholder = 'Text for this tab';
-  text.innerHTML = markupToRichHtml((tab && tab.text) || '');
-  text.addEventListener('focus', ()=> langTabActiveSurface.set(list, text));
-  text.addEventListener('paste', ev=>{
-    ev.preventDefault();
-    const plain = (ev.clipboardData || window.clipboardData).getData('text/plain');
-    document.execCommand('insertText', false, plain);
-  });
-  /* These rows are built at runtime, so they missed the sweep that wired
-     every field in the entry editor to the auto-commit when the Apply
-     buttons were taken away. The result was a form that looked like it was
-     working — rows appeared, text could be typed — while nothing ever
-     reached the entry. Both fields commit on input, like every other
-     control in this form.
-     `commitLangTabs` is used rather than queueNodeEditCommit directly so
-     the "add" and "remove" buttons can settle immediately: adding a row is
-     a discrete act, not typing, and waiting out a typing pause for it just
-     looks broken. */
   /* Typing a tab shows on the entry as it is typed, exactly as typing the
      label does. The debounced commit still does the real write (and owns
-     the undo step); this only paints the live entry so the chips and the
-     switched text keep up with the form. Without it a tab only appeared
-     after the typing pause, which made the two halves of the same form
-     behave differently for no reason the user could see. */
+     the undo step); this only paints the live entry so the chips on the
+     box and the switched text keep up with the form. */
   const preview = ()=>{
     const n = selectedId && nodes.get(selectedId);
     if(!n) return;
     const tabs = collectLangTabs(list);
     n.langTabs = tabs.length ? tabs : null;
     n.multiLang = true;
-    // A tab that has just lost its tag or text stops existing, so an
-    // index pointing past the end has to come back to the default.
+    // A tab that has just lost its name stops existing, so an index
+    // pointing past the end has to come back to the default.
     const active = activeLangTab.get(n.id);
     if(active != null && (!n.langTabs || active >= n.langTabs.length)) activeLangTab.set(n.id, null);
     /* renderNodes builds every entry afresh, and what is hidden or stepped
        back is a class put on afterwards — so a redraw with nothing following
-       it brings the whole chart back. Typing in a tab was the one preview
-       that forgot to say so, and every entry a tag filter had hidden
-       reappeared on the first keystroke and stayed until something else
-       redrew. The label's preview has always put it back; this does too. */
+       it brings the whole chart back. */
     renderNodes();
     applyVisibility();
     if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
     paintMultiSelection();
   };
-  const commit = ()=>{
+  name.addEventListener('input', ()=>{
     preview();
     if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit();
-  };
-  tagInput.addEventListener('input', commit);
-  text.addEventListener('input', commit);
+  });
+  // A chip is as wide as the name in it, like every other chip in this row.
+  name.addEventListener('input', ()=>{ name.size = Math.max(2, name.value.length + 1); });
+  name.size = Math.max(2, name.value.length + 1);
 
   const del = document.createElement('button');
   del.type = 'button';
-  del.className = 'lang-tab-del';
-  del.textContent = '×';
+  del.textContent = '\u00d7';
   del.title = 'Remove this tab';
   del.addEventListener('click', ev=>{
     ev.stopPropagation();
-    if(langTabActiveSurface.get(list) === text) langTabActiveSurface.delete(list);
-    row.remove();
+    chip.remove();
     preview();
     if(typeof queueNodeEditCommit === 'function') queueNodeEditCommit(0);
   });
 
-  row.appendChild(tagInput);
-  row.appendChild(text);
-  row.appendChild(del);
-  list.appendChild(row);
-  return row;
+  chip.appendChild(name);
+  chip.appendChild(del);
+  list.appendChild(chip);
+  return chip;
 }
 function fillLangTabs(list, tabs){
   list.innerHTML = '';
-  langTabActiveSurface.delete(list);
-  (tabs && tabs.length ? tabs : [null]).forEach(t=> makeLangTabRow(list, t));
+  (tabs || []).forEach(t=> makeLangTabRow(list, t));
 }
-// Rows with no tag or no text are simply not tabs yet, so they're dropped
-// rather than reported as an error — an empty row is how a new one starts.
+/* A chip with no name is not a tab yet, so it is passed over rather than
+   reported as an error — an empty chip is how a new one starts, and it
+   stays on the form until it is named or taken out. A tab with a name and
+   no words IS a tab: that is exactly the state a new one is in, and
+   dropping it would mean there was no tab to switch to on the entry and
+   therefore nowhere to write the words. */
 function collectLangTabs(list){
   const out = [];
-  list.querySelectorAll('.lang-tab-row').forEach(row=>{
-    const tag = row.querySelector('.lang-tab-tag').value.trim();
-    const text = richHtmlToMarkup(row.querySelector('.lang-tab-text')).trim();
-    if(tag && text) out.push({tag, text});
+  list.querySelectorAll('.lang-tab-chip').forEach(chip=>{
+    const tag = chip.querySelector('.lang-tab-name').value.trim();
+    if(tag) out.push({tag, text: chip.dataset.text || ''});
   });
   return out;
+}
+/* The entry is what the words are typed into, so what it holds is what the
+   chips have to carry back. Called before the form is read, so a rename
+   made after a word was typed on the box does not put the old words back. */
+function syncLangTabTexts(n){
+  const host = langTabChipsHost();
+  if(!host || !n || !Array.isArray(n.langTabs)) return;
+  const chips = [...host.querySelectorAll('.lang-tab-chip')];
+  let i = 0;
+  chips.forEach(chip=>{
+    if(!chip.querySelector('.lang-tab-name').value.trim()) return;
+    const tab = n.langTabs[i++];
+    if(tab && typeof tab.text === 'string') chip.dataset.text = tab.text;
+  });
 }
 
 function setEditStatus(kind, msg){ detailEditStatusEl.className = 'editor-status show ' + kind; detailEditStatusEl.textContent = msg; }
@@ -450,12 +475,19 @@ detailEditToggle.onclick = (ev)=>{
     if(editBioCardCheck) editBioCardCheck.checked = !!n.bioCard;
     editBioSide.value = bioSideOf(n);
     syncBioCardField(editShapeInput);
-    syncImageFieldVisibility(editShapeInput, editImageField);
     syncLabelFieldForShape(editShapeInput);
     editTagsInput.value = (n.tags && n.tags.length) ? n.tags.join(', ') : '';
     if(repaintEditTags) repaintEditTags();
     editCardCheck.checked = !!n.card;
     cardWanted = !!n.card;
+    /* AFTER the card switch has been set from the entry, not before. The
+       picture field is offered to a portrait, to a picture element and to
+       a card — and asking which of those this is, while the card switch
+       still held the last entry's answer, meant opening a card's settings
+       showed no picture field at all. */
+    fillCardImageOpts(n);
+    syncMediumFieldVisibility();
+    syncImageFieldVisibility(editShapeInput, editImageField);
     if(typeof window.syncColorsResetState === 'function') window.syncColorsResetState();
     syncCardFieldVisibility();
     syncTextColorVisibility();
@@ -500,6 +532,7 @@ detailEditToggle.onclick = (ev)=>{
     if(id === 'editCardCheck'){
       cardWanted = editCardCheck.checked;
       syncImageFieldVisibility(editShapeInput, editImageField);
+      syncMediumFieldVisibility();
     }
     queueNodeEditCommit(0);
   });

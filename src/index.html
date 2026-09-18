@@ -113,6 +113,23 @@
                live preview whose only job was to connect them; and the copy
                that was further from the drawing was the one being typed in.
                Everything an entry has that is NOT its words is still here. -->
+          <div class="editor-field" id="editCardField">
+            <label class="checkbox-field-row" for="editCardCheck">
+              <span class="toggle-switch">
+                <input type="checkbox" id="editCardCheck">
+                <span class="toggle-track"></span>
+                <span class="toggle-thumb"></span>
+              </span>
+              <span class="toggle-caption">Card layout — picture, heading, text</span>
+            </label>
+          </div>
+          <!-- The card's middle band: what the thing IS, between the
+               heading that names it and the note that cites it. Only a
+               card has one, so the row is only there for one. -->
+          <div class="editor-field" id="editMediumField" style="display:none;">
+            <label for="editMediumInput">Medium — the card's middle line</label>
+            <input id="editMediumInput" type="text" placeholder="Collectible card [back]">
+          </div>
           <div class="editor-field">
             <label for="editLinkInput">Link URL</label>
             <input id="editLinkInput" type="text" placeholder="https://…">
@@ -142,6 +159,22 @@
               <button type="button" class="editor-btn" id="editImageClear">Clear</button>
             </div>
             <p class="editor-help">A chosen file is embedded in the chart itself, so it keeps working for everyone; it is scaled down first to keep the page small.</p>
+            <!-- A card's picture is fitted whole and its band takes the
+                 depth the picture asks for. These two are the ways to say
+                 otherwise: fill the band and lose the edges, or set the
+                 depth by hand. They belong to a card, so they are only
+                 here when one is being edited. -->
+            <div id="editCardImageOpts" style="display:none;margin-top:10px;">
+              <label class="checkbox-field-row" for="editCardCropCheck">
+                <span class="toggle-switch">
+                  <input type="checkbox" id="editCardCropCheck">
+                  <span class="toggle-track"></span>
+                  <span class="toggle-thumb"></span>
+                </span>
+                <span class="toggle-caption">Crop the picture to fill its band</span>
+              </label>
+              <p class="editor-help">Double-click the picture on the card to resize it by its own corners — hold Shift to keep its proportions.</p>
+            </div>
           </div>
           <div class="editor-field" id="editColorsField">
             <label for="editColorsInput">Border colors</label>
@@ -195,16 +228,6 @@
               </optgroup>
             </select>
           </div>
-          <div class="editor-field" id="editCardField">
-            <label class="checkbox-field-row" for="editCardCheck">
-              <span class="toggle-switch">
-                <input type="checkbox" id="editCardCheck">
-                <span class="toggle-track"></span>
-                <span class="toggle-thumb"></span>
-              </span>
-              <span class="toggle-caption">Card layout — picture, heading, text</span>
-            </label>
-          </div>
           <div class="editor-field">
             <label class="checkbox-field-row" for="editMultiLangCheck">
               <span class="toggle-switch">
@@ -217,20 +240,18 @@
           </div>
           <div class="editor-field" id="editLangTabsField" style="display:none;">
             <label>Language tabs</label>
-            <div class="mini-toolbar">
-              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="bold">B</button>
-              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="italic">I</button>
-              <button type="button" data-wrap-target="__editLangTabs__" data-wrap="ruby">Ruby</button>
-              <input type="text" class="tb-hex" data-hex-for="__editLangTabs__" value="#20242b" maxlength="9" spellcheck="false" title="Hex color applied by the A button"><button type="button" class="hex-reset" data-hex-reset="__editLangTabs__" title="Clear the colour from the selected text — back to the entry’s own">⟲</button>
-              <span class="tb-sep"></span>
-              <!-- The two hidden mirrors of the entry's own face and size went
-                   with the Label box they mirrored. Neither was ever shown, so
-                   neither was ever reachable; the face and size of a RUN of
-                   text are set from the Face…/Size… pickers on this toolbar,
-                   which is where a reader was already setting them. -->
+            <!-- The same field as Tags, and for the same reason: a tab is
+                 one short name in a row of short names, with a + to add one
+                 and an × to take it out. The WORDS of a tab are written on
+                 the entry — switch to the tab with its chip on the box and
+                 type where the text will be read — so a row here wide
+                 enough to hold a translation was a second, worse editor for
+                 something already being edited in the right place. -->
+            <div class="tag-field-row">
+              <div class="tag-chips lang-tab-chips" id="editLangTabList"></div>
+              <button type="button" class="tag-add-btn" id="editLangTabAdd" title="Add a language tab">+</button>
             </div>
-            <div class="lang-tab-list" id="editLangTabList"></div>
-            <button type="button" class="lang-tab-add" id="editLangTabAdd">+ Add tab</button>
+            <p class="editor-help">Name the tab here; write its text on the entry, with the tab chosen.</p>
           </div>
           <div class="editor-status" id="detailEditStatus"></div>
         </div>
@@ -252,8 +273,6 @@
             <button class="editor-btn primary" id="detailNoteApply">Apply</button>
           </div>
         </div>
-        <div class="detail-section" id="detailParents"><h3>Derives from</h3></div>
-        <div class="detail-section" id="detailChildren"><h3>Leads to</h3></div>
       </div>
     </div>
 

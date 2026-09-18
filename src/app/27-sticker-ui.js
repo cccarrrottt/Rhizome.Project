@@ -353,11 +353,6 @@ function addStickerButton(bar){
 function surfaceForToolbar(bar){
   const target = bar.querySelector('[data-wrap-target]');
   const id = target && target.dataset.wrapTarget;
-  const listGetter = LANG_TAB_TOOLBARS[id];
-  if(listGetter){
-    const list = listGetter();
-    return langTabActiveSurface.get(list) || list.querySelector('.lang-tab-text');
-  }
   const rec = richFields.get(id);
   return rec ? rec.surface : null;
 }

@@ -29,7 +29,15 @@ function syncTagLiveliness(){
      statement made louder, and the settings form is a second click past
      it. An entry that has been picked out is the one being looked at,
      whether or not its form has been opened on top. */
-  const live = new Set([hoverLivelyId, selectedId].filter(Boolean));
+  /* One entry at a time, and once one has been PICKED OUT it is the one.
+   *
+     Hover and selection are the same gesture in two speeds, so either
+     wakes an entry's decorations — but not both at once. With an entry
+     open, the rest of the chart has been stepped back to look at it, and
+     an echo going out of a faded box the pointer happened to cross is the
+     one thing on that quiet page still moving. Whatever is being looked
+     at is what performs; while something is open, that is it. */
+  const live = new Set(selectedId ? [selectedId] : [hoverLivelyId].filter(Boolean));
   /* When each entry's performance began.
    *
    * The decorations live in layers that are cleared and rebuilt whenever
@@ -487,17 +495,43 @@ function amalgamBarClamp(st, offX, offY){
       const pc0 = vertical ? m.originY + p.h/2 : m.originX + p.w/2;
       const bc  = vertical ? b.y + b.h/2 : b.x + b.w/2;
       const dir = pc0 >= bc ? 1 : -1;         // which side the lineage is on
-      const clear = AMALGAM_GAP + AMALGAM_LEAD;
+      /* How close a lineage may come, and why it is this close.
+       *
+       * The wall used to stand a whole AMALGAM_LEAD further out, which is
+       * the distance the bar likes to keep from its nearest parent — but
+       * that distance is what the bar GIVES UP first: it stops retreating
+       * at AMALGAM_GAP from the entry, and from there on the room between
+       * a parent and the bar is the parent's own run-up. So the limit is
+       * the one the shape really imposes: the bar at its innermost, plus
+       * the shortest run-up a turn onto it can be drawn with. Anything
+       * further out was an invisible wall a parent could not pass for no
+       * reason it could see. */
+      const clear = AMALGAM_GAP + AMALGAM_APPROACH;
       const entryEdge = vertical ? (dir > 0 ? b.y + b.h : b.y)
                                  : (dir > 0 ? b.x + b.w : b.x);
       const origin = vertical ? m.originY : m.originX;
       const size   = vertical ? p.h : p.w;
-      const want   = origin + (vertical ? offY : offX);
+      /* Measured against the offset already held by the clamps above, not
+         against the raw one: with two merges to answer to, a shift worked
+         out from the untouched offset and then added to a held one moved
+         the entry twice as far as either limit asked for — which is the
+         jump a lineage made when it was pushed against the wall. */
+      const base   = out || {x: offX, y: offY};
+      const want   = origin + (vertical ? base.y : base.x);
       const facing = dir > 0 ? want : want + size;      // the edge facing the entry
-      const limit  = entryEdge + dir * clear;
+      /* And the wall never pushes a lineage further out than it already
+         stood. A chart drawn before this limit existed — or one whose
+         merge was made after the parents were placed — can perfectly well
+         have a parent inside it, and a limit applied to that position
+         meant the first pixel of any drag threw the entry out to the wall:
+         pick it up to nudge it DOWN and it jumped up instead, which is not
+         a limit, it is a rearrangement nobody asked for. Where it stands
+         is allowed; the wall only stops it going further in. */
+      const facing0 = dir > 0 ? origin : origin + size;
+      const wall    = entryEdge + dir * clear;
+      const limit   = dir > 0 ? Math.min(wall, facing0) : Math.max(wall, facing0);
       if(dir * (facing - limit) >= 0) return;           // still clear
       const shift = limit - facing;
-      const base = out || {x: offX, y: offY};
       out = vertical ? {x: base.x, y: base.y + shift}
                      : {x: base.x + shift, y: base.y};
     });
@@ -525,6 +559,19 @@ function beginNodeDrag(ev, n, g){
   if(ev.button !== 0 || readOnlyView) return;
   // The chips and link badge riding on the node are their own controls.
   if(ev.target.closest('.lang-chip, a, .node-handle, .node-resize')) return;
+  /* While one entry is open, another entry cannot be carried.
+   *
+     Everything an entry wears has already stepped back — its link, its
+     citations, its chips, its grips and its arm — for one reason: with a
+     reader looking at a particular entry, the rest of the chart is the
+     picture around it, not a page of controls. The BOX itself was the
+     exception, and it is the most consequential one: a press that missed
+     by a few pixels picked a neighbour up and moved it, rearranging the
+     chart behind the thing being read. A press on another entry means
+     what it has always meant — look at that one instead — and the click
+     that follows this does exactly that. */
+  if(document.body.classList.contains('entry-open') &&
+     !(selectedId === n.id || multiSelection.has(n.id))) return;
   ev.stopPropagation();   // don't let the canvas start a pan underneath
   // …nor the browser start selecting text as the entry is carried about.
   ev.preventDefault();
@@ -542,21 +589,9 @@ function beginNodeDrag(ev, n, g){
     grabDX: (n.x + n.w/2) - grabAt.x,
     grabDY: (n.y + n.h/2) - grabAt.y,
     originX: n.x, originY: n.y,
-    members: group.map(id=>{
-      const m = nodes.get(id);
-      return { id, node: m, g: qNode(`.node[data-id="${CSS.escape(id)}"]`),
-               // The scenery behind an entry — a hub's echo, a stack's back
-               // sheets — lives in its own layer and has to travel too.
-               aura: auraLayer.querySelector(`.node-aura[data-id="${CSS.escape(id)}"]`),
-               /* …and so does the fan-fiction weave, which is in a layer
-                  below even that one. It was left behind for the whole of
-                  every drag and only caught up when the entry was dropped:
-                  the entry slid out of its own patch. */
-               fan: [...fanLayer.querySelectorAll(
-                       GROUND_PARTS.split(', ')
-                         .map(sel=> `${sel}[data-id="${CSS.escape(id)}"]`).join(', '))],
-               originX: m.x, originY: m.y };
-    }),
+    members: group.map(dragPiece),
+    /* The entries this drag can shove out of its way; see pushBlockers. */
+    pushable: pushCandidates(group),
     /* The hand-set bends of every connector the group carries whole.
      *
      * A bend is stored in chart coordinates, not relative to anything, so
@@ -576,6 +611,127 @@ function beginNodeDrag(ev, n, g){
       .map(o=> ({style: o, bends: o.bends.map(b=> [b[0], b[1]])})),
     moved: false
   };
+}
+/* Everything that has to travel when one entry moves, gathered once. */
+function dragPiece(id){
+  const m = nodes.get(id);
+  return { id, node: m, g: qNode(`.node[data-id="${CSS.escape(id)}"]`),
+           // The scenery behind an entry — a hub's echo, a stack's back
+           // sheets — lives in its own layer and has to travel too.
+           aura: auraLayer.querySelector(`.node-aura[data-id="${CSS.escape(id)}"]`),
+           /* …and so does the fan-fiction weave, which is in a layer
+              below even that one. It was left behind for the whole of
+              every drag and only caught up when the entry was dropped:
+              the entry slid out of its own patch. */
+           fan: [...fanLayer.querySelectorAll(
+                   GROUND_PARTS.split(', ')
+                     .map(sel=> `${sel}[data-id="${CSS.escape(id)}"]`).join(', '))],
+           originX: m.x, originY: m.y, pushX: 0, pushY: 0 };
+}
+/* How close an entry may be carried to one it is joined to.
+ *
+ * A connector needs a little room to be a connector: it leaves a port,
+ * stands off, turns if it has to, and arrives with an arrowhead. Squeezed
+ * below that it has nowhere to put any of it, and what had been a line
+ * between two entries became a scribble in the gap — the router doing its
+ * best with a space that cannot hold an answer.
+ *
+ * So the gap is not negotiable. The connector is taken down to the
+ * shortest sane length and then the entry in the way is PUSHED: the
+ * reader is moving one box towards another, and the honest reading of
+ * that gesture is that the second one should get out of the way, not that
+ * the line between them should break. */
+/* The shortest gap two joined entries can stand at and still be joined by
+   a LINE — and it is not a number of this mechanism's own choosing. It is
+   the router's own threshold: below MIN_SIDE_GAP the two facing sides are
+   judged too crowded to hold a connector at all and the route is sent
+   round the outside instead, which is the loop out of the bottom of both
+   boxes that reads as the connector breaking. The entry in the way is
+   pushed from exactly the point where the line would stop being a line —
+   and that point has itself been halved, from fifty-two to twenty-six, so
+   two entries may now be brought properly close before either gives way.
+   See MIN_SIDE_GAP, which is where the number is argued. */
+const PUSH_MIN_GAP = MIN_SIDE_GAP;
+/* The entries a drag may push: the ones joined to something being carried
+   and not being carried themselves. Gathered when the drag starts, since
+   the chart's connections do not change while it is under way. */
+function pushCandidates(group){
+  const held = new Set(group);
+  const byId = new Map();
+  structEdges.forEach(e=>{
+    const fromHeld = held.has(e.from), toHeld = held.has(e.to);
+    if(fromHeld === toHeld) return;
+    const otherId = fromHeld ? e.to : e.from;
+    const other = nodes.get(otherId);
+    if(!other || isFreeShape(other.shape || '')) return;
+    /* A merge pushes its parents; its parents do not push it.
+     *
+       The bar hangs from where the lineages are, so the entry is the thing
+       that follows and the parents are the thing followed — carry a parent
+       into the merge and shoving the merge would move the bar, which would
+       move every other lineage on it. The other way round is the honest
+       one: carry the merge up into the row of parents it is made of and
+       they give way. So the only merged lineage that is skipped is the one
+       whose PARENT is being carried. */
+    if(typeof isAmalgamMember === 'function' && isAmalgamMember(e.from, e.to)
+       && fromHeld) return;
+    let rec = byId.get(otherId);
+    if(!rec){ rec = dragPiece(otherId); rec.links = new Set(); byId.set(otherId, rec); }
+    rec.links.add(fromHeld ? e.from : e.to);
+  });
+  return [...byId.values()];
+}
+/* Shove whatever the carried entries have run into, once per pointer move.
+ *
+ * The push RATCHETS: a shoved entry never slides back when the hand
+ * retreats. A box that springs back the moment you give it room is a box
+ * on elastic, and the gesture this is answering — carry one entry up
+ * against another — reads as moving both, not as stretching something. */
+function pushBlockers(st){
+  if(!st.pushable || !st.pushable.length) return false;
+  let moved = false;
+  st.pushable.forEach(p=>{
+    const b = p.node;
+    st.members.forEach(m=>{
+      if(!p.links.has(m.id)) return;
+      const a = m.node;
+      const bx = p.originX + p.pushX, by = p.originY + p.pushY;
+      /* Only an entry that is IN THE WAY is pushed, and being in the way
+         means standing across the face the connector has to cross.
+       *
+         Growing the carried box by the gap on all four sides and pushing
+         whatever it then touched was much too eager: two entries passing
+         each other diagonally, with clear air between them on both axes,
+         were still inside a corner of that grown box, so one shoved the
+         other aside from a distance of seventy-odd pixels — and shoved it
+         along whichever axis it happened to be least far into, which from
+         a corner is a coin toss. What matters is the pair of facing
+         sides: the boxes have to overlap along one axis, so that a
+         connector between them must live in the gap on the other, and
+         only then does that gap have a minimum. */
+      const overX = Math.min(a.x + a.w, bx + b.w) - Math.max(a.x, bx);
+      const overY = Math.min(a.y + a.h, by + b.h) - Math.max(a.y, by);
+      const gapX = Math.max(bx - (a.x + a.w), a.x - (bx + b.w));
+      const gapY = Math.max(by - (a.y + a.h), a.y - (by + b.h));
+      if(overY > 0 && gapX < PUSH_MIN_GAP && (gapX >= gapY || overX <= 0)){
+        const need = PUSH_MIN_GAP - gapX;
+        p.pushX += ((bx + b.w/2) >= (a.x + a.w/2) ? need : -need);
+        moved = true;
+      } else if(overX > 0 && gapY < PUSH_MIN_GAP){
+        const need = PUSH_MIN_GAP - gapY;
+        p.pushY += ((by + b.h/2) >= (a.y + a.h/2) ? need : -need);
+        moved = true;
+      } else return;
+    });
+    if(!p.pushX && !p.pushY) return;
+    b.x = p.originX + p.pushX;
+    b.y = p.originY + p.pushY;
+    if(p.g) p.g.setAttribute('transform',
+      `translate(${p.pushX},${p.pushY}) ${p.g.dataset.rotTransform || ''}`.trim());
+    if(p.aura) p.aura.setAttribute('transform', `translate(${p.pushX},${p.pushY})`);
+    (p.fan || []).forEach(f=> f.setAttribute('transform', `translate(${p.pushX},${p.pushY})`));
+  });
+  return moved;
 }
 function carryBends(st, offX, offY){
   if(!st.bendCarry || !st.bendCarry.length) return;
@@ -668,6 +824,7 @@ window.addEventListener('mousemove', e=>{
       if(m.aura) m.aura.setAttribute('transform', `translate(${dOffX},${dOffY})`);
       (m.fan || []).forEach(f=> f.setAttribute('transform', `translate(${dOffX},${dOffY})`));
     });
+    pushBlockers(st);
     queueDragRedraw(st);
     return;
   }
@@ -731,6 +888,7 @@ window.addEventListener('mousemove', e=>{
     if(m.aura) m.aura.setAttribute('transform', `translate(${offX},${offY})`);
     (m.fan || []).forEach(f=> f.setAttribute('transform', `translate(${offX},${offY})`));
   });
+  pushBlockers(st);
   /* The entries themselves move on every pointer event — that is a
      transform on a handful of groups and costs nothing. The CONNECTORS are
      rebuilt from nothing, every one of them re-routed around every other,
@@ -796,7 +954,8 @@ window.addEventListener('mouseup', ()=>{
   // real click on any node.
   suppressNodeClick = true;
   setTimeout(()=>{ suppressNodeClick = false; }, 0);
-  if(st.node.x===st.originX && st.node.y===st.originY){
+  if(st.node.x===st.originX && st.node.y===st.originY &&
+     !(st.pushable || []).some(p=> p.pushX || p.pushY)){
     // Snapped back to where it started — and the bends with it.
     carryBends(st, 0, 0);
     return;
@@ -804,11 +963,15 @@ window.addEventListener('mouseup', ()=>{
   /* Any bend these entries' connectors no longer need goes with the drop;
      see pruneHandBends. Settled against the drawing just made, and inside
      the same step of undo as the move itself. */
-  const ids = new Set(st.members.map(m=> m.id));
+  const shoved = (st.pushable || []).filter(p=> p.pushX || p.pushY);
+  const ids = new Set(st.members.map(m=> m.id).concat(shoved.map(p=> p.id)));
   redrawEdges();
   pruneHandBends(structEdges.filter(e=> ids.has(e.from) || ids.has(e.to))
                             .map(e=> ({from: e.from, to: e.to})));
-  saveNodePositions(st.members.map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
+  /* One step of undo for the whole gesture, the entries it shoved
+     included: what the reader did was move things, once. */
+  saveNodePositions(st.members.concat(shoved)
+                      .map(m=>({id:m.id, x:m.node.x, y:m.node.y})), st.before);
 });
 
 // Writes the dropped position into the node's saved entry. Deliberately
@@ -968,6 +1131,65 @@ window.addEventListener('mouseup', ()=>{
     } else if(st.growShift && Array.isArray(opts.pos)){
       opts.pos = [opts.pos[0], opts.pos[1] - st.growShift];
     }
+    putEntry(found.index, found.entry, opts);
+  });
+});
+
+/* Pulling a card's picture by its corners.
+ *
+ * The picture stands in the middle of its band, so a corner says two
+ * things at once: how wide the picture is (twice its distance from the
+ * card's middle) and how deep its band is (how far it stands below the
+ * card's top). Free, the two are independent — a picture may be made any
+ * shape and is fitted or cropped inside it exactly as before. With Shift
+ * held the second follows the first at the picture's own proportions,
+ * which is what a picture usually wants and what every drawing program
+ * means by that key. */
+let cardImgResizeState = null;
+function beginCardImageResize(ev, n){
+  if(ev.button !== 0 || readOnlyView) return;
+  ev.stopPropagation();
+  ev.preventDefault();
+  cardImgResizeState = {node:n, moved:false,
+                        startW: n.cardImgW == null ? n.w : n.cardImgW,
+                        startH: n.cardImgH == null ? (n.cardTop || CARD_IMG_H) : n.cardImgH};
+}
+window.addEventListener('mousemove', e=>{
+  if(!cardImgResizeState) return;
+  const st = cardImgResizeState;
+  const n = st.node;
+  const p = clientToWorld(e.clientX, e.clientY);
+  const cx = n.x + n.w/2;
+  let iw = Math.max(CARD_IMG_MINH, Math.min(CARD_MAXW, Math.abs(p.x - cx) * 2));
+  let ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, p.y - n.y));
+  if(e.shiftKey){
+    const r = (typeof imageAspect === 'function') ? imageAspect(n.image) : 0;
+    if(r) ih = Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, iw * r));
+  }
+  if(!st.moved && Math.abs(iw - st.startW) < 1 && Math.abs(ih - st.startH) < 1) return;
+  st.moved = true;
+  n.cardImgW = Math.round(iw);
+  n.cardImgH = Math.round(ih);
+  /* A card sized by hand keeps its own height; one that sizes itself
+     follows the picture, so the box grows and shrinks under the pointer
+     exactly as the band does. */
+  renderNodes();
+  redrawEdges();
+  applyVisibility();
+  if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
+  paintMultiSelection();
+});
+window.addEventListener('mouseup', ()=>{
+  const st = cardImgResizeState;
+  cardImgResizeState = null;
+  if(!st || !st.moved) return;
+  const n = st.node;
+  applyEdit(()=>{
+    const found = workingEntry(n.id);
+    if(!found) return;
+    const opts = entryOpts(found.entry);
+    opts.cardImgW = n.cardImgW;
+    opts.cardImgH = n.cardImgH;
     putEntry(found.index, found.entry, opts);
   });
 });

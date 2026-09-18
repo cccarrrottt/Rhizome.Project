@@ -249,11 +249,39 @@ async function deleteRef(key){
  * and selection handlers never see the event — the mark is a control that
  * happens to sit inside a label, and pressing it must not also press the
  * label. */
-svg.addEventListener('mousedown', ev=>{
+/* …and which marks answer at all.
+ *
+ * While an entry is open, the rest of the chart has been stepped back to
+ * look at it, and everything that belongs to another entry is out of play
+ * — its links, its language chips and its citations alike. A citation on a
+ * faded box that still opened the reference list was the one control on
+ * the chart that ignored what the reader was looking at. Its own entry's
+ * citations go on working, and so do the ones on a connector's note, which
+ * belong to no entry. */
+function liveRefMark(ev){
   const mark = ev.target && ev.target.closest ? ev.target.closest('.ref-mark') : null;
+  if(!mark) return null;
+  const host = mark.closest ? mark.closest('.node') : null;
+  if(selectedId && host && host.dataset.id !== selectedId) return null;
+  return mark;
+}
+svg.addEventListener('mousedown', ev=>{
+  const mark = liveRefMark(ev);
   if(!mark) return;
   ev.preventDefault(); ev.stopPropagation();
   openRefsPanel(mark.dataset.ref);
+}, true);
+/* The CLICK that follows has to be stopped as well.
+ *
+ * Swallowing the press alone left the release to travel on to the entry
+ * underneath, which selected it and opened its settings — so pressing a
+ * citation on an entry nobody had picked out both opened the reference
+ * list AND opened the entry, and the panel that appeared last was the one
+ * the reader had not asked for. A citation is a control inside a label;
+ * pressing it is not pressing the label. */
+svg.addEventListener('click', ev=>{
+  if(!liveRefMark(ev)) return;
+  ev.preventDefault(); ev.stopPropagation();
 }, true);
 
 function setLegendStatus(kind, msg){
