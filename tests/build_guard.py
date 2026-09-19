@@ -304,6 +304,26 @@ def main():
     # was rewriting a page it has no business rewriting.
     check('the marker is spent in the share copy and left alone in the editable one',
           '@@SHARE:READONLY@@' not in share and '@@SHARE:READONLY@@' in editable)
+    # What replaces it is marked at both ends, because Export has to take it
+    # back out: a copy on a reader's own disk has no host to refuse a write,
+    # and one that arrived still declaring itself read-only was frozen by a
+    # permission that had stopped applying. A block written without the
+    # marks would publish perfectly and freeze every exported copy — nothing
+    # would look wrong until somebody tried to edit the file they had just
+    # been handed. See editableCopyOf in src/app/22-file-comments.js.
+    begin, end, call = '@@SHARE:READONLY:BEGIN@@', '@@SHARE:READONLY:END@@', 'markReadOnly(false);'
+    marked = (share.count(begin) == 1 and share.count(end) == 1 and
+              share.index(begin) < share.index(call) < share.index(end))
+    check('the read-only block is marked at both ends, so an export can cut it out',
+          marked and begin not in editable and end not in editable,
+          f'share begin {share.count(begin)}, end {share.count(end)}, in order {marked}')
+    # And the title it is renamed with, in the exact form the export takes
+    # back off — a copy on a disk should not announce a state it is no
+    # longer in.
+    ro_title = '<title>Rhizome Project — read-only</title>'
+    check('and the share copy says so in its title, in the form the export undoes',
+          ro_title in share and ro_title not in editable
+          and '<title>Rhizome Project</title>' in editable)
 
     part = next(p for p in parts_of(tmp)
                 if '@@SHARE:READONLY@@' in (tmp / 'src' / 'app' / p).read_text(encoding='utf-8'))
