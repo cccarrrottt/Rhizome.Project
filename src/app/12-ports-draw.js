@@ -31,7 +31,45 @@ function portTip(port){
    the entries, and until they were labelled this way the tag filter could
    not find them: hiding a tag took away the entries and the lines but left
    a scatter of arrowheads hanging in the empty chart. */
-function drawRingCap(port, paint, dash, from, to, dbl){
+/* One ring's own outline, as a path — the shape the border is drawn with.
+ *
+ * The three cases are the three ways an entry is drawn: a rippled border,
+ * a portrait's circle, and the rounded box everything else wears. Kept
+ * here because the only thing that asks for a whole OUTLINE (rather than
+ * for where the border is at one point — see borderProfileOf) is the
+ * clipping below. */
+function ringOutlinePath(n, ring){
+  const grow = (ring || 0) * ringStepFor(n);
+  const x = n.x - grow, y = n.y - grow, w = n.w + grow*2, h = n.h + grow*2;
+  if(isWavyBorder(n)) return wavyRectPath(x, y, w, h, grow);
+  if((n.shape || '') === 'ellipse'){
+    const r = w/2, cx = x + w/2, cy = y + h/2;
+    return `M${cx-r},${cy} a${r},${r} 0 1 0 ${r*2},0 a${r},${r} 0 1 0 ${-r*2},0 Z`;
+  }
+  const rr = Math.max(0, 5 + grow);
+  return `M${x+rr},${y} H${x+w-rr} A${rr},${rr} 0 0 1 ${x+w},${y+rr} ` +
+         `V${y+h-rr} A${rr},${rr} 0 0 1 ${x+w-rr},${y+h} ` +
+         `H${x+rr} A${rr},${rr} 0 0 1 ${x},${y+h-rr} ` +
+         `V${y+rr} A${rr},${rr} 0 0 1 ${x+rr},${y} Z`;
+}
+/* The ground a ring cap may be drawn on: outside the ring the connector
+   ends at, and no further out than the entry's own outermost border. An
+   annulus, written as one path with the even-odd rule — the box round the
+   outside, the ring's outline inside it. */
+const ringCapClips = new Map();
+function ringCapClipId(n, ring, reach){
+  const key = n.id + '|' + ring;
+  if(ringCapClips.has(key)) return ringCapClips.get(key);
+  const id = defId('ringcap-', n.id) + '-r' + ring;
+  const clip = el('clipPath', {id, clipPathUnits:'userSpaceOnUse'}, edgeDefs);
+  const pad = Math.max(2, reach) + 3;
+  const bx = n.x - pad, by = n.y - pad, bw = n.w + pad*2, bh = n.h + pad*2;
+  const box = `M${bx},${by} H${bx+bw} V${by+bh} H${bx} Z `;
+  el('path', {d: box + ringOutlinePath(n, ring), 'clip-rule':'evenodd'}, clip);
+  ringCapClips.set(key, id);
+  return id;
+}
+function drawRingCap(port, paint, dash, from, to, dbl, lineD){
   const ring = (port && port.ring) || 0;
   const out = port && SIDE_OUT[port.side];
   if(!out) return;
@@ -79,7 +117,24 @@ function drawRingCap(port, paint, dash, from, to, dbl){
      begins where the border is, and runs outward from there. */
   const startDrop = (port.wavy && typeof port.drop === 'number') ? port.drop : 0;
   const sx = port.x + out[0]*startDrop, sy = port.y + out[1]*startDrop;
-  const attrs = {
+  /* The cap IS the connector, drawn again above the rings it passes under
+     — not a straight stub standing in for it.
+   *
+     A stub was right for a plain line and wrong for every other kind: laid
+     over a wavy connector it read as a second, straight line crossing the
+     first, which is the pile of lines at an inner ring; and at an end that
+     carries an ARROWHEAD it ran up the middle of the head, which is the
+     line showing from under the arrow. So the drawn path is drawn a second
+     time, clipped to the ring's own outside — the head's trim is already
+     in that path, so nothing shows past the head, and whatever the line
+     is made of, the cap is made of the same thing. */
+  const owner = nodes.get(port.owner);
+  const clipId = (lineD && owner) ? ringCapClipId(owner, ring, reach) : null;
+  const attrs = clipId ? {
+    class: 'edge struct edge-cap',
+    d: lineD, stroke: paint, 'clip-path': `url(#${clipId})`,
+    'data-from': from || '', 'data-to': to || ''
+  } : {
     class: 'edge struct edge-cap',
     d: `M${sx.toFixed(2)},${sy.toFixed(2)} L${(port.x + out[0]*reach).toFixed(2)},${(port.y + out[1]*reach).toFixed(2)}`,
     stroke: paint, 'data-from': from || '', 'data-to': to || ''
@@ -99,42 +154,22 @@ function drawRingCap(port, paint, dash, from, to, dbl){
 }
 /* Which layer an arrowhead belongs in.
 
-   An arrow that meets an entry's outermost border goes UNDER the entry, so
-   the border draws over the very tip: the arrow arrives AT the box rather
-   than sitting on top of it, which is how an arrow meeting a shape is
-   supposed to read.
+   UNDER the entry, so the border draws over the very tip: the arrow
+   arrives AT the box rather than sitting on top of it, which is how an
+   arrow meeting a shape reads. A rippled border is no exception — it was
+   one for a while, on the grounds that the fill would cut a curve out of
+   a head as wide as the ripple's own period, and the cure was worse than
+   the complaint: the head lay across the border and covered the very
+   thing it was arriving at.
 
-   An arrow that belongs to an INNER border ring is the exception. Rings
-   step outward, so its tip sits under every ring beyond it and would be
-   drawn over — so that one goes above, where it can be seen reaching the
-   ring it was pulled from. The short cap drawn alongside it covers the
-   same buried stretch of its line.
-
-   A rippled border is the other exception, for the same reason at a
-   smaller scale. Its line is not where its baseline is — it wanders a
-   whole amplitude either side — so a head laid at the baseline had the
-   crests of the ripple drawn straight across it, and the tidy triangle
-   arrived at the entry with a bite taken out of it. Putting it above lets
-   it land ON the ripple, which is what an arrow meeting a wavy edge is
-   supposed to look like; the tip stays on the baseline, so the head always
-   meets the border rather than hanging short of a trough. */
+   The one real exception is an arrow that belongs to an INNER border
+   ring. Rings step outward, so its tip sits under every ring beyond it
+   and would be drawn over entirely — that one goes above, where it can be
+   seen reaching the ring it was pulled from, with the cap alongside it
+   covering the same buried stretch of its line. */
 function arrowLayerFor(ring, port){
   const outside = Math.max(0, ((port && port.rings) || 1) - 1 - (ring || 0));
-  /* A head meeting a RIPPLED border goes above the entry.
-   *
-     Not because its tip is anywhere unusual — that now sits exactly on the
-     wave, worked out point by point — but because the head is eight pixels
-     wide and the ripple's whole period is eight. Across the width of one
-     arrowhead the border swings from a crest to a trough, so a head drawn
-     UNDER the entry had the fill cut a curve across its flanks: a triangle
-     with a bite out of one side, which is what a clipped arrow on a pocket
-     reality was. Above the entry it is a whole triangle standing on the
-     wave, which is what an arrow meeting a rippled edge should look like.
-
-     A straight border does not have this problem — it takes at most the
-     last pixel of a tip — so every other archetype keeps its heads under
-     the entry, where the border is drawn over them. */
-  return (outside > 0 || (port && port.wavy)) ? arrowLayer : edgeLayer;
+  return outside > 0 ? arrowLayer : edgeLayer;
 }
 
 /* Stop the line where the arrowhead starts.

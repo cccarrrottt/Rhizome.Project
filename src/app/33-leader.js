@@ -201,6 +201,19 @@ function closeEdgePopover(){
   edgeEditUndoPushed = false;
   redrawEdges();
   applyVisibility();
+  /* Connectors are born at full strength on every redraw and only learn
+     they are dimmed when the selection wash is painted back on — and this
+     one redraw was the only one on the chart that never painted it. With
+     an entry open, closing a panel therefore left every faded connector
+     answering the pointer as though nothing were selected.
+     
+     That is not a cosmetic slip: the document-level listener that closes
+     the panel runs in the capture phase, BEFORE the connector under the
+     cursor gets its own click. So the first press cleared the wash and
+     the same press then opened the panel on a line the chart was saying
+     was not the subject — and from there on any connector would open,
+     each press re-clearing what the last one had painted. */
+  if(selectedId && nodes.has(selectedId)) paintSelectionHighlight(selectedId);
   // …and come down with it, whether or not the redraw above reached them.
   drawBendHandles();
 }

@@ -226,6 +226,20 @@ function openEdgeStylePopover(from, to, evt){
       ? 'Not on a merged lineage: its colour names which lineage it is'
       : 'Gradient along the connector';
   }
+  /* And it is not bent by hand either, so the row that offers to
+     straighten it is greyed with the rest — the handles on the line are
+     already gone (see drawBendHandles). */
+  {
+    const clearBtn = document.getElementById('styleBendsClear');
+    const row = clearBtn && clearBtn.closest('.style-row');
+    if(clearBtn){
+      clearBtn.disabled = mergedEdge;
+      clearBtn.title = mergedEdge
+        ? 'Set by the amalgam: a merged lineage runs where the bar puts it'
+        : 'Straighten this connector — take every bend out';
+    }
+    if(row) row.classList.toggle('disabled', mergedEdge);
+  }
   if(mergedEdge && style.gradient){
     // Data can carry one even though the control cannot set it.
     style = Object.assign({}, style, {gradient: null, color: style.color || style.gradient[0]});

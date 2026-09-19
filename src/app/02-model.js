@@ -63,10 +63,28 @@ function borderStyleOf(n){
   const k = (n && n.border) || 'solid';
   return BORDER_STYLES[k] ? k : 'solid';
 }
-/* Whether this entry's outline ripples. Card layout replaces the outline
-   with a card, so a card is never wavy however its border is set — the
-   same rule the pocket archetype followed. */
-function isWavyBorder(n){ return !!n && borderStyleOf(n) === 'wavy' && !n.card; }
+/* Whether this entry's outline ripples.
+ *
+ * Asked of the DRAWING, not of the setting. The archetypes that draw an
+ * outline of their own cannot ripple: a portrait is a circle, an amalgam
+ * entry is drawn with its gradient box, and a picture or a caption has no
+ * outline at all. A CARD can, and now does — it is one box with rules
+ * across it, so the box it is drawn with is whatever the border style
+ * says, exactly as for a plain entry.
+ *
+ * It mattered because this answer is also what a CONNECTOR is told. A
+ * port asks how far the ripple stands off the border at the point it
+ * meets it, and which step the rings are spaced by — so a portrait whose
+ * border was merely SET to wavy had both answers taken from a rectangle
+ * it is not drawn as: every connector into it stopped a ripple's height
+ * short of the circle, or cut into it, and on a second ring it missed the
+ * circle by the difference between the two ring steps. That is the
+ * arrowhead standing off the border of a character bio. */
+const WAVY_BORDER_SHAPES = ['ellipse', 'amalgam', 'image', 'textbox'];
+function isWavyBorder(n){
+  return !!n && borderStyleOf(n) === 'wavy' &&
+         !WAVY_BORDER_SHAPES.includes(n.shape || '');
+}
 function ringStepFor(n){ return isWavyBorder(n) ? POCKET_RING_STEP : RING_STEP; }
 /* How many borders an entry is drawn with. Rings step OUTWARD — ring 0 is
    the box itself and every further ring stands a step beyond the last — so
@@ -196,6 +214,17 @@ const LOCAL_SHEETS = 2, LOCAL_SHEET_STEP = 5;
    than the heading, which is what makes the heading read as a heading. */
 const CARD_MINW = 132, CARD_MAXW = 210;
 const CARD_IMG_H = 66, CARD_BODY_SCALE = 0.82;
+/* The card's middle voice. Between the heading and the body in size, for
+   the line that says what the thing IS — "collectible card, back" — as
+   against the heading, which names it, and the body, which cites it. */
+const CARD_MEDIUM_SCALE = 0.9;
+/* …that was the whole story while a picture was CROPPED to the band: any
+   picture fits a fixed band if enough of it is thrown away. A picture is
+   now fitted whole by default, so the band takes the depth the picture
+   actually needs — a panorama gets a shallow one, a portrait a deep one —
+   between these two, so that a card stays a card and a tall photograph
+   does not turn one into a poster. */
+const CARD_IMG_MINH = 26, CARD_IMG_MAXH = 200;
 const CARD_PAD_Y = 9;
 // Default box for a free-standing picture before anyone resizes it.
 const IMAGE_DEFAULT_W = 180, IMAGE_DEFAULT_H = 120;
@@ -484,6 +513,24 @@ workingNodes.forEach(item=>{
        that is a box can wear it; a character bio and the free-standing
        elements cannot, since they have no box to divide. */
     card: !!(opts && opts.card),
+    /* What to do with a picture that is not the shape of its band: fit it
+       whole (the default) or fill the band and lose the edges. Cropping
+       was once the only answer, which meant a wide picture arrived with
+       both its ends cut off and no way to say otherwise. */
+    cardCrop: !!(opts && opts.cardCrop),
+    /* The card's third band of words, drawn under the heading and above
+       the note. Only a card has one — every other archetype has one text
+       and its note. */
+    medium: (opts && typeof opts.medium === 'string') ? opts.medium : '',
+    /* A band depth set by hand, overriding the one the picture's own
+       proportions ask for. Absent means the picture decides. */
+    cardImgH: (opts && typeof opts.cardImgH === 'number' && Number.isFinite(opts.cardImgH))
+              ? Math.max(CARD_IMG_MINH, Math.min(CARD_IMG_MAXH, opts.cardImgH)) : null,
+    /* …and how wide it is drawn, for a picture pulled in from the sides.
+       Absent means the whole width of the card, which is where a picture
+       starts and where most of them stay. */
+    cardImgW: (opts && typeof opts.cardImgW === 'number' && Number.isFinite(opts.cardImgW))
+              ? Math.max(CARD_IMG_MINH, opts.cardImgW) : null,
     /* A portrait's card, asked to stay. Off, the card opens under the
        pointer and while the entry's panel is open on it; on, it is part
        of the drawing and is always there. */

@@ -113,59 +113,141 @@ function sideBandRect(n, h, side, inset, hitW){
 
 // `ring` insets the port to sit on that border ring rather than the outer
 // one, so a connector meets the ring it was drawn from.
-/* How far the ripple stands off its baseline at one exact place on a
-   pocket reality's border.
+/* Where a rippled border actually is at one exact point on it.
  *
- * A rippled border is not a line, it is a band — so "where the border is"
- * has no single answer for the whole side, only one answer per point. Both
- * previous attempts avoided the question and both left something on the
- * paper: sinking every arrowhead the full amplitude buried the ones that
- * arrived at a crest, and leaving every one on the baseline left the ones
- * that arrived at a trough hanging in clear air. The connector meets its
- * border at ONE point, and the shape of the border at that point is known
- * exactly, so it is worked out rather than approximated.
- *
- * The arithmetic mirrors wavySideCommands and waveRun exactly — the same
- * corner radius, the same shared phase grid, the same alternating bulge —
- * because it has to answer for the very curve those two draw. Each arc is
- * a cubic whose two control points sit a whole amplitude off the baseline,
- * so its offset at parameter t is 3·lift·t·(1−t), peaking at three
- * quarters of the amplitude; and its progress ALONG the side is a
- * smoothstep of t rather than t itself, which is why the parameter has to
- * be solved for rather than read off. Six Newton steps land well inside a
- * hundredth of a pixel. */
-function wavyDropAt(n, side, ring){
-  if(!isWavyBorder(n)) return 0;
-  const step = ringStepFor(n);
-  const inset = -(ring || 0) * step;
-  const x = n.x + inset, y = n.y + inset;
-  const w = n.w - inset*2, h = n.h - inset*2;
-  const grow = (ring || 0) * step;
+ * A rippled border is not a line, it is a band, so "where the border is"
+ * has one answer per point. It is the same one line of arithmetic the
+ * drawing uses — the wave's offset at that distance along the outline —
+ * rather than a second implementation that can drift from it: see
+ * pocketOutline, which hands back both the samples the border is drawn
+ * from and the way to ask where a point of it stands. */
+function pocketOutline(x, y, w, h){
   const r = Math.max(0, Math.min(POCKET_CORNER_R, w/2 - 1, h/2 - 1));
-  const len = (side === 'top' || side === 'bottom') ? w : h;
-  void grow;
-  const lay = pocketSideLayout(len, r);
-  if(!lay) return 0;
-  const {start, bumps, W, phase} = lay;
-  /* Where the port sits, measured from the corner THIS side starts at —
-     which is not the same corner for all four: wavyRectPath walks the
-     frame clockwise, so the bottom is drawn right-to-left and the left
-     bottom-to-top, and a distance measured the other way would read the
-     phase grid backwards. */
-  return function(px, py){
-    let dist;
-    if(side === 'top') dist = px - x;
-    else if(side === 'bottom') dist = (x + w) - px;
-    else if(side === 'right') dist = py - y;
-    else dist = (y + h) - py;
-    const u = dist - (r + start);
-    if(u < 0 || u > bumps * W) return 0;
-    const j = Math.min(bumps - 1, Math.floor(u / W));
-    const local = (u - j*W) / W;
-    const lift = ((j + phase) % 2 === 0) ? POCKET_LIFT : -POCKET_LIFT;
-    return 3 * lift * waveParamAt(local) * (1 - waveParamAt(local));
+  const corners = [{x:x + r, y}, {x:x + w - r, y}, {x:x + w, y:y + r},
+                   {x:x + w, y:y + h - r}, {x:x + w - r, y:y + h},
+                   {x:x + r, y:y + h}, {x, y:y + h - r}, {x, y:y + r},
+                   {x:x + r, y}];          // closed: back to where it began
+  const samples = sampleRounded(corners, r, POCKET_WAVELEN / WAVE_STEP_DIV);
+  const total = samples.length ? samples[samples.length-1].s : 0;
+  if(total < POCKET_WAVELEN * 3) return null;
+  const lam = waveLambda(total, POCKET_WAVELEN);
+  /* How far along the outline a point on one of the four sides is. The
+     outline is walked clockwise from the top-left corner, so a side's
+     distance is measured from the corner it starts at, and the quarter
+     arcs between the sides count too. */
+  const arc = Math.PI * r / 2;
+  const sw = w - r*2, sh = h - r*2;
+  const at = (side, px, py)=>{
+    if(side === 'top') return px - (x + r);
+    if(side === 'right') return sw + arc + (py - (y + r));
+    if(side === 'bottom') return sw + arc + sh + arc + ((x + w - r) - px);
+    return sw + arc + sh + arc + sw + arc + ((y + h - r) - py);
   };
+  /* How far out the border stands, read off the points it is DRAWN from.
+   *
+     This used to be the wave's own arithmetic written out a second time,
+     with a sign chosen by reasoning about which way the outline is walked
+     — and the reasoning was wrong, so every connector into a rippled
+     border aimed at the trough when the crest was there and stopped in
+     the open air beside it. Nothing here reasons about direction any
+     more: the drawn point is compared with the baseline point it came
+     from, and outward is simply "away from the middle of the box". A
+     change to how the wave is drawn cannot put this out again, because
+     this is not a description of the drawing, it is the drawing. */
+  const drawn = waveOffsetPoints(samples, -POCKET_AMP, lam, 0, total, true);
+  /* …and it is looked up by WHERE IT IS, not by how far along the outline
+     it ought to be. The distance a point is at can be worked out from the
+     box (see distAt), and that arithmetic has to assume how long a rounded
+     corner is; the sampler draws that corner as a curve of its own, so the
+     two drift apart by a fraction of a corner each time round — a phase
+     error that grows with every corner and lands a connector on the wrong
+     part of the wave. Matching on the coordinate ALONG the side instead
+     asks the drawing where it is and cannot drift. */
+  const cx = x + w/2, cy = y + h/2;
+  const bySide = {top:[], right:[], bottom:[], left:[]};
+  drawn.forEach(q=>{
+    let ox = q.bx - cx, oy = q.by - cy;
+    const len = Math.hypot(ox, oy) || 1;
+    ox /= len; oy /= len;
+    const off = (q.x - q.bx) * ox + (q.y - q.by) * oy;
+    const onTop = Math.abs(q.by - y) < 0.01, onBottom = Math.abs(q.by - (y + h)) < 0.01;
+    const onLeft = Math.abs(q.bx - x) < 0.01, onRight = Math.abs(q.bx - (x + w)) < 0.01;
+    if(onTop) bySide.top.push({u: q.bx, off});
+    if(onBottom) bySide.bottom.push({u: q.bx, off});
+    if(onLeft) bySide.left.push({u: q.by, off});
+    if(onRight) bySide.right.push({u: q.by, off});
+  });
+  SIDES.forEach(side=> bySide[side].sort((a, b)=> a.u - b.u));
+  const offAt = (side, u)=>{
+    const list = bySide[side] || [];
+    if(!list.length) return 0;
+    if(u <= list[0].u) return list[0].off;
+    if(u >= list[list.length-1].u) return list[list.length-1].off;
+    let lo = 0, hi = list.length - 1;
+    while(hi - lo > 1){ const mid = (lo + hi) >> 1; if(list[mid].u <= u) lo = mid; else hi = mid; }
+    const a = list[lo], b = list[hi];
+    const t = (b.u - a.u) > 1e-9 ? (u - a.u) / (b.u - a.u) : 0;
+    return a.off + (b.off - a.off) * t;
+  };
+  return {samples, total, lam, r, box: {x, y, w, h}, amp: POCKET_AMP,
+          offsetAt: (side, px, py)=> offAt(side, sideIsVertical(side) ? px : py),
+          distAt: at};
 }
+function pocketOutlineOfRing(n, ring){
+  const step = ringStepFor(n);
+  const grow = (ring || 0) * step;
+  return pocketOutline(n.x - grow, n.y - grow, n.w + grow*2, n.h + grow*2);
+}
+/* Where an entry's border is, whatever the entry is drawn as.
+ *
+ * One table, one question, one answer — which is the whole point of it.
+ * Every archetype and every border style that does not stand exactly on
+ * the box it is measured from says so here, and nothing downstream asks
+ * again: the port, the line's end, the arrowhead and the run-out are all
+ * placed from this one number. Adding a style means adding a profile; it
+ * does not mean finding the six places that assumed a flat edge.
+ *
+ * A profile answers `offsetAt(side, px, py)` — how far OUT of the box the
+ * border stands at that point on that side, negative for inside — and
+ * says which KIND of offset it is:
+ *
+ *   structural   the border is somewhere else entirely, so the port goes
+ *                there too (a portrait's rim is a fifth of its width
+ *                inside the box at the corners of its square)
+ *   a ripple     the border wanders either side of the box while the port
+ *                stays on it; only the drawn END moves, and by how much
+ *                depends on whether it carries an arrowhead
+ *
+ * `amp` is how far the ripple can swing, which is what a headless line
+ * has to bury itself past to be sure of touching at any phase. */
+function borderProfileOf(n, ring){
+  if(!n) return null;
+  if(isWavyBorder(n)){
+    const o = pocketOutlineOfRing(n, ring || 0);
+    if(!o) return null;
+    return {kind:'ripple', amp: o.amp, structural: false,
+            offsetAt: (side, px, py)=> o.offsetAt(side, px, py)};
+  }
+  if((n.shape || '') === 'ellipse'){
+    /* A portrait is a circle drawn inside the square the chart reasons
+       with. On the middle of a side the two touch; anywhere else the rim
+       is inside the square, by more the further along the side you go. */
+    const step = ringStepFor(n);
+    const rr = n.w/2 + (ring || 0) * step;
+    const cx = n.x + n.w/2, cy = n.y + n.h/2;
+    return {kind:'circle', amp: 0, structural: true,
+            offsetAt: (side, px, py)=>{
+              const d = sideIsVertical(side) ? (px - cx) : (py - cy);
+              const k = rr*rr - d*d;
+              return (k > 0 ? Math.sqrt(k) : 0) - rr;
+            }};
+  }
+  return null;
+}
+/* wavyDropAt lived here: how deep a rippled border is at an arbitrary
+   point along a side, for a port that had just been moved to one. Ports
+   do not move any more, so the drop is read once, where the port is, by
+   portOnSide itself. */
 /* Where an arrowhead's TIP has to stand for the head to meet a rippled
  * border and not cut into it.
  *
@@ -180,18 +262,11 @@ function wavyDropAt(n, side, ring){
  * how far the head's side has already risen at that distance from the
  * tip — and the tip stands at the highest of those. The head then
  * touches the border, at the tip or on a flank, and crosses it nowhere. */
-const BORDER_HALF_W = 0.8;   // half of a node border's 1.6 stroke
-function wavyHeadDrop(dropFn, side, x, y){
-  const slope = ARROW_LEN / ARROW_HALF;
-  let best = -Infinity;
-  for(let u = -ARROW_HALF; u <= ARROW_HALF + 1e-9; u += 0.2){
-    const px = sideIsVertical(side) ? x + u : x;
-    const py = sideIsVertical(side) ? y : y + u;
-    const need = dropFn(px, py) + BORDER_HALF_W - Math.abs(u) * slope;
-    if(need > best) best = need;
-  }
-  return best;
-}
+/* wavyHeadDrop stood here, with the half-stroke constant it spent, and
+   worked out how far an arrowhead had to stand off a ripple so that no
+   crest beside its tip could push into a flank. Both are gone: the head
+   goes to the border at its own point and is cut off at the outline, so
+   there is nothing left for it to stand clear of. */
 function portOnSide(n, side, i, count, ring){
   const t = (i+1)/(count+1);
   // Carried on the port so a ring cap knows how far it has to reach back
@@ -203,14 +278,19 @@ function portOnSide(n, side, i, count, ring){
   const inset = -(ring || 0) * step;
   const x = n.x + inset, y = n.y + inset;
   const w = n.w - inset*2, h = n.h - inset*2;
-  /* On a card the top band is a picture, and a connector meeting the middle
-     of a photograph reads as an accident. Ports along the two upright sides
-     are therefore spread over the text bands only; the top and bottom sides
-     are unaffected, since there the picture is simply the edge the arrow
-     arrives at. */
-  const skip = (n.cardTop && (side === 'left' || side === 'right'))
-    ? Math.min(n.cardTop, h - 12) : 0;
-  const sideY = y + skip + (h - skip) * t;
+  /* A card is ONE box, and its ports are spread over the whole of each
+     side like any other entry's.
+   *
+     They used to skip the picture band on the two upright sides, on the
+     grounds that a connector meeting the middle of a photograph reads as
+     an accident — but what that produced was worse: an entry whose
+     geometry the reader can see and whose connectors behave as though it
+     were a different, shorter box, with the whole fan crowded into the
+     lower two thirds and shifting the moment a picture was added or taken
+     away. A band inside an entry is not a second entry; adding one changes
+     the entry's size, and its size is the whole of what a connector has to
+     know. */
+  const sideY = y + h * t;
   /* Carried on the port so a cap and a run-out both know how much of the
      entry's own border still stands OUTSIDE this ring. */
   const rings = ringCountOf(n);
@@ -220,95 +300,44 @@ function portOnSide(n, side, i, count, ring){
     left:   {x,         y:sideY},
     right:  {x:x + w,   y:sideY}
   }[side] || {x:x + w, y:sideY};
-  /* And, on a rippled border, how far the ripple stands off the baseline
-     at exactly this point — carried on the port so the line's end and its
-     arrowhead can both meet the border where it really is. Zero on every
-     other archetype, which is what makes them all behave the same. */
-  const dropFn = wavy ? (wavyDropAt(n, side, ring || 0) || (()=>0)) : null;
-  const drop = dropFn ? dropFn(at.x, at.y) : 0;
-  const headDrop = dropFn ? wavyHeadDrop(dropFn, side, at.x, at.y) : 0;
-  /* A portrait is a CIRCLE, and a point on the side of the square it is
-     inscribed in is not on it.
-   *
-     One connector lands at the middle of a side, which is the one place
-     the square and the circle touch, so a single arrow met the rim
-     exactly and nothing looked wrong. Give the portrait a second and the
-     two share the side — a third and a two-thirds of the way along it —
-     and both of them stopped at the square, a good few pixels short of
-     the border they were pointing at, with clear paper between the head
-     and the entry. The point is carried radially out to the rim: the
-     share along the side is kept (that evenness is information), and what
-     changes is only how far out it sits. */
-  if((n.shape || '') === 'ellipse'){
-    const ccx = n.x + n.w/2, ccy = n.y + n.h/2;
-    const rr = n.w/2 + (ring || 0) * step;
-    const vx = at.x - ccx, vy = at.y - ccy;
-    const len = Math.hypot(vx, vy);
-    if(len > 0.01){ at.x = ccx + vx/len*rr; at.y = ccy + vy/len*rr; }
+  /* And where the border really is at that point — see borderProfileOf,
+     which is the one place any archetype's answer lives. A profile that
+     MOVES the border takes the port with it; one that ripples about the
+     box leaves the port on the box and tells the line's end and its
+     arrowhead how far to go (see sinkEnds). */
+  const prof = borderProfileOf(n, ring || 0);
+  const nrm = SIDE_NORMAL[side] || {x:0, y:0};
+  let drop = 0, sunk = 0;
+  if(prof && prof.structural){
+    const move = prof.offsetAt(side, at.x, at.y);
+    at.x += nrm.x * move; at.y += nrm.y * move;
+    /* How far this port stands INSIDE the box the router reasons with —
+       the obstacle the other connectors keep out of, and the box this
+       one's own run-out is measured from. A quarter of the way along a
+       portrait's top edge the rim is a tenth of its width down inside the
+       square, so a run-out of the ordinary length left the corner, and
+       everything the router hangs off it, still inside the box and over
+       the picture. See stubLength, which spends it. */
+    sunk = Math.max(0, -move);
+  } else if(prof){
+    drop = prof.offsetAt(side, at.x, at.y);
   }
-  /* Enough about where this port sits on its side to move it a little
-     later without landing on a neighbour — see nudgePortAlong. `span` is
-     the length actually shared out, `slots` how many connectors are
-     sharing it, `slot` which one this is. */
-  return {x:at.x, y:at.y, side, ring:ring||0, step, wavy, rings, drop, headDrop,
-          owner: n.id, span: sideIsVertical(side) ? w : (h - skip),
+  /* `span` is the length shared out along this side, `slots` how many
+     connectors are sharing it, `slot` which one this is — the spacing, and
+     the whole of what decides where a port stands. */
+  return {x:at.x, y:at.y, side, ring:ring||0, step, wavy, rings, drop, sunk,
+          // How far the border can swing either side of the box — what a
+          // line with no head has to get under to be sure of touching.
+          band: prof ? (prof.amp || 0) : 0,
+          owner: n.id, span: sideIsVertical(side) ? w : h,
           slot: i, slots: count};
 }
-/* How far a port may travel along its own side.
- *
- * A port's exact place on a side is the chart's choice, not the reader's:
- * they chose the SIDE, and the spacing is arithmetic. So a few pixels of
- * it can be spent on making a connector run straight — but only a few, and
- * never so many that two connectors sharing a side end up on top of each
- * other. Not quite half the gap to a neighbour is the limit, so even if
- * two adjacent ports both move toward each other they keep most of it. */
-const PORT_NUDGE_MAX = 22;
-function portSlack(p){
-  if(!p || !(p.span > 0)) return 0;
-  /* A side with more than one connector on it gives nothing.
-   *
-     The spacing along an edge is an even share — a fan of three leaves at
-     a quarter, a half and three quarters of it — and that evenness is
-     itself information: it says the connectors belong together and none of
-     them is special. Letting each one wander to straighten itself spent
-     that: two lineages out of an amalgam's parent drifted toward each
-     other and the pair ended up bunched and off centre, which reads as a
-     mistake in the drawing. A lone connector has nobody to be even WITH,
-     so it may move as much as its side allows; a shared side keeps its
-     arithmetic, and only the last pixel or two are still taken (see
-     PORT_SQUEEZE), which is below the threshold of noticing. */
-  if((p.slots || 1) > 1) return 0;
-  return Math.min(PORT_NUDGE_MAX, (p.span / 2) * 0.45);
-}
-/* Moves a port along its side by `delta`, as far as its slack allows, and
-   returns how far it actually went. A rippled border's offset is worked out
-   again at the new place, because it is different at every point. */
-function movePortAlong(p, delta){
-  if(!p || !delta) return 0;
-  if(sideIsVertical(p.side)) p.x += delta; else p.y += delta;
-  if(p.wavy){
-    const n = nodes.get(p.owner);
-    const f = n && wavyDropAt(n, p.side, p.ring || 0);
-    p.drop = f ? f(p.x, p.y) : 0;
-    p.headDrop = f ? wavyHeadDrop(f, p.side, p.x, p.y) : 0;
-  }
-  return delta;
-}
-/* The last pixel or two are taken whatever the slack says.
- *
- * A residual smaller than this is not a misalignment worth a corner — it is
- * the arithmetic not quite coming out, and drawn as a step it is two arcs
- * of half a pixel each: a visible wobble in the middle of a straight line,
- * which is worse than anything moving a port this far could cause. Two
- * pixels cannot put two connectors on top of one another. */
-const PORT_SQUEEZE = 4;
-function nudgePortAlong(p, delta){
-  const room = portSlack(p);
-  if(!room || !delta) return 0;
-  const move = Math.max(-room, Math.min(room, delta));
-  if(Math.abs(move) < 0.01) return 0;
-  return movePortAlong(p, move);
-}
+/* A port does not travel along its side at all, and the three helpers
+   that let it — portSlack, movePortAlong, nudgePortAlong — are gone with
+   the alignment pass that was their only caller. The end of a connector
+   is fastened where the geometry put it; the bending happens along the
+   line. A rippled border's drop is therefore worked out once, where the
+   port is, and never again at some new place along the side. */
 function roundedPath(pts, r){
   if(pts.length<=2) return `M${pts[0].x},${pts[0].y} L${pts[1].x},${pts[1].y}`;
   const segLen=(a,b)=>Math.hypot(b.x-a.x,b.y-a.y);
@@ -338,6 +367,14 @@ function roundedPath(pts, r){
        in the arithmetic had somewhere to become a visible kink. A point
        whose two legs point the same way is passed straight through. */
     if(Math.abs(ax + bx) < 1e-6 && Math.abs(ay + by) < 1e-6) continue;
+    /* …and neither is a point sitting on top of its neighbour. A corner
+       needs two legs; a leg of no length gives it no direction to turn
+       from, and what came out was `L here Q here here` — an arc of zero
+       radius at a place where the line does not bend. Invisible, and
+       still a corner as far as anything counting them is concerned,
+       which is how a lineage squeezed into a short run-out came to be
+       reported as carrying a kink it did not have. */
+    if(l1 < 0.01 || l2 < 0.01) continue;
     d += ` L${cur.x+ax*rr},${cur.y+ay*rr} Q${cur.x},${cur.y} ${cur.x+bx*rr},${cur.y+by*rr}`;
   }
   const last = pts[pts.length-1];
@@ -362,115 +399,191 @@ const EDGE_CORNER_R = 6;
    shallow ripple is also what lets two rings nest at the ordinary spacing.
    ------------------------------------------------------------------ */
 /* ---------------------------------------------------------------------
-   Waves, drawn as real curves.
+   Waves, drawn along a line rather than instead of one.
 
-   Both the pocket-reality border and the wavy connector used to be a sine
-   sampled into a few dozen points and then pushed through a Catmull-Rom
-   smoother. Two rounds of approximation, and the second one rounded the
-   crests off the first: the result was low, soft and slightly uneven —
-   more of a wobble than a wave.
+   Every earlier attempt built the wavy shape from scratch: arcs laid out
+   run by run, a phase grid to keep neighbouring runs and rings in step,
+   flats so a crest never sat on a corner, and a separate piece of
+   arithmetic answering "where exactly is this border" for anything that
+   had to meet it. Each of those was a place for the wave to disagree with
+   itself, and the corners were the worst of them — a wave cannot turn a
+   right angle, so it stopped short of every bend and started again after.
 
-   Here each half-wave is one cubic Bezier with its control points placed
-   exactly, which is how a wave is drawn in a vector program (and the
-   technique behind the CSS wavy-shape recipes): a cubic from baseline to
-   baseline whose two controls sit at 4/3 of the target amplitude peaks at
-   exactly that amplitude. Whole bumps only, so a wave always begins and
-   ends on the baseline and adjacent runs meet exactly.
+   This draws the ORDINARY line first — the same rounded polyline every
+   other connector is drawn as, the same rounded rectangle every other
+   border is — and then runs a wave ALONG it: the path is walked at even
+   steps and each point is pushed out along its own normal by
+   `amp * sin(2π s / λ)`, where s is how far along the line the point is.
+   A corner is not a special case any more: the line curves and the wave
+   goes round with it. There is no phase grid, because the phase is the
+   distance travelled; there are no flats, because there is nothing to
+   protect; and where the border is at any point is the one line of
+   arithmetic above rather than a second implementation of the drawing.
+
+   The wavelength is stretched a hair so a whole number of waves fits the
+   line exactly, which is what makes a closed border meet itself and an
+   open run start and end on the baseline.
    ------------------------------------------------------------------ */
-/* From a sine to a coil.
- *
- * The shape of a half-wave is decided entirely by where its two control
- * points sit ALONG the run. Inset them (the old 0.36 / 0.64) and the curve
- * leaves the baseline at a slope, which is precisely what makes a sine look
- * like a sine. Put them directly above the two endpoints and the curve
- * leaves the baseline vertically: the hump becomes a half-ellipse, and a
- * row of them reads as the arcs of an inductor symbol rather than a ripple.
- *
- * The direction alternates: every second arc turns over, so a run reads as
- * a wave rather than as the row of same-way humps it was for a while. The
- * side the FIRST arc takes is the caller's, and `phase` carries that
- * choice across a run that had to be cut short — see wavyPath, where the
- * arcs an arrowhead covers are dropped without moving the rest.
- *
- * A cubic cannot BE a half-circle, but controls at 4/3 of the amplitude
- * make it peak at exactly `amp` and stay within about 3% of the true arc
- * everywhere else, which is nowhere near visible at these sizes. Because
- * `amp` is free of the step width, the arcs are half-ELLIPSES: numerous
- * and shallow, which is what was asked for — a true half-circle's height
- * is locked to half its width and would be far too tall. */
-const WAVE_K = 4/3;
-/* …and from a coil back to a squiggle.
- *
- * The half-ellipses read as a row of scallops, which on a box looked like a
- * jigsaw piece and on a line like a string of beads. What was asked for is
- * the hand-drawn squiggle: short, shallow, and SMOOTH through the baseline.
- * That is a sine, and a cubic makes a very good half-sine when its two
- * controls stand in from the ends by 4/(3π) of the arc — the slope it then
- * leaves the baseline at is exactly the sine's, and the peak is still 3/4
- * of the control height. The phase grid, the alternation and the whole
- * arcs are unchanged; only where the controls stand along the run is. */
-const WAVE_CTRL = 4 / (3 * Math.PI);
-/* Where along its own arc a point of the wave is, given how far along the
-   run it is — the inverse of the cubic's x(t), which with inset controls
-   is no longer a simple smoothstep. Newton from the identity; six steps
-   land well inside a hundredth of a unit. */
-function waveParamAt(u){
-  const k = WAVE_CTRL;
-  let t = Math.max(0, Math.min(1, u));
-  for(let i = 0; i < 6; i++){
-    const mt = 1 - t;
-    const x = 3*k*t*mt*mt + 3*(1 - k)*t*t*mt + t*t*t;
-    const dx = 3*k*mt*mt + 6*(1 - 2*k)*t*mt + 3*k*t*t;
-    if(Math.abs(dx) < 1e-6) break;
-    t = Math.max(0, Math.min(1, t - (x - u)/dx));
+/* How finely the line is walked, as a fraction of one wavelength. Eight
+   steps a wave is smooth at these amplitudes and keeps the drawn path
+   short enough not to matter. */
+/* How many samples one wavelength is drawn from. The wave is emitted as
+   CURVES rather than as a chain of straight segments (see smoothPath), and
+   a curve through six points a wavelength is smoother than a polyline
+   through ten was — and shorter to write down. A sine drawn as line
+   segments is a zigzag with the corners rounded off by nothing at all:
+   at the sizes this chart is read at, the eye finds every one of them. */
+const WAVE_STEP_DIV = 6;
+/* The line itself, as points, with its corners already rounded — a
+   rounded polyline sampled at roughly `step` apart, carrying the distance
+   travelled with each point so the wave knows where it is. */
+function sampleRounded(pts, r, step){
+  const out = [];
+  let run = 0;
+  const push = (x, y)=>{
+    const last = out[out.length-1];
+    if(last){
+      const d = Math.hypot(x - last.x, y - last.y);
+      if(d < 1e-9) return;
+      run += d;
+    }
+    out.push({x, y, s: run});
+  };
+  const line = (ax, ay, bx, by)=>{
+    const len = Math.hypot(bx-ax, by-ay);
+    const n = Math.max(1, Math.ceil(len / step));
+    for(let i = 1; i <= n; i++) push(ax + (bx-ax)*i/n, ay + (by-ay)*i/n);
+  };
+  const quad = (ax, ay, cx, cy, bx, by)=>{
+    const rough = Math.hypot(cx-ax, cy-ay) + Math.hypot(bx-cx, by-cy);
+    const n = Math.max(2, Math.ceil(rough / step));
+    for(let i = 1; i <= n; i++){
+      const t = i/n, mt = 1 - t;
+      push(mt*mt*ax + 2*mt*t*cx + t*t*bx, mt*mt*ay + 2*mt*t*cy + t*t*by);
+    }
+  };
+  if(!pts || pts.length < 2) return out;
+  push(pts[0].x, pts[0].y);
+  let from = {x: pts[0].x, y: pts[0].y};
+  for(let i = 1; i < pts.length - 1; i++){
+    const a = pts[i-1], c = pts[i], b = pts[i+1];
+    const l1 = Math.hypot(c.x-a.x, c.y-a.y), l2 = Math.hypot(b.x-c.x, b.y-c.y);
+    if(l1 < 1e-9 || l2 < 1e-9) continue;
+    const rr = Math.max(0, Math.min(r, l1/2, l2/2));
+    const inX = c.x + (a.x-c.x)/l1*rr, inY = c.y + (a.y-c.y)/l1*rr;
+    const outX = c.x + (b.x-c.x)/l2*rr, outY = c.y + (b.y-c.y)/l2*rr;
+    line(from.x, from.y, inX, inY);
+    quad(inX, inY, c.x, c.y, outX, outY);
+    from = {x: outX, y: outY};
   }
-  return t;
+  const end = pts[pts.length-1];
+  line(from.x, from.y, end.x, end.y);
+  return out;
 }
-/* Amplitude is DERIVED from the spacing unless a caller says otherwise. A
-   semicircle's height is half its width, so once the spacing is chosen the
-   radius follows — and letting the two be set independently at every call
-   site is how the old wave drifted into looking like a squashed sine. One
-   dial, how long an arc should be, and the shape comes out consistent.
-
-   The one caller that overrides it is the pocket border (POCKET_LIFT),
-   which needs a deliberately shallower ripple for the reasons given there.
-
-   This also self-regulates on short runs: `bumps` is rounded from the run
-   length, so `step` never strays far from the target and the radius cannot
-   blow up on a stub. */
-/* The arc pitch is FIXED, never fitted to the run.
+/* A smooth line through a row of points.
  *
- * It used to be runLen/bumps, so every run stretched or squeezed its arcs
- * a little to come out even. That made the texture depend on the length of
- * the run it happened to be on — and, worse, on whether the connector had
- * arrowheads, since a head shortens the run: adding one visibly re-pitched
- * the whole pattern. An arc is now always EDGE_WAVE_LEN long wherever it
- * appears, and the leftover goes to the flats at either end, so the same
- * connector keeps the same texture whatever is attached to it. */
-/* `phase` is which side the FIRST arc of this run bulges to, so a run that
-   is really the continuation of another can carry on alternating instead
-   of starting over. */
-function waveRun(ax, ay, ux, uy, nx, ny, from, bumps, step, phase, liftOverride){
-  const at = (dist, off)=>
-    `${(ax + ux*dist + nx*off).toFixed(2)},${(ay + uy*dist + ny*off).toFixed(2)}`;
-  const lift = (typeof liftOverride === 'number') ? liftOverride : EDGE_WAVE_PEAK * WAVE_K;
-  const start = phase || 0;
-  const inset = step * WAVE_CTRL;
-  let d = '';
-  for(let j=0; j<bumps; j++){
-    const s = from + j*step, e = s + step;
-    // Every second arc turns over, so the run is a wave and not a coil.
-    const side = ((j + start) % 2 === 0) ? lift : -lift;
-    d += ` C${at(s + inset, side)} ${at(e - inset, side)} ${at(e, 0)}`;
+ * Catmull-Rom, written out as cubic Béziers — the curve passes through
+ * every point it is given and its tangent at each one is the direction
+ * from the point before to the point after, which is exactly what a wave
+ * sampled at even distances wants. The alternative was to draw the samples
+ * as straight segments, and that is a zigzag: however finely a sine is
+ * sampled, every sample is a corner, and on a stroked line at any zoom the
+ * corners are what the eye picks up first.
+ *
+ * It is the only thing in this file that turns points into a path, so any
+ * line style built out of samples is smooth for free. */
+function smoothPath(pts, closed){
+  if(!pts || !pts.length) return '';
+  const f = (p)=> `${p.x.toFixed(2)},${p.y.toFixed(2)}`;
+  const list = pts.slice();
+  /* A closed outline is handed back with its last point on top of its
+     first; the curve closes itself, so the duplicate would only be a
+     zero-length segment with an undefined tangent. */
+  if(closed && list.length > 2){
+    const a = list[0], b = list[list.length-1];
+    if(Math.abs(a.x - b.x) < 1e-6 && Math.abs(a.y - b.y) < 1e-6) list.pop();
   }
-  return d;
+  if(list.length === 1) return `M${f(list[0])}`;
+  if(list.length === 2) return `M${f(list[0])} L${f(list[1])}`;
+  const n = list.length;
+  const at = (i)=> closed ? list[((i % n) + n) % n] : list[Math.max(0, Math.min(n - 1, i))];
+  let d = `M${f(list[0])}`;
+  const last = closed ? n : n - 1;
+  for(let i = 0; i < last; i++){
+    const p0 = at(i-1), p1 = at(i), p2 = at(i+1), p3 = at(i+2);
+    d += ` C${f({x: p1.x + (p2.x - p0.x)/6, y: p1.y + (p2.y - p0.y)/6})}` +
+         ` ${f({x: p2.x - (p3.x - p1.x)/6, y: p2.y - (p3.y - p1.y)/6})}` +
+         ` ${f(p2)}`;
+  }
+  return d + (closed ? ' Z' : '');
 }
-
+/* The wave's own length, once it has been stretched to fit `len` exactly.
+   Whole waves only: an open run then begins and ends on its baseline, and
+   a closed one meets itself. */
+function waveLambda(len, want){
+  const n = Math.max(1, Math.round(len / want));
+  return len / n;
+}
+/* How far the wave stands off the line at distance `s` along it. Positive
+   is to the LEFT of the direction of travel — (-dy, dx) — so a caller
+   choosing a sign is choosing a side. */
+function waveOffsetAt(s, amp, lam){
+  return amp * Math.sin(2 * Math.PI * s / lam);
+}
+/* The wave, as a path. `trim` (from, to) is the stretch actually drawn:
+   an arrowhead covers the rest, and the wave is faded out over half a
+   wavelength as it reaches a trimmed end so the visible line meets the
+   head on the baseline rather than half-way up a crest. */
+/* The points a wave is DRAWN from — the one place the shape exists.
+ *
+ * Everything that has to know where a wavy line really is reads this
+ * array: the path emitter below, and the border query that tells a
+ * connector where to stop (see pocketOutline). They cannot disagree about
+ * a sign, a phase or a corner, because there is only one answer and both
+ * of them read it. That is the whole point: the last three rounds each
+ * had a version of "the drawing moved and the connectors did not", and
+ * each was fixed by writing the same arithmetic out a second time. */
+function waveOffsetPoints(samples, amp, lam, from, to, closed){
+  if(!samples || !samples.length) return [];
+  const total = samples[samples.length-1].s;
+  const lo = Math.max(0, from || 0);
+  const hi = Math.min(total, (typeof to === 'number') ? to : total);
+  const fade = lam / 2;
+  const out = [];
+  for(let i = 0; i < samples.length; i++){
+    const p = samples[i];
+    if(p.s < lo - 1e-6 || p.s > hi + 1e-6) continue;
+    const a = samples[Math.max(0, i-1)], b = samples[Math.min(samples.length-1, i+1)];
+    let dx = b.x - a.x, dy = b.y - a.y;
+    const len = Math.hypot(dx, dy) || 1;
+    dx /= len; dy /= len;
+    /* The wave is faded out over half a wavelength as it reaches a trimmed
+       end, so the visible line meets whatever covers the rest — an
+       arrowhead, usually — on its baseline rather than half-way up a
+       crest. */
+    let k = 1;
+    if(!closed){
+      if(lo > 0.01) k = Math.min(k, Math.max(0, (p.s - lo) / fade));
+      if(hi < total - 0.01) k = Math.min(k, Math.max(0, (hi - p.s) / fade));
+    }
+    const off = waveOffsetAt(p.s, amp, lam) * k;
+    out.push({x: p.x - dy*off, y: p.y + dx*off, s: p.s, bx: p.x, by: p.y});
+  }
+  return out;
+}
+function wavyFromSamples(samples, amp, lam, from, to, closed){
+  return smoothPath(waveOffsetPoints(samples, amp, lam, from, to, closed), closed);
+}
 // Many small scallops rather than a few big ones: a fine ripple reads as
 // a deliberate frame, where a long slow wave just looks like a wobbly box.
-/* A squiggle, not a scallop: half-waves about as long as a stroke is wide
-   a few times over. See WAVE_CTRL. */
-const POCKET_WAVELEN = 6;
+/* A ripple, not a squiggle.
+ *
+ * Six was a zigzag: at that length the wave's own sides are steeper than
+ * they are long, so whatever it is drawn with — segments or curves — what
+ * the eye reads is a row of teeth. Ten gives each half-wave room to be a
+ * curve, and against an amplitude of one and a half it reads as an edge
+ * that ripples rather than as a saw. */
+const POCKET_WAVELEN = 10;
 // How far a ripple stands off its own baseline — the height of one
 // half-wave, and so how deep a pocket reality's border really is. Declared
 // here rather than up beside the other border constants because it is
@@ -484,103 +597,49 @@ const POCKET_WAVELEN = 6;
  * there. This sits between the two, and is only possible because the rings
  * share one phase grid (see wavySideCommands) and so stay exactly the ring
  * spacing apart however deep the ripple is. */
-/* The height of the CONTROLS; the ripple itself peaks at three quarters of
-   it — a little under two units, which is the hand-drawn look, and keeps
-   two rings four units apart well clear of each other. */
-const POCKET_LIFT = 2.1;
-/* One side of the pocket frame, from just past one corner to just short of
-   the next. The radius is held back at both ends so wavyRectPath can turn
-   the corner with an arc, the way every other box on the chart does. */
-/* One side of the frame. `phaseBase` is where this side begins measured
-   along its own axis from the ENTRY's own corner — which is what lets two
-   rings of the same entry lay their arcs on one shared grid.
- *
- * Centring each side's arcs in its own length, as this did, put every ring
- * on a phase of its own: a ring is longer than the one inside it, so their
- * crests drifted apart and met again around the frame, and two rings four
- * pixels apart could touch wherever they fell out of step. That is what
- * forced the ripple to be shallow enough to be barely visible. Anchored to
- * a shared grid the rings are parallel curves, exactly the ring spacing
- * apart at every point, and the ripple can have some depth again. */
-/* How one side of a rippled frame is divided.
- *
- * It was laid on a grid shared by every ring of the entry, whole arcs only,
- * with the remainder left flat — which at each corner could be most of an
- * arc of bare border. The arcs now fill the side exactly: as many as fit
- * at about POCKET_WAVELEN, stretched a hair to come out even, and every
- * side starts on the same foot. Rings a step apart differ in length by a
- * fraction of an arc, so their ripples still run nearly parallel, and at
- * this depth there is daylight between them wherever they drift. */
-function pocketSideLayout(len, r){
-  const straight = len - r*2;
-  if(straight < POCKET_WAVELEN * 1.5) return null;
-  const bumps = Math.max(1, Math.round(straight / POCKET_WAVELEN));
-  return {start: 0, bumps, W: straight / bumps, phase: 0};
-}
-function wavySideCommands(x1, y1, x2, y2, outX, outY, r, phaseBase){
-  const len = Math.hypot(x2-x1, y2-y1);
-  if(len < 2) return ` L${x2},${y2}`;
-  const ux = (x2-x1)/len, uy = (y2-y1)/len;
-  const sx = x1 + ux*r, sy = y1 + uy*r;          // start, past the last corner
-  const ex = x2 - ux*r, ey = y2 - uy*r;          // end, short of the next one
-  void phaseBase;
-  const lay = pocketSideLayout(len, r);
-  if(!lay) return ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
-  const {start, bumps, W, phase} = lay;
-  let d = ` L${(sx + ux*start).toFixed(2)},${(sy + uy*start).toFixed(2)}`;
-  d += waveRun(sx, sy, ux, uy, outX, outY, start, bumps, W, phase, POCKET_LIFT);
-  d += ` L${ex.toFixed(2)},${ey.toFixed(2)}`;
-  return d;
-}
-/* Held back from the rx an ordinary entry's rectangle uses. The radius and
-   the corner flat are both dead ground as far as the ripple is concerned —
-   between them they took sixteen pixels out of every side, which is two
-   whole scallops the frame never got to have, and the corners were the one
-   part of the border that stayed straight. */
+/* How far the ripple swings either side of the border it is drawn along.
+   Enough to read as an edge that ripples, and shallow enough that two
+   rings a step apart keep daylight between them. */
+const POCKET_AMP = 1.5;
+// Kept under its old name for the things measured against the ripple's
+// depth — see POCKET_DEEP, which is now simply the amplitude.
+const POCKET_LIFT = POCKET_AMP;
+/* Held back from the rx an ordinary entry's rectangle uses: the ripple
+   wants as much of each side as it can get, and a wave goes round a small
+   corner as happily as along a straight. */
 const POCKET_CORNER_R = 2.5;
-/* One side of that same wavy outline, on its own and left open. The edge
-   you grab to draw a connector is drawn as the border it lights up, so on
-   a pocket reality it has to wave exactly as the border does — a straight
-   bar across a rippled edge read as a separate object laid over the box.
-   Built from the same wavySideCommands the whole outline is built from, so
-   the two can never drift apart. */
-function wavySideOpenPath(x, y, w, h, side, grow){
-  const r = Math.max(0, Math.min(POCKET_CORNER_R, w/2 - 1, h/2 - 1));
-  const c = {
-    top:    [x,     y,     x+w,   y,      0, -1],
-    right:  [x+w,   y,     x+w,   y+h,    1,  0],
-    bottom: [x+w,   y+h,   x,     y+h,    0,  1],
-    left:   [x,     y+h,   x,     y,     -1,  0]
-  }[side];
-  if(!c) return '';
-  const len = Math.hypot(c[2]-c[0], c[3]-c[1]) || 1;
-  const ux = (c[2]-c[0])/len, uy = (c[3]-c[1])/len;
-  const sx = c[0] + ux*r, sy = c[1] + uy*r;
-  return `M${sx.toFixed(2)},${sy.toFixed(2)}` +
-    wavySideCommands(c[0], c[1], c[2], c[3], c[4], c[5], r, -(grow || 0));
+/* The outline, waved. Nothing here knows about sides, corners or phases:
+   the rounded rectangle is walked and the wave is laid along it, so it
+   closes on itself and turns its corners like any other part of the line. */
+function wavyRectPath(x, y, w, h){
+  const o = pocketOutline(x, y, w, h);
+  if(!o) return roundedRectPath(x, y, w, h, POCKET_CORNER_R);
+  return wavyFromSamples(o.samples, -POCKET_AMP, o.lam, 0, o.total, true);
 }
-/* `grow` is how far outside the entry's own box this ring sits, which is
-   all the shared grid needs: a ring `g` out starts each of its sides `g`
-   before the entry's corner. */
-function wavyRectPath(x, y, w, h, grow){
-  const r = Math.max(0, Math.min(POCKET_CORNER_R, w/2 - 1, h/2 - 1));
-  const g = grow || 0;
-  const corners = [
-    [x,     y,     x+w,   y,      0, -1],   // top,    bulging up
-    [x+w,   y,     x+w,   y+h,    1,  0],   // right,  bulging right
-    [x+w,   y+h,   x,     y+h,    0,  1],   // bottom, bulging down
-    [x,     y+h,   x,     y,     -1,  0]    // left,   bulging left
-  ];
-  let d = `M${(x + r).toFixed(2)},${y}`;
-  corners.forEach((c, i)=>{
-    d += wavySideCommands(c[0], c[1], c[2], c[3], c[4], c[5], r, -g);
-    // Round into the next side.
-    const nxt = corners[(i+1) % corners.length];
-    const nl = Math.hypot(nxt[2]-nxt[0], nxt[3]-nxt[1]) || 1;
-    const vx = (nxt[2]-nxt[0])/nl, vy = (nxt[3]-nxt[1])/nl;
-    d += ` Q${c[2]},${c[3]} ${(c[2] + vx*r).toFixed(2)},${(c[3] + vy*r).toFixed(2)}`;
-  });
-  return d + ' Z';
+/* A plain rounded rectangle, for the entry too small to carry a wave. */
+function roundedRectPath(x, y, w, h, r){
+  const rr = Math.max(0, Math.min(r, w/2, h/2));
+  return `M${(x+rr).toFixed(2)},${y.toFixed(2)} H${(x+w-rr).toFixed(2)}` +
+         ` Q${(x+w).toFixed(2)},${y.toFixed(2)} ${(x+w).toFixed(2)},${(y+rr).toFixed(2)}` +
+         ` V${(y+h-rr).toFixed(2)} Q${(x+w).toFixed(2)},${(y+h).toFixed(2)} ${(x+w-rr).toFixed(2)},${(y+h).toFixed(2)}` +
+         ` H${(x+rr).toFixed(2)} Q${x.toFixed(2)},${(y+h).toFixed(2)} ${x.toFixed(2)},${(y+h-rr).toFixed(2)}` +
+         ` V${(y+rr).toFixed(2)} Q${x.toFixed(2)},${y.toFixed(2)} ${(x+rr).toFixed(2)},${y.toFixed(2)} Z`;
+}
+/* One side of that same outline, left open: the strip a reader grabs to
+   draw a connector is the border lit up, so it has to be the very same
+   curve. Cut out of the outline's own samples rather than drawn again. */
+function wavySideOpenPath(x, y, w, h, side){
+  const o = pocketOutline(x, y, w, h);
+  if(!o) return '';
+  const r = o.r;
+  const ends = {
+    top:    [o.distAt('top', x + r, y), o.distAt('top', x + w - r, y)],
+    right:  [o.distAt('right', x + w, y + r), o.distAt('right', x + w, y + h - r)],
+    bottom: [o.distAt('bottom', x + w - r, y + h), o.distAt('bottom', x + r, y + h)],
+    left:   [o.distAt('left', x, y + h - r), o.distAt('left', x, y + r)]
+  }[side];
+  if(!ends) return '';
+  return wavyFromSamples(o.samples, -POCKET_AMP, o.lam, ends[0], ends[1], false);
 }
 
 // ---- obstacle-avoiding orthogonal routing -------------------------------

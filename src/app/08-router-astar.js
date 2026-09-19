@@ -480,7 +480,7 @@ function unfoldEnds(pts, p1, p2){
    semicircle needs — but the squiggle is a sine, and a sine's height is
    its own. Matched to the pocket border's, so a wavy connector leaving a
    pocket reality is visibly the same line as the edge it leaves. */
-const EDGE_WAVE_LEN = 6;
+const EDGE_WAVE_LEN = 14;
 const EDGE_WAVE_PEAK = 1.6;
 /* The wave goes quiet well before a bend and only picks up again well
    after it. A corner is where the eye reads the line's direction, and a
@@ -492,12 +492,8 @@ const EDGE_WAVE_PEAK = 1.6;
    longer sine, and against a 7-unit semicircle they read as long bald
    patches. Cut to about the length of a single arc: enough to keep a
    corner legible, short enough that the line reads as wavy throughout. */
-/* …and now none at all. A bare stretch either side of every bend was the
-   thing that made a wavy line read as broken at its corners; the corner
-   radius is small on a wavy line (see WAVY_CORNER_R) and the arcs run
-   right up to it. */
-const EDGE_WAVE_END_FLAT = 0, EDGE_WAVE_CORNER_FLAT = 0;
-const WAVY_CORNER_R = 2.5;
+/* Nothing stands between the wave and a bend any more: the line is drawn
+   first, corners and all, and the wave is run along it — see wavyPath. */
 /* Collinear points are not corners.
  *
  * A routed connector always carries a short stub at each end, standing the
@@ -540,129 +536,30 @@ function mergeCollinear(pts){
 function wavyPath(rawPts, trimIn, trimOut){
   const cutIn = Math.max(0, trimIn || 0), cutOut = Math.max(0, trimOut || 0);
   const pts = mergeCollinear(rawPts);
-  let total = 0;
-  for(let i=0;i<pts.length-1;i++) total += Math.hypot(pts[i+1].x-pts[i].x, pts[i+1].y-pts[i].y);
-  const last = pts[pts.length-1];
-  if(total < 4) return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
-
-  // The visible path begins and ends inside the geometry the wave is laid
-  // out on, by however much the arrowheads cover.
-  const headStart = (()=>{
-    const b = pts[1] || last, L = Math.hypot(b.x-pts[0].x, b.y-pts[0].y) || 1;
-    const k = Math.min(cutIn, L);
-    return {x: pts[0].x + (b.x-pts[0].x)/L*k, y: pts[0].y + (b.y-pts[0].y)/L*k};
-  })();
-  let d = `M${headStart.x.toFixed(2)},${headStart.y.toFixed(2)}`;
-  for(let i=0;i<pts.length-1;i++){
-    const a = pts[i], b = pts[i+1];
-    const len = Math.hypot(b.x-a.x, b.y-a.y);
-    if(len < 0.5) continue;
-    const ux = (b.x-a.x)/len, uy = (b.y-a.y)/len;
-    let nx = -uy, ny = ux;
-    /* Which side the arcs bulge toward.
-     *
-     * The left normal is an arbitrary choice, and on an elbow it was the
-     * wrong one: both runs ended up bulging into the corner the connector
-     * turns around, so the arcs crowded the inside of the bend and the
-     * elbow read as pinched. They belong on the outside, where there is
-     * room and where they follow the line's own sweep.
-     *
-     * "Outside" is decided by where the path goes next. At the far end, the
-     * following run heads to the inside of the turn, so the normal is
-     * flipped when it agrees with that direction; at the near end the run
-     * we came FROM is on the inside, so the test is the same one reversed.
-     * A run bent at both ends votes twice — the two agree on an elbow, and
-     * cancel on an S-bend, where neither side is outside and the default
-     * stands. */
-    let vote = 0;
-    const nextP = pts[i+2], prevP = pts[i-1];
-    /* A neighbour that continues straight on has a dot product of exactly
-       zero with the normal. That is not a vote for the far side — it is no
-       vote at all, and counting it as one (which `> 0 ? 1 : -1` did) was
-       enough to keep a straight connector from ever reaching its default. */
-    const VOTE_EPS = 1e-6;
-    if(nextP){
-      const d = (nextP.x - b.x)*nx + (nextP.y - b.y)*ny;
-      if(Math.abs(d) > VOTE_EPS) vote += d > 0 ? 1 : -1;
-    }
-    if(prevP){
-      const d = (prevP.x - a.x)*nx + (prevP.y - a.y)*ny;
-      if(Math.abs(d) > VOTE_EPS) vote += d > 0 ? 1 : -1;
-    }
-    if(vote > 0){ nx = -nx; ny = -ny; }
-    else if(vote === 0){
-      /* A straight connector has no turn to take its cue from, and the
-         left normal is not a meaningful default — on a horizontal run it
-         points DOWN, so an unbent connector hung its arcs below the line
-         when everything else on the chart (a note, a leader card) sits
-         above it. Same convention as those: up for a horizontal run, left
-         for a vertical one. */
-      if(Math.abs(ny) > Math.abs(nx) ? ny > 0 : nx > 0){ nx = -nx; ny = -ny; }
-    }
-    /* Corners are rounded here exactly as they are on a plain connector.
-       A wavy line used to turn square while every other line on the chart
-       turned with a radius, so a chart mixing the two looked like two
-       different drawings. The radius is taken out of the run at each end
-       that HAS a corner, and the flat sits inside what is left — so the
-       wave still stops short of the bend rather than running into the arc. */
-    const isFirst = (i === 0), isLast = (i === pts.length-2);
-    const prevSeg = isFirst ? 0 : Math.hypot(a.x-pts[i-1].x, a.y-pts[i-1].y);
-    const nextSeg = isLast  ? 0 : Math.hypot(pts[i+2].x-b.x, pts[i+2].y-b.y);
-    // Two corners sharing this leg get half of it each, so their arcs
-    // cannot overlap — the same rule roundedPath uses.
-    const rIn  = isFirst ? 0 : Math.min(WAVY_CORNER_R, len/2, prevSeg/2);
-    const rOut = isLast  ? 0 : Math.min(WAVY_CORNER_R, len/2, nextSeg/2);
-    const straight = len - rIn - rOut;
-
-    const cap = straight / 3;
-    const flatIn  = Math.min(isFirst ? EDGE_WAVE_END_FLAT : EDGE_WAVE_CORNER_FLAT, cap);
-    const flatOut = Math.min(isLast  ? EDGE_WAVE_END_FLAT : EDGE_WAVE_CORNER_FLAT, cap);
-    const runLen = straight - flatIn - flatOut;
-    const from = rIn + flatIn;
-    /* What an arrowhead covers on THIS leg, as distances measured from a.
-       Only the two outermost legs have a head on them. */
-    const lo = isFirst ? cutIn : 0;
-    const hi = isLast ? Math.max(lo, len - cutOut) : len;
-    const stopAt = Math.min(hi, len - rOut);
-    const ptAt = (t)=> `${(a.x + ux*t).toFixed(2)},${(a.y + uy*t).toFixed(2)}`;
-    if(runLen < EDGE_WAVE_LEN * 1.5){
-      // Too short to carry a whole wave: this run stays straight.
-      d += ` L${ptAt(stopAt)}`;
-    } else {
-      /* As many arcs as fit at about EDGE_WAVE_LEN, stretched a hair to
-         fill the run exactly — no bare remainder at either end. The run
-         is the whole leg whatever arrowheads it carries (they only hide
-         arcs; see below), so a head still never re-pitches the ripple. */
-      const bumps = Math.max(1, Math.round(runLen / EDGE_WAVE_LEN));
-      const pitch = runLen / bumps;
-      const start = from;
-      // Only the arcs that lie clear of both arrowheads are drawn. The
-      // rest of the leg is flat, and every drawn arc keeps the exact
-      // position it would have had with no heads at all.
-      let first = 0, count = bumps;
-      while(first < bumps && start + first*pitch < lo - 0.01) first++;
-      while(count > first && start + count*pitch > hi + 0.01) count--;
-      if(count > first){
-        const s0 = start + first*pitch;
-        d += ` L${ptAt(Math.max(lo, Math.min(s0, stopAt)))}`;
-        /* Carrying the phase across the arcs an arrowhead covers. The arcs
-           alternate sides, and the run is drawn starting from whichever
-           one is first VISIBLE — so without this the whole ripple flipped
-           over the moment a head hid an odd number of arcs, which is the
-           pattern shifting all over again by another route. */
-        d += waveRun(a.x, a.y, ux, uy, nx, ny, s0, count - first, pitch, first % 2);
-      }
-      d += ` L${ptAt(stopAt)}`;
-    }
-    if(!isLast){
-      // Around the corner and onto the next leg.
-      const c = pts[i+2];
-      const nl = Math.hypot(c.x-b.x, c.y-b.y) || 1;
-      const vx = (c.x-b.x)/nl, vy = (c.y-b.y)/nl;
-      d += ` Q${b.x},${b.y} ${(b.x + vx*rOut).toFixed(2)},${(b.y + vy*rOut).toFixed(2)}`;
-    }
+  const samples = sampleRounded(pts, EDGE_CORNER_R, EDGE_WAVE_LEN / WAVE_STEP_DIV);
+  if(samples.length < 3){
+    const last = pts[pts.length-1];
+    return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
   }
-  return d;
+  const total = samples[samples.length-1].s;
+  if(total < EDGE_WAVE_LEN * 2){
+    const last = pts[pts.length-1];
+    return `M${pts[0].x},${pts[0].y} L${last.x},${last.y}`;
+  }
+  const lam = waveLambda(total, EDGE_WAVE_LEN);
+  /* Which side the wave leans to first. A wave visits both sides, so this
+     only fixes where it STARTS: up for a line setting off horizontally,
+     left for one setting off downward — the same side a note or a leader
+     card takes. */
+  const a0 = samples[0], a1 = samples[Math.min(2, samples.length-1)];
+  const dx = a1.x - a0.x, dy = a1.y - a0.y;
+  const nx = -dy, ny = dx;
+  const leansWrong = Math.abs(ny) > Math.abs(nx) ? ny > 0 : nx > 0;
+  const amp = leansWrong ? -EDGE_WAVE_PEAK : EDGE_WAVE_PEAK;
+  /* The wave is laid on the WHOLE line and only the part the arrowheads
+     leave is drawn, so turning a head on hides a stretch of ripple and
+     never shifts the pattern. */
+  return wavyFromSamples(samples, amp, lam, cutIn, total - cutOut, false);
 }
 // The arrowhead's "overall direction" is the tangent of the underlying
 // straight/elbowed SKELETON path at its very last point — never the

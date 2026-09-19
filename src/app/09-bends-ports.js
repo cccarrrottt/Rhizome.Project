@@ -53,12 +53,78 @@ function absorbBendOffsets(s1, bends, s2){
  * target's, and every leg in between starts on whichever axis the leg
  * before it finished on — so the run reads as one line turning corners
  * rather than as a chain of separate elbows. */
+/* A bend INSIDE one of the two entries is not a route at all.
+ *
+ * It can be dropped there — the handles are dragged over the chart and
+ * nothing stops one being let go on a box — and once there it asks for
+ * something impossible: the route ENDS at that entry's border, so a point
+ * in its middle can only be reached by driving through the box and coming
+ * back out. Every shape that satisfies it is worse than the shape that
+ * ignores it, so it is ignored. The handle stays where it was dropped and
+ * can be pulled back out into the open, where it means something again. */
+function usableHandBends(style, a, b){
+  const list = handBends(style);
+  if(!list.length) return list;
+  const m = 1.5;
+  const boxes = [a, b].filter(Boolean)
+    .map(n=> ({x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m}));
+  if(!boxes.length) return list;
+  return list.filter(p=> !boxes.some(r=> p.x > r.x0 && p.x < r.x1 && p.y > r.y0 && p.y < r.y1));
+}
+/* The two boxes a hand-bent route may not run THROUGH: its own.
+ *
+ * Everything else on the chart it is allowed to cross — a route placed by
+ * hand is a statement, and dodging things is exactly what it was placed
+ * instead of. Its own two entries are the exception, because it does not
+ * cross them either: it ENDS on them. A line that dives through the box it
+ * is arriving at and comes back up into the port from underneath is not a
+ * deliberate route, it is the only shape the L happened to have. */
+function ownEndBoxes(p1, p2){
+  const m = 1.5;   // the border itself belongs to the connector
+  return [p1, p2].map(p=> nodes.get(p && p.owner)).filter(Boolean)
+    .map(n=> ({x0:n.x + m, y0:n.y + m, x1:n.x + n.w - m, y1:n.y + n.h - m}));
+}
 function bentRoute(p1, p2, handBendsList){
   const s1 = stubPoint(p1, handBendsList[0]);
   const s2 = stubPoint(p2, handBendsList[handBendsList.length - 1]);
   const bends = absorbBendOffsets(s1, handBendsList, s2);
   const chain = [s1, ...bends, s2];
   const out = [p1, s1];
+  const boxes = ownEndBoxes(p1, p2);
+  const cuts = (u, v)=> boxes.some(r=> segIntersectsRect(u.x, u.y, v.x, v.y, r));
+  const clearRun = (pts)=> pts.every((q, k)=> !k || !cuts(pts[k-1], q));
+  /* How far outside a box a detour stands. A corner's radius and a little,
+     so the turn has room to round without touching the border. */
+  const BEND_DODGE = EDGE_CORNER_R + 4;
+  /* One leg of the chain, as the points BETWEEN its two ends.
+   *
+   * An L where an L is clear, which is almost always; where it is not, a
+   * Z round the outside of whichever entry was in the way. The Z keeps
+   * the axis the leg has to finish on, so a last leg still arrives along
+   * its port's normal — it simply gets clear of the box first, on a line
+   * chosen from the box's own edges. Without it a bend placed level with
+   * its own entry, on the far side from where the connector is going,
+   * drew a line straight across the box: the route reversed at the bend,
+   * and a reversal is drawn as one straight run through everything
+   * between its two ends. */
+  const legVia = (a, b, firstAxis)=>{
+    const corner = firstAxis === 'x' ? {x:b.x, y:a.y} : {x:a.x, y:b.y};
+    if(clearRun([a, corner, b])) return [corner];
+    const lanes = [];
+    boxes.forEach(r=>{
+      if(firstAxis === 'x'){ lanes.push(r.y0 - BEND_DODGE, r.y1 + BEND_DODGE); }
+      else { lanes.push(r.x0 - BEND_DODGE, r.x1 + BEND_DODGE); }
+    });
+    const from = firstAxis === 'x' ? a.y : a.x;
+    lanes.sort((u, v)=> Math.abs(u - from) - Math.abs(v - from));
+    for(const lane of lanes){
+      const via = firstAxis === 'x'
+        ? [{x:a.x, y:lane}, {x:b.x, y:lane}]
+        : [{x:lane, y:a.y}, {x:lane, y:b.y}];
+      if(clearRun([a, via[0], via[1], b])) return via;
+    }
+    return [corner];
+  };
   // Which axis the previous leg arrived on: 'x' means it was horizontal.
   const n1 = SIDE_NORMAL[p1.side] || {x:0, y:-1};
   let arrived = n1.x ? 'x' : 'y';
@@ -72,11 +138,24 @@ function bentRoute(p1, p2, handBendsList){
       const n2 = SIDE_NORMAL[p2.side] || {x:0, y:-1};
       firstAxis = n2.x ? 'y' : 'x';
     } else {
-      // Carry on across the axis the last leg ended on.
+      // Carry on across the axis the last leg ended on…
       firstAxis = arrived === 'x' ? 'y' : 'x';
+      /* …unless carrying on takes the leg through one of the two entries
+         and turning first does not. Continuity is a preference — it is
+         what makes a chain of bends read as one line rather than as a row
+         of elbows — and an L has two ways round, both of which pass
+         through the same two points. Preferring the one that stays
+         outside the boxes costs nothing when both are clear, which is
+         nearly always, and is the difference between a bend placed below
+         an entry being reached round it or straight through it. */
+      const alt = firstAxis === 'x' ? 'y' : 'x';
+      const bad = (axis)=>{
+        const c = axis === 'x' ? {x:b.x, y:a.y} : {x:a.x, y:b.y};
+        return cuts(a, c) || cuts(c, b);
+      };
+      if(bad(firstAxis) && !bad(alt)) firstAxis = alt;
     }
-    const corner = firstAxis === 'x' ? {x:b.x, y:a.y} : {x:a.x, y:b.y};
-    out.push(corner, b);
+    out.push(...legVia(a, b, firstAxis), b);
     arrived = firstAxis === 'x' ? 'y' : 'x';
   }
   out.push(p2);
@@ -102,9 +181,21 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
      the same either way. So the routing is done at the longer clearance
      always, and the arrows go on affecting only what is DRAWN — where the
      line stops at the border, and whether there is a head there at all. */
-  const nearWave = !!(p1 && p1.wavy) || !!(p2 && p2.wavy);
-  const q1 = nearWave ? Object.assign({}, r1, {head: true}) : r1;
-  const q2 = nearWave ? Object.assign({}, r2, {head: true}) : r2;
+  /* …and that is true of every connector, not only the ones at a pocket.
+   *
+     An arrowhead is a decoration on a relationship. Whether one is drawn
+     changes what is at the END of the line; it has no business changing
+     where the line GOES. It did: a head asks for a straight run to sit in,
+     so an end that had one was given a longer run-out, and a longer
+     run-out can change which crossbar the router picks — the same two
+     entries joined by a different shape depending on which arrowheads
+     happened to be switched on, and a wavy line re-fitted to a different
+     length underneath it. Routing at the longer clearance always makes
+     the route one answer, and the arrows go on affecting only what is
+     drawn: where the line stops at the border, and whether there is a
+     head there at all. */
+  const q1 = Object.assign({}, r1, {head: true});
+  const q2 = Object.assign({}, r2, {head: true});
   /* Bends set BY HAND take the route over.
    *
    * The automatic router is very good at "get from here to there without
@@ -116,7 +207,7 @@ function pathFromPorts(p1,p2,style,excludeIds,lane){
    * connector may be given points it must pass through, and where it has
    * them they ARE the route — no search, no avoidance, no second-guessing
    * a placement somebody made on purpose. */
-  const hand = handBends(style);
+  const hand = usableHandBends(style, nodes.get(p1 && p1.owner), nodes.get(p2 && p2.owner));
   const pts = sinkEnds(
     hand.length ? bentRoute(q1, q2, hand)
       : style.routing === 'straight' ? [p1,p2]
@@ -176,6 +267,15 @@ function avoidLeaderSide(n, side){
   if(!taken || taken !== side) return side;
   return (SIDE_FALLBACK[side] || [])[0] || side;
 }
+/* Whether a point is in FRONT of one side of a box — past its face,
+   where a connector leaving by that side is already heading. */
+function sideAheadOf(n, side, p){
+  const nrm = SIDE_NORMAL[side];
+  if(!n || !nrm || !p) return true;
+  const fx = nrm.x > 0 ? n.x + n.w : nrm.x < 0 ? n.x : n.x + n.w/2;
+  const fy = nrm.y > 0 ? n.y + n.h : nrm.y < 0 ? n.y : n.y + n.h/2;
+  return (p.x - fx) * nrm.x + (p.y - fy) * nrm.y > 0;
+}
 function resolvePorts(edgesList, sideOverrides){
   const ends = [];   // one entry per edge end
   edgesList.forEach(e=>{
@@ -184,12 +284,52 @@ function resolvePorts(edgesList, sideOverrides){
     const style = edgeStyleFor(e.from, e.to);
     const auto = autoSides(a,b);
     const over = sideOverrides && sideOverrides.get(e);
-    let fromSide = (over && over.fromSide) || style.fromSide || auto.from;
-    let toSide = (over && over.toSide) || style.toSide || auto.to;
+    /* A connector bent BY HAND takes its sides from the bends.
+     *
+     * The automatic guess is about where the two entries lie — which side
+     * of one faces the other — and it is the right question right up until
+     * somebody pins the route to points of their own. After that the two
+     * answers can disagree, and the disagreement is not a small one: the
+     * guess flips to another pair of sides the moment the entries are far
+     * enough apart on the other axis, and the route has to get from a port
+     * on a new side to a bend that has not moved. What it drew was a line
+     * that left the entry going one way, doubled back past it to reach the
+     * bend, and set off again — the knee JUMPING to the far side of its
+     * own entry as two boxes were pulled apart, on a connector whose route
+     * was supposed to be the one thing on the chart nothing could move.
+     *
+     * So the first port faces the first bend and the last port faces the
+     * last one. Both are then stable under any movement of the entries
+     * that leaves the bends where they are, which is what a route placed
+     * by hand promises. A side set by hand on the connector still wins
+     * over both. */
+    const bendChain = usableHandBends(style, a, b);
+    const firstBend = bendChain[0], lastBend = bendChain[bendChain.length - 1];
+    /* …and a side is given up only when the bend is BEHIND it.
+     *
+     * The automatic guess answers a different question from the bends —
+     * which side of one entry faces the other — and where the two
+     * disagree the guess wins, because it is about the pair and the bend
+     * is about one point. But it cannot win when the point it would send
+     * the line away from is behind the face it leaves by: then the route
+     * goes out, stops, and comes back past its own entry to reach a bend
+     * that has not moved, which is what the knee JUMPING to the far side
+     * of its box looked like when two entries were pulled apart far
+     * enough for the guess to flip. Facing the bend it is pinned to, the
+     * connector is stable under any movement that leaves the bends alone,
+     * which is what a route placed by hand promises. A side set by hand
+     * still wins over both. */
+    const autoFrom = (firstBend && !sideAheadOf(a, auto.from, firstBend))
+      ? sideFacing(a, firstBend.x, firstBend.y) : auto.from;
+    const autoTo = (lastBend && !sideAheadOf(b, auto.to, lastBend))
+      ? sideFacing(b, lastBend.x, lastBend.y) : auto.to;
+    let fromSide = (over && over.fromSide) || style.fromSide || autoFrom;
+    let toSide = (over && over.toSide) || style.toSide || autoTo;
     /* …but never the side a callout's own leader already occupies. */
     fromSide = avoidLeaderSide(a, fromSide);
     toSide = avoidLeaderSide(b, toSide);
-    ends.push({edge:e, end:'from', nodeId:e.from, node:a, side:fromSide, ring:style.fromRing, other:b});
+    ends.push({edge:e, end:'from', nodeId:e.from, node:a, side:fromSide, ring:style.fromRing,
+               other:b, merged: !!over});
     ends.push({edge:e, end:'to',   nodeId:e.to,   node:b, side:toSide,   ring:style.toRing,   other:a});
   });
 
@@ -216,8 +356,8 @@ function resolvePorts(edgesList, sideOverrides){
     list.sort((m1,m2)=> byX
       ? (m1.other.x+m1.other.w/2) - (m2.other.x+m2.other.w/2)
       : (m1.other.y+m1.other.h/2) - (m2.other.y+m2.other.h/2));
-    list.forEach((en,i)=>{
-      const p = portOnSide(en.node, en.side, i, list.length, en.ring||0);
+    const seat = (en, i, count)=>{
+      const p = portOnSide(en.node, en.side, i, count, en.ring||0);
       if(!result.has(en.edge)) result.set(en.edge, {lane:0});
       const rec = result.get(en.edge);
       if(en.end==='from'){ rec.p1 = p; }
@@ -226,83 +366,51 @@ function resolvePorts(edgesList, sideOverrides){
       // offset, so connectors leaving a crowded side each bend through
       // their own mid-line rather than all sharing one.
       rec.lane = Math.max(rec.lane, i*12);
-    });
+    };
+    /* A lineage feeding a MERGE leaves by the MIDDLE of its side.
+     *
+     * Everything else about a merge is symmetric — the bar hangs level,
+     * the landings are spread about their own middle, the arrow leaves
+     * from the centre of the entry's edge — and the one place it was not
+     * was where the lineage left its own parent: the even share along
+     * that side put it a third or a fifth of the way along, so the line
+     * came out of the box beside the middle and the bar had to be built
+     * around where it happened to land. Off-centre by a few pixels reads
+     * as a mistake on a construction that is otherwise plumb.
+     *
+     * So the merged lineages take the middle of the side and share it
+     * between themselves when a parent feeds more than one merge from the
+     * same edge — which is the same even share, about the same centre.
+     * The ordinary connectors on that side then take the slots FURTHEST
+     * from the middle out of the fan they would all have shared, so they
+     * neither land on a lineage nor bunch up on one side of it. */
+    const mergedEnds = list.filter(en=> en.merged);
+    const plainEnds = list.filter(en=> !en.merged);
+    if(mergedEnds.length && plainEnds.length){
+      const total = list.length;
+      const outward = [...Array(total).keys()]
+        .sort((p,q)=> Math.abs((q+1)/(total+1) - 0.5) - Math.abs((p+1)/(total+1) - 0.5));
+      const slots = outward.slice(0, plainEnds.length).sort((p,q)=> p - q);
+      plainEnds.forEach((en, k)=> seat(en, slots[k], total));
+      mergedEnds.forEach((en, k)=> seat(en, k, mergedEnds.length));
+    } else {
+      list.forEach((en, i)=> seat(en, i, list.length));
+    }
   });
-  alignFacingPorts(result);
+  /* Nothing is straightened by moving the ports. A pair of facing ports a
+     few pixels out of line used to be brought into line by sliding both
+     along their sides — and the price was that the ends of a connector
+     moved whenever either entry was carried, which is the one thing an
+     end must never do. The step is the route's problem now, and the route
+     is where it can be seen. */
   return result;
 }
 
-/* Two ports that very nearly line up are made to line up exactly.
- *
- * A connector between two entries whose facing edges are a few pixels out
- * of true has to get from one to the other somehow, and an orthogonal
- * router's only answer is a step: out, across four pixels, and on. Two
- * corners and a stub, for a misalignment nobody meant and nobody can see —
- * it reads as a fault in the drawing rather than as a fact about the
- * chart, and it is the first thing anyone notices on a page full of
- * otherwise straight lines. Drawing tools handle this at the port rather
- * than in the router, and so does this: a port's place along its side is
- * ours to choose, so a few pixels of that freedom are spent closing the
- * gap and the connector comes out dead straight.
- *
- * Only ports that FACE each other, only a misalignment small enough to be
- * an accident, and only as far as each side's spacing allows — a side with
- * four connectors on it has almost no room and gives almost none. Past
- * that the step stays, because then it is a real offset and hiding it
- * would move the connector somewhere it does not belong. */
-/* Whether an entry is a merge with lineages actually flowing into it —
-   the case whose ports belong to the bar rather than to the pair. */
-function isAmalgamTarget(id){
-  const n = nodes.get(id);
-  return !!n && (n.shape || '') === 'amalgam' &&
-         Array.isArray(n.parents) && n.parents.length > 1;
-}
-/* How far apart two facing ports may be and still be brought into line.
-   Raised from fourteen once the slack calculation proved to be the real
-   limiter: a side with one connector on it has room to spare, and an
-   offset of twenty pixels between two entries in a column is exactly the
-   accident this exists to absorb. A side with several connectors still
-   gives almost nothing, because portSlack still governs. */
-const PORT_ALIGN_MAX = 26;
-function alignFacingPorts(result){
-  result.forEach((rec, e)=>{
-    const p1 = rec.p1, p2 = rec.p2;
-    if(!p1 || !p2) return;
-    /* A lineage feeding a MERGE is not straightened against the entry.
-     *
-     * Where it lands is decided by the bar — which hangs from the
-     * lineages themselves — and drawAmalgam spends the port's slack on
-     * that landing. Spending it here first tied the port to the AMALGAM'S
-     * own port instead, so sliding the entry sideways slid its parents'
-     * connectors along their edges to chase it: the coupling the bar's
-     * arithmetic had just been freed of, put back one step earlier. */
-    if(e && e.to && isAmalgamTarget(e.to)) return;
-    const n1 = SIDE_NORMAL[p1.side], n2 = SIDE_NORMAL[p2.side];
-    if(!n1 || !n2) return;
-    if(n1.x !== -n2.x || n1.y !== -n2.y) return;
-    const key = sideIsVertical(p1.side) ? 'x' : 'y';
-    const off = p2[key] - p1[key];
-    if(!off || Math.abs(off) > PORT_ALIGN_MAX) return;
-    // Both give way, so neither is dragged the whole distance off centre.
-    const moved = nudgePortAlong(p1, off/2);
-    const moved2 = nudgePortAlong(p2, -(off - moved));
-    /* …and when one of them cannot — a side shared out between several
-       connectors keeps its even spacing — the other takes the rest, as
-       far as its own slack still allows. It used to stop at half, and a
-       lone connector dropping onto a shared edge came down, stepped
-       sideways by the half it had not taken, and went on. */
-    const left = off - moved + moved2;
-    if(Math.abs(left) > 0.01){
-      const room = Math.max(0, portSlack(p1) - Math.abs(moved));
-      const more = Math.max(-room, Math.min(room, left));
-      if(Math.abs(more) > 0.01) movePortAlong(p1, more);
-    }
-    // And whatever the two sides' slack could not close is closed anyway,
-    // if it is small enough that a step would be a wobble. See PORT_SQUEEZE.
-    const rest = p2[key] - p1[key];
-    if(Math.abs(rest) > 0.01 && Math.abs(rest) <= PORT_SQUEEZE) movePortAlong(p1, rest);
-  });
-}
+/* Facing ports used to be brought into line here, by spending each
+   port's slack (see portSlack, which now gives none). The whole block —
+   PORT_ALIGN_CEILING, portAlignMax, alignFacingPorts — is gone rather
+   than left switched off: a connector's ends are fastened to their ports,
+   and nothing on the chart may slide them along a side. */
 
 // Reality-archetype rendering helpers. 'mirror' fills the box with its own
 // border color, so the label needs a contrast-checked text color instead of

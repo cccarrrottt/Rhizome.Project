@@ -298,7 +298,19 @@ function commitNodeEditorText(){
       return;
     }
     found.entry[1] = text;
-    putEntry(found.index, found.entry, entryOpts(found.entry));
+    /* Writing in an entry gives it back its own size.
+     *
+       A box dragged by its corner keeps exactly the size it was given —
+       which is right while the words stay put, and wrong the moment they
+       change: an entry shrunk by hand stayed shrunk however much was
+       typed into it, so the text simply disappeared past the border with
+       nothing on the chart to say why. Editing the words returns the box
+       to the size those words ask for, up to the width a box may reach;
+       past that the text is clipped, as it is anywhere else. The hand-set
+       size is a statement about a text, and this is a different text. */
+    const opts = entryOpts(found.entry);
+    delete opts.size;
+    putEntry(found.index, found.entry, opts);
   });
   if(labelPreview && labelPreview.id === id) labelPreview.original = text;
 }

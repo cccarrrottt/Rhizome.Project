@@ -82,6 +82,10 @@ function drawBendHandles(){
   }catch(e){ return; }
   while(host.firstChild) host.removeChild(host.firstChild);
   if(!target) return;
+  /* A lineage feeding a merge is not bent by hand — the merge decides
+     where it runs, so a handle here would offer a point that the next
+     redraw ignores. See the note in drawAmalgam. */
+  if(isAmalgamMember(target.from, target.to)) return;
   const rec = drawnRoutes.get(calloutEdgeKey(target.from, target.to));
   if(!rec || !rec.pts || rec.pts.length < 2) return;
   const bends = bendListOf(target.from, target.to);
@@ -261,6 +265,44 @@ function samePolyline(a, b, tol){
   }
   return true;
 }
+/* What this connector would be drawn as with a DIFFERENT set of bends.
+ *
+ * Asked by putting the trial list in place and routing normally, and put
+ * back before it returns. It has to be done that way round because a bend
+ * decides more than a corner: where the automatic sides would send the
+ * line away from a bend behind them, the sides follow the bend instead
+ * (see resolvePorts). A trial that kept the real list and merely left the
+ * bends out of the ROUTE would be answering about a connector that does
+ * not exist — and its answer was sometimes the bent line itself, which is
+ * the one answer that deletes a corner the moment it is placed. */
+function routeWithBends(from, to, bends){
+  const e = structEdges.find(x=> x.from === from && x.to === to);
+  const a = nodes.get(from), b = nodes.get(to);
+  if(!e || !a || !b) return null;
+  const idx = EDGE_STYLES.findIndex(st=> st.from === from && st.to === to);
+  const held = idx >= 0 ? EDGE_STYLES[idx] : null;
+  let out = null;
+  try{
+    setBendList(from, to, bends);
+    const ports = resolvePorts(structEdges);
+    /* Routed against the OTHER connectors only. The record of what has
+       been drawn still holds this connector's own route, and the router
+       steers away from overlapping what is already there — so the trial
+       dodged its own ghost and came out a different shape from the one it
+       would really take. */
+    const key = calloutEdgeKey(from, to);
+    resetRoutedSegments();
+    drawnRoutes.forEach((r, k)=>{ if(k !== key && r && r.pts) registerRoutedSegments(r.pts); });
+    out = routeEdge(a, b, edgeStyleFor(from, to), ports.get(e));
+  } finally {
+    // Exactly as it was, record and all: a round trip through setBendList
+    // would leave defaults written down that were implicit before.
+    const now = EDGE_STYLES.findIndex(st=> st.from === from && st.to === to);
+    if(held){ if(now >= 0) EDGE_STYLES[now] = held; else EDGE_STYLES.push(held); }
+    else if(now >= 0) EDGE_STYLES.splice(now, 1);
+  }
+  return out;
+}
 function pruneHandBends(pairs){
   const seen = new Set();
   const todo = (pairs || []).filter(pr=>{
@@ -271,22 +313,10 @@ function pruneHandBends(pairs){
   });
   if(!todo.length) return false;
   let changed = false;
-  const ports = resolvePorts(structEdges);
   todo.forEach(pr=>{
     const rec = drawnRoutes.get(calloutEdgeKey(pr.from, pr.to));
-    const e = structEdges.find(x=> x.from === pr.from && x.to === pr.to);
-    const a = nodes.get(pr.from), b = nodes.get(pr.to);
-    if(!rec || !e || !a || !b) return;
-    const bare = Object.assign({}, edgeStyleFor(pr.from, pr.to), {bends: undefined});
-    /* Routed against the OTHER connectors only. The record of what has
-       been drawn still holds this connector's own bent route, and the
-       router steers away from overlapping what is there — so the trial
-       dodged its own ghost and came out a different shape from the one it
-       would really take. */
-    const key = calloutEdgeKey(pr.from, pr.to);
-    resetRoutedSegments();
-    drawnRoutes.forEach((r, k)=>{ if(k !== key && r && r.pts) registerRoutedSegments(r.pts); });
-    const auto = routeEdge(a, b, bare, ports.get(e));
+    if(!rec || !rec.pts) return;
+    const auto = routeWithBends(pr.from, pr.to, []);
     if(auto && samePolyline(auto.pts, rec.pts, BEND_SAME_TOL)){
       setBendList(pr.from, pr.to, []);
       changed = true;
@@ -305,24 +335,30 @@ function pruneHandBends(pairs){
  * Dragging a hollow mark out of a run and dropping it back on that run
  * left a point the route passes STRAIGHT through: nothing drawn changed,
  * but the connector was now pinned there, stopped following its entries
- * the way an unbent one does, and carried a handle to catch on. A point is
- * kept only where the drawn route actually turns — within BEND_ABSORB of
- * it, because the route squares a small offset away (see bentRoute) and
- * the corner it turns at is then a few units from the stored point. */
+ * the way an unbent one does, and carried a handle to catch on.
+ *
+ * "Does nothing" used to be read off the drawn line — a point the route
+ * turns at is doing something, a point it runs straight through is not —
+ * and that reading is wrong wherever a bend is what chose the SIDE the
+ * connector leaves by. It is then pinning the route precisely by lying on
+ * it: take it out and the line goes somewhere else entirely, while the
+ * drawing says it was idle. So the question is asked of the route
+ * instead. A bend is idle when the connector drawn WITHOUT it is the line
+ * already on the page, and that is true of a mark dropped back on its own
+ * run whether it turns anything or not. */
 function dropIdleBends(from, to, list){
   if(!list.length) return list;
   const rec = drawnRoutes.get(calloutEdgeKey(from, to));
   const pts = rec && rec.pts;
   if(!pts || pts.length < 2) return list;
-  const turns = [];
-  for(let i = 1; i < pts.length - 1; i++){
-    const a = pts[i-1], b = pts[i], c = pts[i+1];
-    const straight = (Math.abs(a.x - b.x) < 0.5 && Math.abs(c.x - b.x) < 0.5) ||
-                     (Math.abs(a.y - b.y) < 0.5 && Math.abs(c.y - b.y) < 0.5);
-    if(!straight) turns.push(b);
+  let kept = list.slice();
+  for(let i = kept.length - 1; i >= 0; i--){
+    const trial = kept.slice();
+    trial.splice(i, 1);
+    const r = routeWithBends(from, to, trial);
+    if(r && samePolyline(r.pts, pts)) kept = trial;
   }
-  return list.filter(p=> turns.some(t=>
-    Math.abs(t.x - p[0]) <= BEND_ABSORB + 0.01 && Math.abs(t.y - p[1]) <= BEND_ABSORB + 0.01));
+  return kept;
 }
 const guideLayer = el('g', {id:'guideLayer', style:'pointer-events:none;'}, viewport);
 function clearGuides(){

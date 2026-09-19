@@ -628,9 +628,15 @@ function syncBioCardField(select){
 function syncImageFieldVisibility(select, field){
   // A portrait belongs to a character bio; a free-standing Image element
   // and a card both take their picture from the same field.
-  const wantsImage = select.value === 'ellipse' || select.value === 'image'
-    || (select === editShapeInput && typeof editCardCheck !== 'undefined' && editCardCheck.checked);
+  const isCardHere = select === editShapeInput
+    && typeof editCardCheck !== 'undefined' && editCardCheck.checked;
+  const wantsImage = select.value === 'ellipse' || select.value === 'image' || isCardHere;
   field.style.display = wantsImage ? '' : 'none';
+  /* Fitting and cropping are questions about a BAND, and only a card has
+     one — a portrait is cropped by its own round window and a
+     free-standing picture is the whole element. */
+  const opts = document.getElementById('editCardImageOpts');
+  if(opts) opts.style.display = isCardHere ? '' : 'none';
 }
 // Reached through the DOM rather than the module-level consts for these
 // two selects: the Add Node form's own bindings are declared further down

@@ -528,11 +528,11 @@ function applyRichCommand(surface, kind, arg, restyle){
   }
 }
 
-// Language-tab buttons address a list rather than one fixed field, since
-// which row they act on depends on where the cursor was last.
-const LANG_TAB_TOOLBARS = {
-  '__editLangTabs__': ()=> editLangTabList
-};
+/* There used to be a toolbar here that addressed a LIST rather than one
+   field — the language rows — and worked on whichever row had last been
+   touched. It is gone with the rows' toolbar itself: every toolbar on the
+   page now names the one surface it acts on, which is the only arrangement
+   in which a reader can tell what a button is about to change. */
 // The A button takes its colour from the hex box beside it in the same
 // toolbar, so each toolbar carries its own current colour.
 function toolbarHex(btn){
@@ -551,14 +551,6 @@ document.querySelectorAll('.mini-toolbar button').forEach(btn=>{
     if(!targetId) return;
     const kind = btn.dataset.wrap;
     const arg = kind === 'color' ? toolbarHex(btn) : undefined;
-    const listGetter = LANG_TAB_TOOLBARS[targetId];
-    if(listGetter){
-      const list = listGetter();
-      const surface = langTabActiveSurface.get(list)
-        || list.querySelector('.lang-tab-text');
-      if(surface) applyRichCommand(surface, kind, arg);
-      return;
-    }
     const rec = richFields.get(targetId);
     if(!rec) return;
     applyRichCommand(rec.surface, kind, arg);
