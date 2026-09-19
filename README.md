@@ -156,6 +156,15 @@ they had changed the chart everybody sees. Export still works in the
 published copy — read-only stops writing to *this* chart, not taking a copy
 away.
 
+The copy it hands over is an **editable** page. Read-only is true of the
+published address, where nobody but the owner may write; it is not true of a
+file on your own disk, which has no host to refuse a write and no other
+reader to mislead. The declaration is written into the file, though, so it
+used to travel with the export and freeze the copy as well — and there was
+no way back out of it, since reloading, re-exporting or importing that file
+all landed in the same place. The export now takes the declaration back off,
+and what you get is the editable build.
+
 > Pages has to be switched on once, by hand: **Settings → Pages → Source →
 > GitHub Actions**. Until then the `pages` job is the only one that fails.
 
@@ -431,7 +440,7 @@ Both cost real bugs in this codebase, and both look fine in the source:
     node tests/regression.js          # against dist/nexus.html
     node tests/regression.js src      # against the split sources
 
-The browser suite is 67 named scenarios, and they are independent of one
+The browser suite is 77 named scenarios, and they are independent of one
 another — checked rather than assumed, by running it in shards and confirming
 the shards print exactly the checks one whole run prints. So it need not be
 waited through:
@@ -449,7 +458,7 @@ gives each shard a port of its own, so nothing collides. They pick up Playwright
 browser; a machine with a pinned copy at `/opt/pw-browsers/chromium` uses that
 instead, which is what CI and the original sandbox each do.
 
-77 scenarios and 643 checks — 628 against `src`, where reading its own source
+77 scenarios and 648 checks — 628 against `src`, where reading its own source
 does not apply — driven through a real browser against the real built page. The
 two webfont hosts are answered with an empty stylesheet rather than reached, so
 every machine runs the same test and it is the one the section above promises

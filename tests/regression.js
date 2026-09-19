@@ -24,7 +24,7 @@ const { chromium } = (() => {
   console.error('Playwright is not installed. Run: npm ci  (or npm i -D playwright)');
   process.exit(2);
 })();
-const http = require('http'), fs = require('fs'), path = require('path');
+const http = require('http'), fs = require('fs'), path = require('path'), os = require('os');
 
 const ROOT = path.join(__dirname, '..');
 const MODE = process.argv[2] === 'src' ? 'src' : 'dist';
@@ -9776,7 +9776,66 @@ async function main(){
     out.stillClean = !isDirty();
     return out;
   });
+  /* And what the reader carries away is a copy of their own.
+   *
+   * The published page says it is read-only because it is published: on
+   * that address nobody but the owner can write, and it stopped pretending
+   * otherwise. A file on a reader's disk is a different thing — there is no
+   * host to refuse a publish and nobody else looking at it — but the
+   * declaration was written into the file, so it travelled with the export
+   * and froze the copy too. There was no way back out of it either: the
+   * flag was in the bytes, so re-exporting or importing the file landed in
+   * the same place.
+   *
+   * Driven through the button, with the download plumbing stubbed out
+   * rather than the export function called directly: what is checked is
+   * the path a reader actually walks. */
+  const taken = await site.evaluate(async () => {
+    const wait = (ms)=> new Promise(r=> setTimeout(r, ms));
+    const realCreate = URL.createObjectURL;
+    const realClick = HTMLAnchorElement.prototype.click;
+    let grabbed = null;
+    URL.createObjectURL = (blob)=>{ grabbed = blob; return 'blob:taken-by-the-suite'; };
+    HTMLAnchorElement.prototype.click = function(){};   // the save itself is the browser's business
+    try{
+      document.getElementById('fileExport').click();
+      for(let i = 0; i < 200 && !grabbed; i++) await wait(25);
+    }finally{
+      URL.createObjectURL = realCreate;
+      HTMLAnchorElement.prototype.click = realClick;
+    }
+    return grabbed ? await grabbed.text() : null;
+  });
   await site.close();
+
+  /* Opened the way the reader opens it — off a disk, with no server at all,
+     which is also the case where the page cannot fetch its own source. */
+  const kept = path.join(os.tmpdir(), `rhizome-taken-copy-${process.pid}.html`);
+  let r2 = null;
+  if(taken){
+    fs.writeFileSync(kept, taken, 'utf8');
+    try{
+      const opened = await ctx.newPage();
+      await opened.goto('file://' + kept, {waitUntil:'load'});
+      await opened.waitForFunction(() => typeof rebuildChart === 'function');
+      r2 = await opened.evaluate(() => {
+        const out = {
+          readOnly: readOnlyView,
+          bodySaysSo: document.body.classList.contains('read-only'),
+          drew: document.querySelectorAll('#nodeLayer .node').length,
+          saveOffered: getComputedStyle(document.getElementById('saveBtn')).display !== 'none',
+          title: document.title
+        };
+        const was = workingNodes[0][1];
+        applyEdit(() => { workingNodes[0][1] = 'ITS OWN READER WROTE THIS'; });
+        out.editTook = workingNodes[0][1] === 'ITS OWN READER WROTE THIS';
+        applyEdit(() => { workingNodes[0][1] = was; });
+        return out;
+      });
+      await opened.close();
+    }finally{ try{ fs.unlinkSync(kept); }catch(e){} }
+  }
+
   check('what Pages serves is a whole document', r.wholeDocument);
   check('and it knows it is read-only on the first frame',
         r.readOnly && r.bodySaysSo, JSON.stringify({flag: r.readOnly, body: r.bodySaysSo}));
@@ -9786,6 +9845,18 @@ async function main(){
         JSON.stringify({refused: r.editRefused, clean: r.stillClean}));
   check('but a reader may still take a copy away', r.exportOffered);
   check('and may not write one back in', r.importRefused);
+  check('the copy they take away carries no read-only declaration',
+        !!taken && !/markReadOnly\(false\);/.test(taken),
+        taken ? `${(taken.match(/markReadOnly\(false\);/g) || []).length} such calls in it`
+              : 'nothing was exported');
+  check('nor a title that says it is one',
+        !!taken && !/<title>[^<]*read-only<\/title>/i.test(taken));
+  check('and off a disk it opens as an editor, not as a reader',
+        !!r2 && !r2.readOnly && !r2.bodySaysSo && r2.saveOffered,
+        JSON.stringify(r2));
+  check('it draws the same chart there', !!r2 && r2.drew === r.drew,
+        JSON.stringify({site: r.drew, taken: r2 && r2.drew}));
+  check('and an edit made in it holds', !!r2 && r2.editTook);
   });
 
   /* ---- 33. guides, grounds, a swap and a dark page ---- */

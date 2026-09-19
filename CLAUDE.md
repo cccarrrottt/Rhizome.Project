@@ -89,7 +89,7 @@ says nothing about the other; run both.
 
 ### Running less than all of it
 
-The suite is 67 named scenarios, and they do not depend on one another —
+The suite is 77 named scenarios, and they do not depend on one another —
 which is checked rather than assumed: four shards print exactly the checks
 one whole run prints, by name, and the wrapping that introduced them added
 two lines per scenario and moved no bodies.
@@ -153,6 +153,22 @@ Read-only is a flag, not a second program: `body.read-only` hides every
 writing control and nearly every mutating function opens with a `readOnlyView`
 guard. Republish **both** together — the share copy does not follow the
 original on its own.
+
+**Read-only belongs to the published page, and Export takes it back off.**
+The declaration is written into the file, so it used to travel with the
+export: a reader who took a copy away got one frozen by a permission that
+had stopped applying the moment the file left the site — with no way back,
+since reloading, re-exporting and importing it all landed in the same
+place. On a disk there is no host to refuse a publish and no other reader
+to mislead, so `editableCopyOf` (`22-file-comments.js`) cuts the marked
+block out again and undoes the title with it; what comes out is the
+editable build, line for line. That is why the block `build.py` writes
+carries `@@SHARE:READONLY:BEGIN@@`/`:END@@` marks of its own — writing it
+without them would publish perfectly and freeze every exported copy, and
+nothing would look wrong until somebody tried to edit the file they had
+just been handed. Both halves are pinned: the marks in `build_guard`, and
+the copy itself in the suite, which exports it through the button and
+opens the result off a disk.
 
 ## What has been measured, so it need not be argued
 

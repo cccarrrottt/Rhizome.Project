@@ -438,10 +438,18 @@ def build():
     if share.count(anchor) != 1:
         sys.exit(f'build: expected exactly one {anchor} to mark where the share copy\n'
                  '       declares itself read-only; see src/app/22-file-comments.js')
+    # What it writes carries marks of its own, because Export has to be able
+    # to take it back out again. A copy saved to somebody's disk has no host
+    # to refuse a write and no other reader to mislead, so the declaration
+    # that belongs to the PUBLISHED page has no business travelling with the
+    # file — see editableCopyOf in src/app/22-file-comments.js, which is the
+    # other half of this and cuts out exactly what is written here.
     share = share.replace(anchor,
+                          '/* @@SHARE:READONLY:BEGIN@@ */\n'
                           '// SHARE COPY: published with no write capability at all, so it\n'
                           '// is a reader by construction and can say so immediately.\n'
-                          'markReadOnly(false);')
+                          'markReadOnly(false);\n'
+                          '/* @@SHARE:READONLY:END@@ */')
     (DIST / 'nexus-share.html').write_text(share, encoding='utf-8')
     print(f'  dist/nexus-share.html  {len(share):>8,} chars')
 
